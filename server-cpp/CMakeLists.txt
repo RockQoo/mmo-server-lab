@@ -30,3 +30,16 @@ add_executable(Game
     Game/main.cpp
 )
 target_link_libraries(Game PRIVATE Core)
+
+# ---- CoreTests: Core 단위 테스트 (GoogleTest, vcpkg)
+enable_testing()
+find_package(GTest CONFIG REQUIRED)
+
+add_executable(CoreTests
+    Core/Tests/BuildInfoTest.cpp
+)
+target_link_libraries(CoreTests PRIVATE Core GTest::gtest_main)
+
+# 테스트 이름을 실행 파일에서 읽어 ctest에 하나씩 등록한다.
+include(GoogleTest)
+gtest_discover_tests(CoreTests)

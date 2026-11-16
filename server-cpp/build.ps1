@@ -1,8 +1,10 @@
 ﻿# VS 개발자 환경(cl, ninja, cmake)을 켜고 프리셋으로 빌드한다.
-# 사용: powershell -File server-cpp/build.ps1 [-Config debug|release]
+# 사용: powershell -File server-cpp/build.ps1 [-Config debug|release] [-Test]
+#   -Test: 빌드 후 ctest로 단위 테스트까지 돌린다(qa.json이 쓴다).
 param(
     [ValidateSet('debug', 'release')]
-    [string]$Config = 'debug'
+    [string]$Config = 'debug',
+    [switch]$Test
 )
 $ErrorActionPreference = 'Stop'
 
@@ -21,6 +23,10 @@ try {
     cmake --preset $Config
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     cmake --build --preset $Config
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    if ($Test) {
+        ctest --preset $Config
+    }
     exit $LASTEXITCODE
 }
 finally {

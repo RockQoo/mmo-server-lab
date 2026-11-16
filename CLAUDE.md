@@ -33,6 +33,18 @@ C++ IOCP MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 �
 | `bench/` | 봇 부하 시나리오와 결과 원본(C++/C# 서버 공통) |
 | `docs/decisions/` | 결정 기록 `NNN-제목.md` |
 
+## 빌드와 테스트
+
+```powershell
+powershell -File server-cpp/build.ps1 -Config debug          # 빌드 (release도 가능)
+powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 테스트 (qa.json이 쓴다)
+```
+
+- VS 개발자 환경을 켜고 Ninja 프리셋(`server-cpp/CMakePresets.json`)으로 빌드한다. 결과는 `server-cpp/build/<config>/`.
+- 외부 라이브러리는 `server-cpp/vcpkg.json`(manifest, VS 포함 vcpkg)에 추가한다.
+- `build.ps1`은 UTF-8 **BOM**으로 저장한다(Windows PowerShell 5.1이 BOM 없는 한글을 깨뜨림).
+- Visual Studio에서는 `server-cpp/` 폴더를 열면 같은 프리셋을 쓴다.
+
 ## 진행 방식 (가장 중요)
 
 - **코드를 조금씩만 쓴다.** 한 번에 클래스나 함수 하나 정도(대략 100~150줄, 파일 1~3개). 목표는 사용자가 코드를 이해하면서 같이 설계하는 것이다.
