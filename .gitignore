@@ -1,0 +1,22 @@
+# 빌드 결과
+build/
+out/
+bin/
+obj/
+*.user
+.vs/
+vcpkg_installed/
+
+# Godot
+.godot/
+
+.DS_Store
+Thumbs.db
+
+# 로컬 전용 (상태, QA, 리뷰)
+STATUS.md
+QA-LOG.md
+PERF-LOG.md
+.qa/
+.review/
+code-review/
