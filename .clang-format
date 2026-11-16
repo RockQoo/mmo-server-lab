@@ -1,0 +1,35 @@
+# 코딩 규칙(docs/coding-style.md)을 자동으로 맞추는 설정. 2026-11-17
+# Microsoft 스타일(Allman, 공백 4칸, 120자)을 바탕으로 한다.
+BasedOnStyle: Microsoft
+Language: Cpp
+Standard: Latest
+
+# 들여쓰기와 줄 길이
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 120
+
+# 중괄호: 항상 다음 줄
+BreakBeforeBraces: Allman
+
+# namespace 안도 들여쓴다
+NamespaceIndentation: All
+
+# switch 안 case를 들여쓴다
+IndentCaseLabels: true
+
+# 포인터와 참조는 타입 쪽: int* p, const std::string& s
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+DerivePointerAlignment: false
+
+# 짧아도 한 줄로 합치지 않는다
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortCaseLabelsOnASingleLine: false
+
+# include: 빈 줄로 나눈 그룹(표준 / 외부 / 프로젝트) 안에서만 정렬
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
