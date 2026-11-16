@@ -1,0 +1,4 @@
+# VS Code clangd가 빌드 설정(compile_commands.json)을 찾는 위치.
+# server-cpp/build.ps1 -Config debug 를 한 번 돌리면 생긴다.
+CompileFlags:
+  CompilationDatabase: server-cpp/build/debug
