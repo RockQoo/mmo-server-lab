@@ -1,10 +1,10 @@
 #include <print>
 
-#include "core/BuildInfo.h"
+#include "Core/Util/BuildInfo.h"
 
 int main()
 {
     std::println("mmo-server-lab game server");
-    std::println("build: {}", core::BuildInfo());
+    std::println("build: {}", Core::BuildInfo());
     return 0;
 }

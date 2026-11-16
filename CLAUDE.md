@@ -19,11 +19,14 @@ C++ IOCP MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 �
 | 경로 | 내용 |
 |---|---|
 | `proto/` | 패킷 스키마 (공유) |
-| `server-cpp/core/` | 서버 코어, 정적 라이브러리(`include/core/`, `src/`, `tests/`). 게임을 모른다 |
-| `server-cpp/game/` | 게임 서버 실행 파일. core를 링크해서 붙인다. 의존 방향은 `game → core`만 |
-| `server-cpp/game/tests/` | game의 순수 계산 함수(이동 검증, AOI 셀, 범위 판정, 데미지, 확률)만 테스트. 계산 함수와 상태를 바꾸는 코드를 나눠 둔다. 난수는 인자로 받는다 |
-| `server-cpp/bench/` | C++ 마이크로 벤치마크 (Google Benchmark, core 링크) |
-| `server-cpp/tools/` | 봇 전에 쓰는 확인용 도구 (echo-client 등) |
+| `server-cpp/Core/` | 서버 코어, 정적 라이브러리. 분류 폴더(`Util/`, `Network/`, `Buffer/`...)에 .h와 .cpp를 같이 둔다. 게임을 모른다 |
+| `server-cpp/Core/Tests/` | Core 단위 테스트 |
+| `server-cpp/Game/` | 게임 서버 실행 파일. Core를 링크해서 붙인다. 의존 방향은 `Game → Core`만 |
+| `server-cpp/Game/Tests/` | Game의 순수 계산 함수(이동 검증, AOI 셀, 범위 판정, 데미지, 확률)만 테스트. 계산 함수와 상태를 바꾸는 코드를 나눠 둔다. 난수는 인자로 받는다 |
+| `server-cpp/Bench/` | C++ 마이크로 벤치마크 (Google Benchmark, Core 링크) |
+| `server-cpp/Tools/` | 봇 전에 쓰는 확인용 도구 (EchoClient 등) |
+
+이름, 중괄호, 폴더 규칙은 `docs/coding-style.md`. 최상위는 소문자, `server-cpp/` 안은 전부 Pascal.
 | `server-csharp/` | C# 서버 (나중에) |
 | `bot/` | BT 봇 서버 (C#) |
 | `viewer/` | Godot 뷰어 |

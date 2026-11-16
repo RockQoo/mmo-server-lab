@@ -16,14 +16,17 @@ if(MSVC)
     add_compile_options(/W4 /permissive- /utf-8 /Zc:__cplusplus)
 endif()
 
-# ---- core: 서버 코어 (정적 라이브러리, 게임을 모른다)
-add_library(core STATIC
-    core/src/util/BuildInfo.cpp
-)
-target_include_directories(core PUBLIC core/include)
+# include 기준은 server-cpp/ 폴더다. 그래서 #include "Core/Util/BuildInfo.h"처럼
+# 경로가 namespace(Core::)와 일치한다.
 
-# ---- game: 게임 서버 (core에만 의존)
-add_executable(game
-    game/src/main.cpp
+# ---- Core: 서버 코어 (정적 라이브러리, 게임을 모른다)
+add_library(Core STATIC
+    Core/Util/BuildInfo.cpp
 )
-target_link_libraries(game PRIVATE core)
+target_include_directories(Core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ---- Game: 게임 서버 (Core에만 의존)
+add_executable(Game
+    Game/main.cpp
+)
+target_link_libraries(Game PRIVATE Core)
