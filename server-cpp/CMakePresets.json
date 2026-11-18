@@ -23,6 +23,15 @@
       "name": "release",
       "inherits": "base",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "vs",
+      "displayName": "Visual Studio 2026 솔루션 (build.ps1 -Sln)",
+      "generator": "Visual Studio 18 2026",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": { "CMAKE_CONFIGURATION_TYPES": "Debug;Release" }
     }
   ],
   "buildPresets": [

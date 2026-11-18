@@ -22,6 +22,11 @@ if(MSVC)
     endif()
 endif()
 
+# VS 솔루션 탐색기에서 프로젝트를 폴더(Core, Servers, Tests)로 묶는다. Ninja 빌드에는 영향 없음.
+# CMake가 만드는 ALL_BUILD, ZERO_CHECK, RUN_TESTS는 _CMake 폴더로 몰아 둔다.
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER _CMake)
+
 enable_testing()
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
@@ -33,19 +38,27 @@ set(CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Core)
 # ======== Core 라이브러리 (정적 라이브러리, 게임을 모른다) ========
 
 # ---- Base: 직렬화(BinaryWriter, BinaryReader), 빌드 정보
+# 헤더도 적어야 VS 프로젝트에 보인다(컴파일은 .cpp만 한다).
 add_library(Base STATIC
-    Core/Base/BuildInfo.cpp
     Core/Base/BinaryReader.cpp
+    Core/Base/BinaryReader.h
+    Core/Base/BinaryTraits.h
     Core/Base/BinaryWriter.cpp
+    Core/Base/BinaryWriter.h
+    Core/Base/BuildInfo.cpp
+    Core/Base/BuildInfo.h
     Core/Base/Utf8.cpp
+    Core/Base/Utf8.h
 )
 target_include_directories(Base PUBLIC ${CORE_DIR})
+set_target_properties(Base PROPERTIES FOLDER Core)
 
 add_executable(BaseTests
     Core/Base/Tests/BuildInfoTest.cpp
     Core/Base/Tests/BinaryRWTest.cpp
 )
 target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
+set_target_properties(BaseTests PROPERTIES FOLDER Tests)
 gtest_discover_tests(BaseTests)
 
 # ======== 실행 파일 ========
@@ -55,3 +68,7 @@ add_executable(GameServer
     GameServer/main.cpp
 )
 target_link_libraries(GameServer PRIVATE Base)
+set_target_properties(GameServer PROPERTIES FOLDER Servers)
+
+# VS로 열면 GameServer가 시작 프로젝트(F5로 실행할 대상)
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT GameServer)

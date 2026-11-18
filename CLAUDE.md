@@ -43,7 +43,7 @@ powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 �
 - VS 개발자 환경을 켜고 Ninja 프리셋(`server-cpp/CMakePresets.json`)으로 빌드한다. 결과는 `server-cpp/build/<config>/`.
 - 외부 라이브러리는 `server-cpp/vcpkg.json`(manifest, VS 포함 vcpkg)에 추가한다.
 - `build.ps1`은 UTF-8 **BOM**으로 저장한다(Windows PowerShell 5.1이 BOM 없는 한글을 깨뜨림).
-- Visual Studio에서는 `server-cpp/` 폴더를 열면 같은 프리셋을 쓴다.
+- **Visual Studio**: 루트의 `OpenVS.bat`(= `build.ps1 -Sln`)이 `server-cpp/build/vs/mmo_server_lab.slnx`를 만들고 연다. 솔루션 폴더는 Core / Servers / Tests(CMake 기본 대상은 `_CMake`), 시작 프로젝트는 GameServer. 대상마다 `FOLDER` 속성을 주고 헤더도 소스 목록에 적는다. 명령줄 빌드와 QA는 Ninja 프리셋 그대로.
 
 ## 진행 방식 (가장 중요)
 
