@@ -39,7 +39,7 @@ namespace Base
             {
                 WriteBytes(&value, sizeof(T));
             }
-            else if constexpr (ByteString<T> || ByteStringView<T>)
+            else if constexpr (IsByteString<T> || IsByteStringView<T>)
             {
                 WriteString(value.data(), value.size());
             }
@@ -135,6 +135,12 @@ namespace Base
         template <typename C>
         void WriteWideString(const std::basic_string_view<C> value)
         {
+            // UTF-8은 문자 단위 하나당 1바이트 이상이므로, 단위 수가 MaxCount를 넘으면 변환해 볼 필요 없이 초과다.
+            if (!_valid || value.size() > MaxCount)
+            {
+                _valid = false;
+                return;
+            }
             auto utf8 = std::string{};
             if (!EncodeUtf8(value, utf8))
             {
@@ -161,6 +167,8 @@ namespace Base
         template <typename C>
         void WriteSequence(const C& values)
         {
+            static_assert(!IsZeroSize<std::ranges::range_value_t<C>>,
+                          "크기가 0인 원소(monostate, 빈 tuple)의 컨테이너는 지원하지 않는다");
             if (WriteCount(static_cast<std::size_t>(std::ranges::size(values))))
             {
                 for (const auto& value : values)
@@ -173,6 +181,8 @@ namespace Base
         template <typename M>
         void WriteKeyValues(const M& values)
         {
+            static_assert(!(IsZeroSize<typename M::key_type> && IsZeroSize<typename M::mapped_type>),
+                          "키와 값이 모두 크기 0인 컨테이너는 지원하지 않는다");
             if (WriteCount(values.size()))
             {
                 for (const auto& [key, value] : values)

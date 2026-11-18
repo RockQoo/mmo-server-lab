@@ -8,6 +8,7 @@
 #include <limits>
 #include <list>
 #include <map>
+#include <memory_resource>
 #include <optional>
 #include <set>
 #include <span>
@@ -537,4 +538,60 @@ TEST(BinaryRW, DeeplyNestedRoundTrip)
     ASSERT_TRUE(reader.IsValid());
     EXPECT_EQ(readBag, bag);
     EXPECT_EQ(readPlaces, places);
+}
+
+// ---- Codex 리뷰 반영
+
+// R1: 와이드 문자열 단위 수가 MaxCount를 넘으면 UTF-8로 바꾸기 전에 바로 실패한다.
+TEST(BinaryRW, TooLongWideStringFailsBeforeConvert)
+{
+    Base::BinaryWriter writer;
+    writer << std::wstring(Base::BinaryWriter::MaxCount + 1, L'a');
+
+    EXPECT_FALSE(writer.IsValid());
+    EXPECT_EQ(writer.Size(), 0u);
+}
+
+// R3: 다차원 C 배열도 읽히고, 실패하면 모든 원소가 0이 된다.
+TEST(BinaryRW, MultiDimensionalArrayRoundTrip)
+{
+    const std::int32_t grid[2][2] = {{1, 2}, {3, 4}};
+    Base::BinaryWriter writer;
+    writer << grid;
+
+    std::int32_t readGrid[2][2] = {};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readGrid;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readGrid[1][0], 3);
+
+    const auto data = writer.Data();
+    std::int32_t cutGrid[2][2] = {{9, 9}, {9, 9}};
+    Base::BinaryReader cut(data.first(data.size() - 1));
+    cut >> cutGrid;
+
+    EXPECT_FALSE(cut.IsValid());
+    EXPECT_EQ(cutGrid[0][0], 0);
+    EXPECT_EQ(cutGrid[1][1], 0);
+}
+
+// R4: 할당자가 다른 문자열(pmr)도 같은 형식으로 쓰고 읽는다.
+TEST(BinaryRW, PmrStringsRoundTrip)
+{
+    auto pool = std::pmr::monotonic_buffer_resource{};
+    const auto name = std::pmr::string{"이름", &pool};
+    const auto wide = std::pmr::wstring{L"넓은", &pool};
+
+    Base::BinaryWriter writer;
+    writer << name << wide;
+
+    auto readName = std::pmr::string{&pool};
+    auto readWide = std::pmr::wstring{&pool};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readName >> readWide;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readName, name);
+    EXPECT_EQ(readWide, wide);
 }

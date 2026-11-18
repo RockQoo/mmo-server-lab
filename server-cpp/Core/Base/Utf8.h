@@ -50,8 +50,8 @@ namespace Base
     }
 
     // UTF-8 → UTF-16(2바이트 문자) 또는 UTF-32(4바이트 문자)
-    template <typename C>
-    bool DecodeUtf8(const std::string_view in, std::basic_string<C>& out)
+    template <typename C, typename Traits, typename Alloc>
+    bool DecodeUtf8(const std::string_view in, std::basic_string<C, Traits, Alloc>& out)
     {
         static_assert(sizeof(C) == 2 || sizeof(C) == 4, "UTF-16 또는 UTF-32 문자만 지원한다");
         out.clear();

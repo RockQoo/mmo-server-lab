@@ -26,7 +26,7 @@
 //   pair, tuple                원소를 순서대로
 //   chrono duration/time_point 틱 수(rep, 표준 단위는 int64)
 //   고정 배열(array, T[N])       개수 + 원소. 읽을 때 개수가 다르면 실패
-//   컨테이너                    개수 + 원소, map 계열은 개수 + (키, 값)
+//   컨테이너                    개수 + 원소, map 계열은 개수 + (키, 값). 크기 0인 원소(monostate, 빈 tuple)는 안 됨
 //   클래스                      SERIALIZE_FIELDS에 적은 순서대로
 namespace Base
 {
@@ -41,11 +41,17 @@ namespace Base
     concept Primitive = std::is_arithmetic_v<T> || std::is_enum_v<T>;
 
     // ---- 문자열
-    // 바이트 그대로 쓰는 UTF-8 문자열
+    // 바이트 그대로 쓰는 UTF-8 문자열(string, u8string, pmr::string ... 할당자와 무관)
+    template <typename C>
+    concept ByteChar = std::is_same_v<C, char> || std::is_same_v<C, char8_t>;
     template <typename T>
-    concept ByteString = std::is_same_v<T, std::string> || std::is_same_v<T, std::u8string>;
+    inline constexpr bool IsByteString = false;
+    template <ByteChar C, typename Traits, typename Alloc>
+    inline constexpr bool IsByteString<std::basic_string<C, Traits, Alloc>> = true;
     template <typename T>
-    concept ByteStringView = std::is_same_v<T, std::string_view> || std::is_same_v<T, std::u8string_view>;
+    inline constexpr bool IsByteStringView = false;
+    template <ByteChar C, typename Traits>
+    inline constexpr bool IsByteStringView<std::basic_string_view<C, Traits>> = true;
 
     // 문자열 리터럴("abc")과 C 문자열 포인터. 쓰기만 지원한다(읽기는 std::string으로).
     template <typename T>
@@ -82,6 +88,15 @@ namespace Base
     inline constexpr bool IsTupleLike<std::pair<A, B>> = true;
     template <typename... Ts>
     inline constexpr bool IsTupleLike<std::tuple<Ts...>> = true;
+
+    // 직렬화 크기가 0인 타입: monostate, 빈 tuple, 그런 것만 담은 tuple/pair.
+    // 컨테이너 원소로는 쓸 수 없다. 읽기의 개수 검사가 "원소당 최소 1바이트"를 가정해 거짓 개수를 막기 때문이다.
+    template <typename T>
+    inline constexpr bool IsZeroSize = std::is_same_v<T, std::monostate>;
+    template <typename... Ts>
+    inline constexpr bool IsZeroSize<std::tuple<Ts...>> = (IsZeroSize<Ts> && ...);
+    template <typename A, typename B>
+    inline constexpr bool IsZeroSize<std::pair<A, B>> = IsZeroSize<A> && IsZeroSize<B>;
 
     template <typename T>
     inline constexpr bool IsDuration = false;

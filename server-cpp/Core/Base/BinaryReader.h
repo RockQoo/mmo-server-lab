@@ -50,7 +50,7 @@ namespace Base
                     value = T{};
                 }
             }
-            else if constexpr (ByteString<T>)
+            else if constexpr (IsByteString<T>)
             {
                 ReadByteString(value);
             }
@@ -58,7 +58,7 @@ namespace Base
             {
                 ReadWideString(value);
             }
-            else if constexpr (ByteStringView<T> || IsWideStringView<T> || CharArray<T> || CharPointer<T>)
+            else if constexpr (IsByteStringView<T> || IsWideStringView<T> || CharArray<T> || CharPointer<T>)
             {
                 static_assert(false, "문자열은 std::string(또는 wstring 등)으로 읽는다. view와 포인터는 받은 버퍼를 "
                                      "가리키게 되어 위험하다");
@@ -222,6 +222,8 @@ namespace Base
         template <typename A>
         void ReadFixedArray(A& values)
         {
+            static_assert(!IsZeroSize<std::ranges::range_value_t<A>>,
+                          "크기가 0인 원소(monostate, 빈 tuple)의 배열은 지원하지 않는다");
             const auto count = ReadCount();
             if (_valid && count != std::size(values))
             {
@@ -233,16 +235,32 @@ namespace Base
             }
             if (!_valid)
             {
-                for (auto& value : values)
+                ResetValue(values);
+            }
+        }
+
+        // 빈 값으로 되돌린다. C 배열은 대입이 안 되므로 원소마다 재귀로(다차원 배열 int[2][2] 포함).
+        template <typename T>
+        static void ResetValue(T& value)
+        {
+            if constexpr (std::is_bounded_array_v<T>)
+            {
+                for (auto& element : value)
                 {
-                    value = std::remove_cvref_t<decltype(value)>{};
+                    ResetValue(element);
                 }
+            }
+            else
+            {
+                value = T{};
             }
         }
 
         template <typename C>
         void ReadSequence(C& values)
         {
+            static_assert(!IsZeroSize<typename C::value_type>,
+                          "크기가 0인 원소(monostate, 빈 tuple)의 컨테이너는 지원하지 않는다");
             values.clear();
             const auto count = ReadCount();
             if constexpr (requires { values.reserve(count); })
@@ -271,6 +289,8 @@ namespace Base
         template <typename M>
         void ReadKeyValues(M& values)
         {
+            static_assert(!(IsZeroSize<typename M::key_type> && IsZeroSize<typename M::mapped_type>),
+                          "키와 값이 모두 크기 0인 컨테이너는 지원하지 않는다");
             values.clear();
             const auto count = ReadCount();
             for (auto i = std::size_t{}; i < count && _valid; ++i)
