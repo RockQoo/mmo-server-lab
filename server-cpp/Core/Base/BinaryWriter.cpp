@@ -59,12 +59,18 @@ namespace Base
 
     void BinaryWriter::WriteCString(const char* value)
     {
-        if (value == nullptr)
+        if (!_valid || value == nullptr)
         {
             _valid = false;
             return;
         }
-        const auto text = std::string_view{value};
-        WriteString(text.data(), text.size());
+        // 널 문자를 MaxCount + 1바이트까지만 찾는다. 그보다 길면 어차피 쓸 수 없으므로 끝까지 훑지 않는다.
+        // (올바른 C 문자열은 널 문자 앞에서 멈추므로 버퍼 밖을 읽지 않는다)
+        auto length = std::size_t{};
+        while (length <= MaxCount && value[length] != '\0')
+        {
+            ++length;
+        }
+        WriteString(value, length); // length > MaxCount면 WriteCount가 실패 처리
     }
 } // namespace Base

@@ -45,9 +45,18 @@ namespace Base
             }
             else if constexpr (CharArray<T>)
             {
-                // 리터럴 "abc"는 char[4]다. 끝의 '\0'(없으면 배열 끝)까지만 쓴다.
-                const auto* end = std::ranges::find(value, '\0');
-                WriteString(value, static_cast<std::size_t>(end - value));
+                // 리터럴 "abc"는 char[4]다. 끝의 널 문자(없으면 배열 끝)까지만 쓴다.
+                using Char = std::remove_cv_t<std::remove_extent_t<T>>;
+                const auto* end = std::ranges::find(value, Char{});
+                const auto text = std::basic_string_view<Char>{value, static_cast<std::size_t>(end - value)};
+                if constexpr (ByteChar<Char>)
+                {
+                    WriteString(text.data(), text.size());
+                }
+                else
+                {
+                    WriteWideString(text);
+                }
             }
             else if constexpr (CharPointer<T>)
             {

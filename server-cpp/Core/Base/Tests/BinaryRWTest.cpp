@@ -661,3 +661,35 @@ TEST(BinaryRW, BinaryBlobUsesByteVector)
     ASSERT_TRUE(reader.IsValid());
     EXPECT_EQ(readBlob, blob);
 }
+
+// ---- Codex 리뷰 2차 반영
+
+// R2: u8/L/u/U 리터럴도 문자열로 쓴다(고정 배열로 쓰면 널 문자와 원시 코드 단위가 들어가 다음 필드가 어긋난다).
+TEST(BinaryRW, UnicodeLiteralsWriteAsStrings)
+{
+    Base::BinaryWriter fromLiterals;
+    fromLiterals << u8"가" << L"가" << u"가" << U"가" << std::int8_t{7};
+
+    Base::BinaryWriter fromStrings;
+    fromStrings << std::string{"가"} << std::string{"가"} << std::string{"가"} << std::string{"가"} << std::int8_t{7};
+
+    ASSERT_TRUE(fromLiterals.IsValid());
+    EXPECT_TRUE(std::ranges::equal(fromLiterals.Data(), fromStrings.Data()));
+}
+
+// R1: C 문자열은 MaxCount까지는 쓰고, 넘으면 실패한다(끝까지 훑지 않는다).
+TEST(BinaryRW, CStringLengthLimit)
+{
+    const auto exact = std::string(Base::BinaryWriter::MaxCount, 'a');
+    const auto tooLong = std::string(Base::BinaryWriter::MaxCount + 1, 'a');
+
+    Base::BinaryWriter ok;
+    ok << exact.c_str();
+    EXPECT_TRUE(ok.IsValid());
+    EXPECT_EQ(ok.Size(), 2u + Base::BinaryWriter::MaxCount);
+
+    Base::BinaryWriter fail;
+    fail << tooLong.c_str();
+    EXPECT_FALSE(fail.IsValid());
+    EXPECT_EQ(fail.Size(), 0u);
+}

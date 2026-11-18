@@ -54,15 +54,19 @@ namespace Base
     template <ByteChar C, typename Traits>
     inline constexpr bool IsByteStringView<std::basic_string_view<C, Traits>> = true;
 
-    // 문자열 리터럴("abc")과 C 문자열 포인터. 쓰기만 지원한다(읽기는 std::string으로).
-    template <typename T>
-    concept CharArray = std::is_bounded_array_v<T> && std::is_same_v<std::remove_cv_t<std::remove_extent_t<T>>, char>;
+    // C 문자열 포인터. 쓰기만 지원한다(읽기는 std::string으로).
     template <typename T>
     concept CharPointer = std::is_same_v<T, const char*> || std::is_same_v<T, char*>;
 
     // UTF-8로 바꿔 쓰는 와이드 문자열
     template <typename C>
     concept WideChar = std::is_same_v<C, wchar_t> || std::is_same_v<C, char16_t> || std::is_same_v<C, char32_t>;
+
+    // 문자 배열 = 문자열 리터럴("abc", u8"abc", L"abc", u"abc", U"abc")과 고정 문자 버퍼.
+    // 고정 배열이 아니라 문자열로 쓴다(널 문자 앞까지). 쓰기만 지원한다(읽기는 std::string 등으로).
+    template <typename T>
+    concept CharArray = std::is_bounded_array_v<T> && (ByteChar<std::remove_cv_t<std::remove_extent_t<T>>> ||
+                                                       WideChar<std::remove_cv_t<std::remove_extent_t<T>>>);
     template <typename T>
     inline constexpr bool IsWideString = false;
     template <WideChar C, typename Traits, typename Alloc>
