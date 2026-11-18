@@ -117,7 +117,8 @@ namespace Base
                 auto key = typename M::key_type{};
                 auto value = typename M::mapped_type{};
                 *this >> key >> value;
-                values.insert_or_assign(std::move(key), std::move(value));
+                values.emplace(std::move(key),
+                               std::move(value)); // multimap도 되도록 emplace(중복 키: map은 먼저 온 값 유지)
             }
             if (!_valid)
             {

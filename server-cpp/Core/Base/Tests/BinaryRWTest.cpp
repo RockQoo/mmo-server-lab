@@ -245,3 +245,19 @@ TEST(BinaryRW, ClearKeepsCapacityForReuse)
     EXPECT_EQ(writer.Size(), 0u);
     EXPECT_TRUE(writer.IsValid());
 }
+
+// 중복 키 컨테이너(multimap)도 왕복된다. (Codex 리뷰 R1)
+TEST(BinaryRW, MultimapRoundTrip)
+{
+    const auto drops = std::multimap<std::int32_t, std::string>{{1, "검"}, {1, "방패"}, {2, "활"}};
+
+    Base::BinaryWriter writer;
+    writer << drops;
+
+    auto readDrops = std::multimap<std::int32_t, std::string>{};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readDrops;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readDrops, drops);
+}
