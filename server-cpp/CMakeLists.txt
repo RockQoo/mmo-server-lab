@@ -40,6 +40,8 @@ set(CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Core)
 # ---- Base: 직렬화(BinaryWriter, BinaryReader), 빌드 정보
 # 헤더도 적어야 VS 프로젝트에 보인다(컴파일은 .cpp만 한다).
 add_library(Base STATIC
+    Core/Base/Assert.cpp
+    Core/Base/Assert.h
     Core/Base/BinaryReader.cpp
     Core/Base/BinaryReader.h
     Core/Base/BinaryTraits.h
@@ -54,12 +56,15 @@ target_include_directories(Base PUBLIC ${CORE_DIR})
 set_target_properties(Base PROPERTIES FOLDER Core)
 
 add_executable(BaseTests
+    Core/Base/Tests/AssertTest.cpp
     Core/Base/Tests/BuildInfoTest.cpp
     Core/Base/Tests/BinaryRWTest.cpp
 )
 target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
 set_target_properties(BaseTests PROPERTIES FOLDER Tests)
-gtest_discover_tests(BaseTests)
+# 예외 잡기를 끈다: 크래시를 gtest가 삼키지 않고 실제 종료 코드로 남긴다(ASSERT 예외 코드 확인).
+# ctest는 테스트마다 프로세스를 따로 띄우므로 하나가 죽어도 나머지는 돈다.
+gtest_discover_tests(BaseTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
 # ======== 실행 파일 ========
 

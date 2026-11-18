@@ -9,6 +9,7 @@
 - 메시지는 **id로 보내면 항상 같은 스레드**에서 처리된다(순서·정합성 보장, asio strand와 목적이 같음)
 - 직렬화는 클래스마다 직접 적되 매크로로 선언한다. 나중에 데이터·패킷 클래스는 CodeGen으로 자동 생성
 - **서버는 안전이 먼저다.** 검사(개수 확인, 실패 표시)는 기본으로 넣고, 성능 문제는 벤치마크로 드러나면 그때 고친다
+- ASSERT는 Debug·Release 모두 검사한다(실패: 기록 → 디버거면 멈춤 → RaiseException 크래시). 비싼 검사만 DEBUG_ASSERT(Release에서 사라짐)
 - BinaryWriter/BinaryReader는 바이너리로 만들 수 있는 타입을 전부 지원한다. 쓰기(vector 소유)와 읽기(span, 복사 없음)를 나눈다. 판별은 `if constexpr` 한 곳에서 위에서부터, 지원하지 않는 타입은 `static_assert`로 막는다. 고정 크기 배열도 개수를 쓴다(안전), wstring은 UTF-8로 바꿔 쓴다, string을 읽을 때 UTF-8을 검사한다(바이너리는 vector<std::byte>)
 
 상태: ⬜ 예정 · 🔨 진행 중 · ✅ 완료(push됨)
