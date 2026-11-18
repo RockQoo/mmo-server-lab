@@ -37,6 +37,7 @@ add_library(Base STATIC
     Core/Base/BuildInfo.cpp
     Core/Base/BinaryReader.cpp
     Core/Base/BinaryWriter.cpp
+    Core/Base/Utf8.cpp
 )
 target_include_directories(Base PUBLIC ${CORE_DIR})
 

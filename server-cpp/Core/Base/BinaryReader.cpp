@@ -46,15 +46,4 @@ namespace Base
         }
         return count;
     }
-
-    void BinaryReader::ReadString(std::string& value)
-    {
-        value.clear();
-        const auto length = ReadCount(); // 남은 바이트 이하가 보장된다
-        value.resize(length);
-        if (!ReadBytes(value.data(), length))
-        {
-            value.clear();
-        }
-    }
 } // namespace Base

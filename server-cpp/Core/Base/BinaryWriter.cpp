@@ -49,11 +49,22 @@ namespace Base
         return _valid;
     }
 
-    void BinaryWriter::WriteString(const std::string& value)
+    void BinaryWriter::WriteString(const void* data, const std::size_t size)
     {
-        if (WriteCount(value.size()))
+        if (WriteCount(size))
         {
-            WriteBytes(value.data(), value.size());
+            WriteBytes(data, size);
         }
+    }
+
+    void BinaryWriter::WriteCString(const char* value)
+    {
+        if (value == nullptr)
+        {
+            _valid = false;
+            return;
+        }
+        const auto text = std::string_view{value};
+        WriteString(text.data(), text.size());
     }
 } // namespace Base

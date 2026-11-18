@@ -1,12 +1,15 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "Base/BinaryTraits.h"
+#include "Base/Utf8.h"
 
 namespace Base
 {
@@ -16,8 +19,9 @@ namespace Base
     template <typename T>
     concept BinaryWritable = requires(const T& object, BinaryWriter& writer) { object.Write(writer); };
 
-    // 값을 바이트로 쓴다(<<). 데이터는 자기 vector에 담는다(소유).
-    // 실패하면(길이·개수 초과) 실패 표시를 남기고 이후 쓰기는 모두 무시한다. 보내기 전에 IsValid()로 확인한다.
+    // 값을 바이트로 쓴다(<<). 데이터는 자기 vector에 담는다(소유). 형식은 BinaryTraits.h 맨 위.
+    // 실패하면(길이·개수 초과, 잘못된 UTF-16/32, null 문자열 포인터) 실패 표시를 남기고 이후 쓰기는 모두 무시한다.
+    // 보내기 전에 IsValid()로 확인한다.
     class BinaryWriter
     {
     public:
@@ -35,11 +39,57 @@ namespace Base
             {
                 WriteBytes(&value, sizeof(T));
             }
-            else if constexpr (std::is_same_v<T, std::string>)
+            else if constexpr (ByteString<T> || ByteStringView<T>)
             {
-                WriteString(value);
+                WriteString(value.data(), value.size());
             }
-            else if constexpr (IsVector<T>)
+            else if constexpr (CharArray<T>)
+            {
+                // 리터럴 "abc"는 char[4]다. 끝의 '\0'(없으면 배열 끝)까지만 쓴다.
+                const auto* end = std::ranges::find(value, '\0');
+                WriteString(value, static_cast<std::size_t>(end - value));
+            }
+            else if constexpr (CharPointer<T>)
+            {
+                WriteCString(value);
+            }
+            else if constexpr (IsWideString<T> || IsWideStringView<T>)
+            {
+                WriteWideString(std::basic_string_view<typename T::value_type>{value});
+            }
+            else if constexpr (IsOptional<T>)
+            {
+                *this << value.has_value();
+                if (value.has_value())
+                {
+                    *this << *value;
+                }
+            }
+            else if constexpr (IsVariant<T>)
+            {
+                WriteVariant(value);
+            }
+            else if constexpr (std::is_same_v<T, std::monostate>)
+            {
+                // variant의 "빈 값". 쓸 내용이 없다.
+            }
+            else if constexpr (IsTupleLike<T>)
+            {
+                std::apply([this](const auto&... elements) { WriteFields(elements...); }, value);
+            }
+            else if constexpr (IsDuration<T>)
+            {
+                *this << value.count();
+            }
+            else if constexpr (IsTimePoint<T>)
+            {
+                *this << value.time_since_epoch().count();
+            }
+            else if constexpr (BinaryWritable<T>)
+            {
+                value.Write(*this);
+            }
+            else if constexpr (FixedArray<T>)
             {
                 WriteSequence(value);
             }
@@ -47,13 +97,13 @@ namespace Base
             {
                 WriteKeyValues(value);
             }
-            else if constexpr (BinaryWritable<T>)
+            else if constexpr (WritableSequence<T>)
             {
-                value.Write(*this);
+                WriteSequence(value);
             }
             else
             {
-                static_assert(false, "BinaryWriter가 지원하지 않는 타입이다");
+                static_assert(false, "BinaryWriter가 지원하지 않는 타입이다(포인터, 스마트 포인터, 함수 등)");
             }
             return *this;
         }
@@ -77,12 +127,41 @@ namespace Base
         void WriteBytes(const void* src, const std::size_t size);
         // 길이·개수를 uint16으로 쓴다. MaxCount를 넘으면 실패 표시 후 false.
         bool WriteCount(const std::size_t count);
-        void WriteString(const std::string& value);
+        // 길이 + 바이트. data는 UTF-8 문자열(char 또는 char8_t).
+        void WriteString(const void* data, const std::size_t size);
+        // null이면 실패
+        void WriteCString(const char* value);
+
+        template <typename C>
+        void WriteWideString(const std::basic_string_view<C> value)
+        {
+            auto utf8 = std::string{};
+            if (!EncodeUtf8(value, utf8))
+            {
+                _valid = false;
+                return;
+            }
+            WriteString(utf8.data(), utf8.size());
+        }
+
+        template <typename V>
+        void WriteVariant(const V& value)
+        {
+            static_assert(std::variant_size_v<V> <= std::numeric_limits<std::uint8_t>::max(),
+                          "variant 대안은 255개까지(인덱스를 uint8로 쓴다)");
+            if (value.valueless_by_exception())
+            {
+                _valid = false;
+                return;
+            }
+            *this << static_cast<std::uint8_t>(value.index());
+            std::visit([this](const auto& alternative) { *this << alternative; }, value);
+        }
 
         template <typename C>
         void WriteSequence(const C& values)
         {
-            if (WriteCount(values.size()))
+            if (WriteCount(static_cast<std::size_t>(std::ranges::size(values))))
             {
                 for (const auto& value : values)
                 {

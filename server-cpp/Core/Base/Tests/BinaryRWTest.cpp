@@ -1,10 +1,21 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstdint>
+#include <deque>
 #include <limits>
+#include <list>
 #include <map>
+#include <optional>
+#include <set>
+#include <span>
 #include <string>
+#include <tuple>
 #include <unordered_map>
+#include <unordered_set>
+#include <variant>
 #include <vector>
 
 #include "Base/BinaryReader.h"
@@ -260,4 +271,270 @@ TEST(BinaryRW, MultimapRoundTrip)
 
     ASSERT_TRUE(reader.IsValid());
     EXPECT_EQ(readDrops, drops);
+}
+
+// ---- ② 문자열 종류, 컨테이너 일반화, 고정 배열, pair/tuple
+
+// 리터럴, C 문자열, string_view, u8string은 모두 같은 형식(길이 + UTF-8)이라 std::string으로 읽힌다.
+TEST(BinaryRW, StringKindsWriteSameFormat)
+{
+    const char buffer[8] = "ab"; // 고정 버퍼: 널 문자 앞까지만
+    const char* pointer = "cd";
+
+    Base::BinaryWriter writer;
+    writer << "리터럴" << pointer << std::string_view{"view"} << std::u8string{u8"유니"} << buffer;
+
+    auto literal = std::string{};
+    auto fromPointer = std::string{};
+    auto fromView = std::string{};
+    auto fromU8 = std::u8string{};
+    auto fromBuffer = std::string{};
+    Base::BinaryReader reader(writer.Data());
+    reader >> literal >> fromPointer >> fromView >> fromU8 >> fromBuffer;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(literal, "리터럴");
+    EXPECT_EQ(fromPointer, "cd");
+    EXPECT_EQ(fromView, "view");
+    EXPECT_TRUE(fromU8 == u8"유니"); // vcpkg gtest(C++17 빌드)에 u8string 출력 함수가 없어 EXPECT_EQ 대신
+    EXPECT_EQ(fromBuffer, "ab");
+    EXPECT_EQ(reader.ReadPos(), reader.Size());
+}
+
+TEST(BinaryRW, NullCStringFailsWrite)
+{
+    const char* nothing = nullptr;
+    Base::BinaryWriter writer;
+    writer << nothing;
+
+    EXPECT_FALSE(writer.IsValid());
+}
+
+// wstring, u16string, u32string은 UTF-8로 바꿔 쓴다. 그래서 바이트가 같은 내용의 std::string과 똑같다.
+// 😀(U+1F600)는 UTF-16에서 서로게이트 쌍, UTF-8에서 4바이트.
+TEST(BinaryRW, WideStringsAreWrittenAsUtf8)
+{
+    Base::BinaryWriter utf8Writer;
+    utf8Writer << std::string{"안녕😀"};
+
+    Base::BinaryWriter wideWriter;
+    wideWriter << std::wstring{L"안녕😀"} << std::u16string{u"안녕😀"} << std::u32string{U"안녕😀"};
+
+    const auto one = utf8Writer.Data();
+    const auto all = wideWriter.Data();
+    ASSERT_EQ(all.size(), one.size() * 3);
+    for (auto i = std::size_t{}; i < 3; ++i)
+    {
+        EXPECT_TRUE(std::ranges::equal(all.subspan(i * one.size(), one.size()), one));
+    }
+
+    auto wide = std::wstring{};
+    auto utf16 = std::u16string{};
+    auto utf32 = std::u32string{};
+    Base::BinaryReader reader(all);
+    reader >> wide >> utf16 >> utf32;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(wide, L"안녕😀");
+    EXPECT_EQ(utf16, u"안녕😀");
+    EXPECT_EQ(utf32, U"안녕😀");
+}
+
+// 짝이 없는 서로게이트는 UTF-8로 바꿀 수 없으므로 쓰기 실패.
+TEST(BinaryRW, BrokenUtf16FailsWrite)
+{
+    const auto lonelyHigh = std::u16string{u'A', static_cast<char16_t>(0xD83D)};
+    Base::BinaryWriter writer;
+    writer << lonelyHigh;
+
+    EXPECT_FALSE(writer.IsValid());
+}
+
+// 잘못된 UTF-8(overlong: 슬래시를 2바이트 C0 AF로 쓴 것)은 wstring으로 읽을 때 실패.
+TEST(BinaryRW, BrokenUtf8FailsWideRead)
+{
+    const std::byte received[] = {std::byte{2}, std::byte{0}, std::byte{0xC0}, std::byte{0xAF}};
+    Base::BinaryReader reader(received);
+
+    auto value = std::wstring{L"x"};
+    reader >> value;
+
+    EXPECT_FALSE(reader.IsValid());
+    EXPECT_TRUE(value.empty());
+}
+
+// 크기를 아는 range는 모두 같은 형식(개수 + 원소)이라 서로 바꿔 읽을 수 있다.
+TEST(BinaryRW, SequenceContainersRoundTrip)
+{
+    const auto list = std::list<std::int32_t>{3, 1, 2};
+    const auto deque = std::deque<std::string>{"a", "b"};
+    const auto set = std::set<std::int32_t>{5, 1, 3};
+    const auto multiset = std::multiset<std::int32_t>{1, 1, 2};
+    const auto unorderedSet = std::unordered_set<std::string>{"x", "y"};
+    const auto flags = std::vector<bool>{true, false, true};
+    const std::int32_t raw[] = {7, 8, 9};
+
+    Base::BinaryWriter writer;
+    writer << list << deque << set << multiset << unorderedSet << flags << std::span{raw};
+
+    auto readList = std::list<std::int32_t>{};
+    auto readDeque = std::deque<std::string>{};
+    auto readSet = std::set<std::int32_t>{};
+    auto readMultiset = std::multiset<std::int32_t>{};
+    auto readUnorderedSet = std::unordered_set<std::string>{};
+    auto readFlags = std::vector<bool>{};
+    auto fromSpan = std::vector<std::int32_t>{}; // span으로 쓴 것을 vector로 읽는다
+    Base::BinaryReader reader(writer.Data());
+    reader >> readList >> readDeque >> readSet >> readMultiset >> readUnorderedSet >> readFlags >> fromSpan;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readList, list);
+    EXPECT_EQ(readDeque, deque);
+    EXPECT_EQ(readSet, set);
+    EXPECT_EQ(readMultiset, multiset);
+    EXPECT_EQ(readUnorderedSet, unorderedSet);
+    EXPECT_EQ(readFlags, flags);
+    EXPECT_EQ(fromSpan, (std::vector<std::int32_t>{7, 8, 9}));
+}
+
+// 고정 배열도 개수를 쓰고(안전), 읽을 때 크기가 다르면 실패한다.
+TEST(BinaryRW, FixedArraysRoundTripAndCheckCount)
+{
+    const auto stats = std::array<std::int16_t, 3>{10, 20, 30};
+    const std::uint8_t slots[2] = {4, 5};
+
+    Base::BinaryWriter writer;
+    writer << stats << slots;
+
+    auto readStats = std::array<std::int16_t, 3>{};
+    std::uint8_t readSlots[2] = {};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readStats >> readSlots;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readStats, stats);
+    EXPECT_EQ(readSlots[0], 4);
+    EXPECT_EQ(readSlots[1], 5);
+
+    auto wrongSize = std::array<std::int16_t, 4>{1, 1, 1, 1};
+    Base::BinaryReader mismatch(writer.Data());
+    mismatch >> wrongSize;
+
+    EXPECT_FALSE(mismatch.IsValid());
+    EXPECT_EQ(wrongSize, (std::array<std::int16_t, 4>{}));
+}
+
+TEST(BinaryRW, PairAndTupleRoundTrip)
+{
+    const auto position = std::pair<float, float>{1.5f, -2.0f};
+    const auto record = std::tuple<std::int32_t, std::string, bool>{7, "기록", true};
+
+    Base::BinaryWriter writer;
+    writer << position << record;
+
+    auto readPosition = std::pair<float, float>{};
+    auto readRecord = std::tuple<std::int32_t, std::string, bool>{};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readPosition >> readRecord;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readPosition, position);
+    EXPECT_EQ(readRecord, record);
+}
+
+// ---- ③ optional, variant, chrono
+
+TEST(BinaryRW, OptionalRoundTrip)
+{
+    const auto some = std::optional<std::string>{"있음"};
+    const auto none = std::optional<std::int32_t>{};
+
+    Base::BinaryWriter writer;
+    writer << some << none;
+
+    auto readSome = std::optional<std::string>{};
+    auto readNone = std::optional<std::int32_t>{99};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readSome >> readNone;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readSome, some);
+    EXPECT_FALSE(readNone.has_value());
+    EXPECT_EQ(writer.Size(), (1u + 2u + 6u) + 1u); // 있음: bool + 길이 + "있음"(6바이트), 없음: bool만
+}
+
+TEST(BinaryRW, VariantRoundTrip)
+{
+    using Reward = std::variant<std::monostate, std::int32_t, std::string>;
+    const auto values = std::vector<Reward>{Reward{}, Reward{100}, Reward{"전설 검"}};
+
+    Base::BinaryWriter writer;
+    writer << values;
+
+    auto readValues = std::vector<Reward>{};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readValues;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readValues, values);
+}
+
+// 없는 대안 번호가 오면 실패한다.
+TEST(BinaryRW, VariantBadIndexFails)
+{
+    const std::byte received[] = {std::byte{5}, std::byte{0}, std::byte{0}, std::byte{0}, std::byte{0}};
+    Base::BinaryReader reader(received);
+
+    auto value = std::variant<std::int32_t, float>{3};
+    reader >> value;
+
+    EXPECT_FALSE(reader.IsValid());
+    EXPECT_EQ(value.index(), 0u);
+    EXPECT_EQ(std::get<0>(value), 0);
+}
+
+TEST(BinaryRW, ChronoRoundTrip)
+{
+    using namespace std::chrono_literals;
+    const auto cooldown = std::chrono::milliseconds{1500ms};
+    const auto loginTime = std::chrono::system_clock::time_point{std::chrono::seconds{1'700'000'000}};
+
+    Base::BinaryWriter writer;
+    writer << cooldown << loginTime;
+
+    auto readCooldown = std::chrono::milliseconds{};
+    auto readLoginTime = std::chrono::system_clock::time_point{};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readCooldown >> readLoginTime;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readCooldown, cooldown);
+    EXPECT_EQ(readLoginTime, loginTime);
+    EXPECT_EQ(writer.Size(), 8u + 8u); // 둘 다 int64 틱 수
+}
+
+// 지원 타입을 깊게 섞어도 왕복된다.
+TEST(BinaryRW, DeeplyNestedRoundTrip)
+{
+    using Bag = std::map<std::string, std::vector<std::optional<Item>>>;
+    using Places = std::unordered_map<std::int32_t, std::tuple<std::wstring, std::array<float, 2>>>;
+    const auto bag = Bag{
+        {"무기", {Item{1, "검"}, std::nullopt, Item{2, "활"}}},
+        {"빈칸", {}},
+    };
+    const auto places = Places{
+        {1, {L"마을", {0.f, 1.f}}},
+    };
+
+    Base::BinaryWriter writer;
+    writer << bag << places;
+
+    auto readBag = Bag{};
+    auto readPlaces = Places{};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readBag >> readPlaces;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readBag, bag);
+    EXPECT_EQ(readPlaces, places);
 }
