@@ -10,20 +10,20 @@ C++ IOCP 기반 MMORPG 서버를 기능 하나씩 만들면서, **설계 결정�
 
 | 경로 | 내용 |
 |---|---|
-| `server-cpp/core/` | 서버 코어 (IOCP 네트워크, 버퍼, 잡 큐, 타이머, DB) |
-| `server-cpp/game/` | 게임 서버 (이동·전투 동기화, AOI 브로드캐스팅, 콘텐츠) |
-| `server-cpp/bench/` | 마이크로 벤치마크 |
+| `server-cpp/Core/` | 서버 코어. 기술마다 정적 라이브러리 하나(`Base`, `Messaging`, `Network`, `DB` ...), 각자 gtest |
+| `server-cpp/GameServer/` | 게임 서버 (이동·전투 동기화, AOI 브로드캐스팅, 콘텐츠) |
+| `server-cpp/BotServer/` | Behavior Tree 봇 서버 (C++), 부하 테스트와 사람 같은 플레이 |
+| `server-cpp/Bench/` | 마이크로 벤치마크 |
 | `server-csharp/` | C# 서버 (예정) |
 | `proto/` | 패킷 스키마 (C++/C# 공유) |
-| `bot/` | Behavior Tree 봇 (C#), 부하 테스트와 사람 같은 플레이 |
 | `viewer/` | Godot 3D 뷰어, 이동·액션 동기화 확인용 |
 | `bench/` | 봇 부하 시나리오와 결과 |
 | `docs/decisions/` | 설계 결정 기록 |
 
 ## 기술
 
-C++20 · Windows IOCP · CMake + vcpkg · MSSQL (ODBC) · C# · Godot .NET
+C++23 · Windows IOCP · CMake + vcpkg · GoogleTest · MSSQL (ODBC) · C# · Godot .NET
 
 ## 진행 상황
 
-진행 중입니다. 0단계(골격)부터 단계별로 만들고 있습니다.
+진행 중입니다. Core 라이브러리를 하나씩 만들고 있습니다. 목록과 상태는 [PROGRESS.md](PROGRESS.md)에 있습니다.

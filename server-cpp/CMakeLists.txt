@@ -27,21 +27,22 @@ find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
 # Core/ 아래 라이브러리는 Core/를 include 기준으로 쓴다.
-# 그래서 #include "Base/Stream.h"처럼 경로가 namespace(Base::)와 일치한다.
+# 그래서 #include "Base/BinaryWriter.h"처럼 경로가 namespace(Base::)와 일치한다.
 set(CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Core)
 
 # ======== Core 라이브러리 (정적 라이브러리, 게임을 모른다) ========
 
-# ---- Base: 직렬화(Stream), 빌드 정보
+# ---- Base: 직렬화(BinaryWriter, BinaryReader), 빌드 정보
 add_library(Base STATIC
     Core/Base/BuildInfo.cpp
-    Core/Base/Stream.cpp
+    Core/Base/BinaryReader.cpp
+    Core/Base/BinaryWriter.cpp
 )
 target_include_directories(Base PUBLIC ${CORE_DIR})
 
 add_executable(BaseTests
     Core/Base/Tests/BuildInfoTest.cpp
-    Core/Base/Tests/StreamTest.cpp
+    Core/Base/Tests/BinaryRWTest.cpp
 )
 target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
 gtest_discover_tests(BaseTests)

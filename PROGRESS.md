@@ -8,6 +8,8 @@
 - Processor 안에서 같은 데이터를 나눠 처리하는 기능 클래스는 **System**: `MoveSystem`, `CombatSystem`, `AISystem`
 - 메시지는 **id로 보내면 항상 같은 스레드**에서 처리된다(순서·정합성 보장, asio strand와 목적이 같음)
 - 직렬화는 클래스마다 직접 적되 매크로로 선언한다. 나중에 데이터·패킷 클래스는 CodeGen으로 자동 생성
+- **서버는 안전이 먼저다.** 검사(개수 확인, 실패 표시)는 기본으로 넣고, 성능 문제는 벤치마크로 드러나면 그때 고친다
+- BinaryWriter/BinaryReader는 바이너리로 만들 수 있는 타입을 전부 지원한다. 쓰기(vector 소유)와 읽기(span, 복사 없음)를 나눈다. 판별은 `if constexpr` 한 곳에서 위에서부터, 지원하지 않는 타입은 `static_assert`로 막는다. 고정 크기 배열도 개수를 쓴다(안전), wstring은 UTF-8로 바꿔 쓴다
 
 상태: ⬜ 예정 · 🔨 진행 중 · ✅ 완료(push됨)
 
@@ -17,7 +19,7 @@
 
 | # | 라이브러리 | namespace | 내용 | 검증할 것 | 상태 |
 |---|---|---|---|---|---|
-| 1 | **Base** | `Base` | `Stream`(직렬화/역직렬화), 기본 타입, Assert, BuildInfo | 기본 자료형, enum, string, class, STL 컨테이너 왕복 | ⬜ |
+| 1 | **Base** | `Base` | `BinaryWriter`/`BinaryReader`(직렬화/역직렬화), 기본 타입, Assert, BuildInfo | 기본 자료형, enum, string, class, STL 컨테이너 왕복 | 🔨 |
 | 2 | **Messaging** | `Messaging` | 메시지 큐, 생산자-소비자 N:M, 스레드 어피니티, 내부 통신 | 생산자·소비자 수 조합, 순서 보장, 어피니티 | ⬜ |
 | 3 | Thread | `Thread` | 스레드 생성·이름·코어 고정, Lock | lock 종류별 경합 | ⬜ |
 | 4 | Memory | `Memory` | ObjectPool, 참조 카운트 | new/delete vs 풀 | ⬜ |
