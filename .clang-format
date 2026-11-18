@@ -18,6 +18,12 @@ NamespaceIndentation: All
 # switch 안 case를 들여쓴다
 IndentCaseLabels: true
 
+# public:, private:은 class와 같은 열에 둔다
+AccessModifierOffset: -4
+
+# template <...>는 항상 따로 한 줄
+BreakTemplateDeclarations: Yes
+
 # 포인터와 참조는 타입 쪽: int* p, const std::string& s
 PointerAlignment: Left
 ReferenceAlignment: Pointer
