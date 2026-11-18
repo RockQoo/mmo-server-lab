@@ -9,7 +9,7 @@
 - 메시지는 **id로 보내면 항상 같은 스레드**에서 처리된다(순서·정합성 보장, asio strand와 목적이 같음)
 - 직렬화는 클래스마다 직접 적되 매크로로 선언한다. 나중에 데이터·패킷 클래스는 CodeGen으로 자동 생성
 - **서버는 안전이 먼저다.** 검사(개수 확인, 실패 표시)는 기본으로 넣고, 성능 문제는 벤치마크로 드러나면 그때 고친다
-- BinaryWriter/BinaryReader는 바이너리로 만들 수 있는 타입을 전부 지원한다. 쓰기(vector 소유)와 읽기(span, 복사 없음)를 나눈다. 판별은 `if constexpr` 한 곳에서 위에서부터, 지원하지 않는 타입은 `static_assert`로 막는다. 고정 크기 배열도 개수를 쓴다(안전), wstring은 UTF-8로 바꿔 쓴다
+- BinaryWriter/BinaryReader는 바이너리로 만들 수 있는 타입을 전부 지원한다. 쓰기(vector 소유)와 읽기(span, 복사 없음)를 나눈다. 판별은 `if constexpr` 한 곳에서 위에서부터, 지원하지 않는 타입은 `static_assert`로 막는다. 고정 크기 배열도 개수를 쓴다(안전), wstring은 UTF-8로 바꿔 쓴다, string을 읽을 때 UTF-8을 검사한다(바이너리는 vector<std::byte>)
 
 상태: ⬜ 예정 · 🔨 진행 중 · ✅ 완료(push됨)
 
@@ -31,7 +31,7 @@
 | - | CrashDump | (Base에 포함?) | 크래시 때 미니덤프 저장 | 일부러 크래시 내서 덤프 확인 | ⬜ |
 | - | Config | (Base에 포함?) | 설정 파일 읽기 (레인 수, 포트) | 재빌드 없이 벤치마크 조건 변경 | ⬜ |
 
-나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector.
+나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector, UTF-8 검사(단순 구현 vs simdutf vs 끔. 즉석 측정 2026-11-19: 한글 1KB 채팅 읽기의 약 65%가 검사, 이름은 약 15~20%).
 
 ## 그 다음 (Core를 쓰는 쪽)
 

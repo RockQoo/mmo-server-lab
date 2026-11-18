@@ -595,3 +595,69 @@ TEST(BinaryRW, PmrStringsRoundTrip)
     EXPECT_EQ(readName, name);
     EXPECT_EQ(readWide, wide);
 }
+
+// ---- std::string 읽기의 UTF-8 검사
+
+namespace
+{
+    // 길이(uint16) + 바이트로 된 패킷 하나를 만든다.
+    std::vector<std::byte> MakeStringPacket(const std::vector<std::uint8_t>& bytes)
+    {
+        auto packet = std::vector<std::byte>{std::byte{static_cast<std::uint8_t>(bytes.size())}, std::byte{0}};
+        for (const auto b : bytes)
+        {
+            packet.push_back(std::byte{b});
+        }
+        return packet;
+    }
+} // namespace
+
+// 잘못된 UTF-8은 std::string으로 읽을 때 실패한다.
+TEST(BinaryRW, BrokenUtf8FailsStringRead)
+{
+    const auto broken = std::vector<std::vector<std::uint8_t>>{
+        {0xC0, 0xAF},             // overlong 슬래시 (필터 우회 공격에 쓰임)
+        {0x80},                   // 앞 바이트 없이 이어지는 바이트만
+        {0xEA, 0xB0},             // 3바이트 문자가 잘림
+        {0xED, 0xA0, 0x80},       // UTF-16 서로게이트 영역(UTF-8에서 금지)
+        {0xF4, 0x90, 0x80, 0x80}, // 0x10FFFF 초과
+        {0xFF},                   // UTF-8에 없는 바이트
+    };
+    for (const auto& bytes : broken)
+    {
+        const auto packet = MakeStringPacket(bytes);
+        Base::BinaryReader reader(packet);
+        auto value = std::string{"x"};
+        reader >> value;
+
+        EXPECT_FALSE(reader.IsValid());
+        EXPECT_TRUE(value.empty());
+    }
+}
+
+// 올바른 UTF-8(ASCII, 한글 3바이트, 이모지 4바이트)은 통과한다.
+TEST(BinaryRW, ValidUtf8PassesStringRead)
+{
+    const auto packet = MakeStringPacket({'A', 0xEA, 0xB0, 0x80, 0xF0, 0x9F, 0x98, 0x80}); // "A가😀"
+    Base::BinaryReader reader(packet);
+    auto value = std::string{};
+    reader >> value;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(value, "A가😀");
+}
+
+// 텍스트가 아닌 바이너리는 vector<std::byte>에 담으면 검사 없이 그대로 왕복된다.
+TEST(BinaryRW, BinaryBlobUsesByteVector)
+{
+    const auto blob = std::vector<std::byte>{std::byte{0xFF}, std::byte{0xC0}, std::byte{0x00}};
+    Base::BinaryWriter writer;
+    writer << blob;
+
+    auto readBlob = std::vector<std::byte>{};
+    Base::BinaryReader reader(writer.Data());
+    reader >> readBlob;
+
+    ASSERT_TRUE(reader.IsValid());
+    EXPECT_EQ(readBlob, blob);
+}

@@ -20,7 +20,8 @@
 // 형식 (리틀 엔디안, 길이·개수는 uint16)
 //   bool                       1바이트 0/1
 //   정수, 실수, enum            크기 그대로
-//   문자열(모든 종류)            길이 + UTF-8 바이트. wstring/u16string/u32string은 UTF-8로 바꿔 쓴다
+//   문자열(모든 종류)            길이 + UTF-8 바이트. wstring/u16string/u32string은 UTF-8로 바꿔 쓴다.
+//                              읽을 때 올바른 UTF-8인지 검사한다. 바이너리 데이터는 vector<std::byte>에 담는다
 //   optional                   bool(있음) + 값
 //   variant                    uint8 인덱스 + 값
 //   pair, tuple                원소를 순서대로

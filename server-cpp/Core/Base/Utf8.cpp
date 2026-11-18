@@ -102,4 +102,23 @@ namespace Base
         pos += length;
         return true;
     }
+
+    bool IsValidUtf8(const std::string_view in)
+    {
+        auto pos = std::size_t{};
+        while (pos < in.size())
+        {
+            if (static_cast<unsigned char>(in[pos]) < 0x80) // ASCII는 함수 호출 없이 바로 넘긴다
+            {
+                ++pos;
+                continue;
+            }
+            auto codePoint = char32_t{};
+            if (!DecodeCodePoint(in, pos, codePoint))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 } // namespace Base

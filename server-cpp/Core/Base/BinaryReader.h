@@ -131,9 +131,9 @@ namespace Base
         // 원소는 최소 1바이트이므로, 거짓 개수로 큰 메모리를 잡게 하는 패킷을 여기서 막는다.
         std::size_t ReadCount();
 
-        // std::string, std::u8string: 길이 + 바이트
+        // 길이 + 바이트를 그대로 읽는다(검사 없음).
         template <typename S>
-        void ReadByteString(S& value)
+        void ReadRawString(S& value)
         {
             value.clear();
             const auto length = ReadCount(); // 남은 바이트 이하가 보장된다
@@ -144,12 +144,26 @@ namespace Base
             }
         }
 
-        // UTF-8로 읽어 wstring/u16string/u32string으로 바꾼다. 잘못된 UTF-8이면 실패.
+        // std::string, std::u8string: 올바른 UTF-8이 아니면 실패한다(필터 우회, DB·클라이언트 깨짐 방지).
+        // 텍스트가 아닌 바이너리 데이터는 string이 아니라 vector<std::byte>에 담는다.
+        template <typename S>
+        void ReadByteString(S& value)
+        {
+            ReadRawString(value);
+            const auto text = std::string_view{reinterpret_cast<const char*>(value.data()), value.size()};
+            if (_valid && !IsValidUtf8(text))
+            {
+                _valid = false;
+                value.clear();
+            }
+        }
+
+        // UTF-8로 읽어 wstring/u16string/u32string으로 바꾼다. 잘못된 UTF-8이면 실패(검사는 DecodeUtf8이 한다).
         template <typename S>
         void ReadWideString(S& value)
         {
             auto utf8 = std::string{};
-            ReadByteString(utf8);
+            ReadRawString(utf8);
             if (!_valid || !DecodeUtf8(utf8, value))
             {
                 _valid = false;

@@ -15,6 +15,9 @@ namespace Base
     // in[pos]부터 UTF-8 코드 포인트 하나를 읽고 pos를 넘긴다. 잘못된 바이트면 false(pos는 그대로).
     bool DecodeCodePoint(const std::string_view in, std::size_t& pos, char32_t& codePoint);
 
+    // 올바른 UTF-8인지 확인한다(overlong, 서로게이트, 범위 밖, 잘린 바이트를 거부).
+    bool IsValidUtf8(const std::string_view in);
+
     // UTF-16(2바이트 문자) 또는 UTF-32(4바이트 문자) → UTF-8
     template <typename C>
     bool EncodeUtf8(const std::basic_string_view<C> in, std::string& out)
