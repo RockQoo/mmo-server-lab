@@ -9,7 +9,7 @@ C++ IOCP MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 �
 | 서버 | C++20, Windows IOCP 직접 사용, CMake + vcpkg |
 | DB | MSSQL Developer Edition (C++은 ODBC) |
 | 프로토콜 | 언어 중립 스키마 하나를 C++/C#이 공유 |
-| 봇 | C# + Behavior Tree. 같은 봇으로 C++/C# 서버를 똑같이 테스트 |
+| 봇 | **C++ BotServer**(2026-11-18 변경, 처음엔 C#). Core를 Game과 공유하고, Game과 서로 통신한다. Behavior Tree |
 | 뷰어 | Godot .NET 3D. 이동·액션 동기화 확인용(UI, 이펙트, 지형 없음) |
 
 이유는 `docs/decisions/`에 있다.
@@ -21,17 +21,17 @@ C++ IOCP MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 �
 | `proto/` | 패킷 스키마 (공유) |
 | `server-cpp/Core/` | 서버 코어, 정적 라이브러리. 분류 폴더(`Util/`, `Network/`, `Buffer/`...)에 .h와 .cpp를 같이 둔다. 게임을 모른다 |
 | `server-cpp/Core/Tests/` | Core 단위 테스트 |
-| `server-cpp/Game/` | 게임 서버 실행 파일. Core를 링크해서 붙인다. 의존 방향은 `Game → Core`만 |
-| `server-cpp/Game/Tests/` | Game의 순수 계산 함수(이동 검증, AOI 셀, 범위 판정, 데미지, 확률)만 테스트. 계산 함수와 상태를 바꾸는 코드를 나눠 둔다. 난수는 인자로 받는다 |
+| `server-cpp/GameServer/` | 게임 서버 실행 파일. Core를 링크해서 붙인다. 의존 방향은 `GameServer → Core`만 |
+| `server-cpp/GameServer/Tests/` | GameServer의 순수 계산 함수(이동 검증, AOI 셀, 범위 판정, 데미지, 확률)만 테스트. 계산 함수와 상태를 바꾸는 코드를 나눠 둔다. 난수는 인자로 받는다 |
 | `server-cpp/Bench/` | C++ 마이크로 벤치마크 (Google Benchmark, Core 링크) |
-| `server-cpp/Tools/` | 봇 전에 쓰는 확인용 도구 (EchoClient 등) |
-
-이름, 중괄호, 폴더 규칙은 `docs/coding-style.md`. 최상위는 소문자, `server-cpp/` 안은 전부 Pascal.
+| `server-cpp/BotServer/` | C++ 봇 서버 실행 파일. Core를 GameServer와 공유하고 GameServer와 통신한다 |
+| `server-cpp/Tools/` | 확인용 도구 (EchoClient 등) |
 | `server-csharp/` | C# 서버 (나중에) |
-| `bot/` | BT 봇 서버 (C#) |
 | `viewer/` | Godot 뷰어 |
 | `bench/` | 봇 부하 시나리오와 결과 원본(C++/C# 서버 공통) |
 | `docs/decisions/` | 결정 기록 `NNN-제목.md` |
+
+이름, 중괄호, 폴더 규칙은 `docs/coding-style.md`. 최상위는 소문자, `server-cpp/` 안은 전부 Pascal. 진행 목록은 `PROGRESS.md`.
 
 ## 빌드와 테스트
 

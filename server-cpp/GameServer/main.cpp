@@ -4,7 +4,7 @@
 
 int main()
 {
-    std::println("mmo-server-lab game server");
+    std::println("mmo-server-lab GameServer");
     std::println("build: {}", Core::BuildInfo());
     return 0;
 }

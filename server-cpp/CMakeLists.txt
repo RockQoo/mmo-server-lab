@@ -25,11 +25,11 @@ add_library(Core STATIC
 )
 target_include_directories(Core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# ---- Game: 게임 서버 (Core에만 의존)
-add_executable(Game
-    Game/main.cpp
+# ---- GameServer: 게임 서버 (Core에만 의존)
+add_executable(GameServer
+    GameServer/main.cpp
 )
-target_link_libraries(Game PRIVATE Core)
+target_link_libraries(GameServer PRIVATE Core)
 
 # ---- CoreTests: Core 단위 테스트 (GoogleTest, vcpkg)
 enable_testing()
