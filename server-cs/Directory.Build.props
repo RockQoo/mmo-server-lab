@@ -1,0 +1,14 @@
+<Project>
+  <!-- server-cs 아래 모든 프로젝트의 공통 설정. 프로젝트 파일에는 다른 점만 적는다. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- C++의 /W4처럼 경고를 많이 본다. 안전 우선: nullable 경고는 에러로 막는다. -->
+    <AnalysisLevel>latest</AnalysisLevel>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
+    <!-- 소스를 UTF-8로 본다(C++의 /utf-8과 같은 목적). -->
+    <CodePage>65001</CodePage>
+  </PropertyGroup>
+</Project>

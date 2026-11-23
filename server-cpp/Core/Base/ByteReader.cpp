@@ -1,29 +1,29 @@
-#include "Base/BinaryReader.h"
+#include "Base/ByteReader.h"
 
 #include <cstring>
 
 namespace Base
 {
-    BinaryReader::BinaryReader(const std::span<const std::byte> data) : _data{data}
+    ByteReader::ByteReader(const std::span<const std::byte> data) : _data{data}
     {
     }
 
-    std::size_t BinaryReader::Size() const
+    std::size_t ByteReader::Size() const
     {
         return _data.size();
     }
 
-    std::size_t BinaryReader::ReadPos() const
+    std::size_t ByteReader::ReadPos() const
     {
         return _readPos;
     }
 
-    bool BinaryReader::IsValid() const
+    bool ByteReader::IsValid() const
     {
         return _valid;
     }
 
-    bool BinaryReader::ReadBytes(void* dst, const std::size_t size)
+    bool ByteReader::ReadBytes(void* dst, const std::size_t size)
     {
         if (!_valid || _data.size() - _readPos < size)
         {
@@ -35,7 +35,7 @@ namespace Base
         return true;
     }
 
-    std::size_t BinaryReader::ReadCount()
+    std::size_t ByteReader::ReadCount()
     {
         auto count = std::uint16_t{};
         *this >> count;

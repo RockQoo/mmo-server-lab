@@ -2,9 +2,14 @@
   "name": "mmo-server-lab",
   "commands": [
     {
-      "name": "build+test",
+      "name": "cpp build+test",
       "cmd": "powershell -NoProfile -ExecutionPolicy Bypass -File server-cpp/build.ps1 -Config release -Test",
-      "summary": "\\d+% tests passed, \\d+ tests failed out of \\d+"
+      "summary": "\d+% tests passed, \d+ tests failed out of \d+"
+    },
+    {
+      "name": "cs build+test",
+      "cmd": "powershell -NoProfile -ExecutionPolicy Bypass -File server-cs/build.ps1 -Config release -Test",
+      "summary": "Test run summary: \w+!"
     }
   ]
 }

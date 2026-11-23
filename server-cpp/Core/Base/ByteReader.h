@@ -6,18 +6,18 @@
 #include <string>
 #include <utility>
 
-#include "Base/BinaryTraits.h"
+#include "Base/ByteTraits.h"
 #include "Base/Utf8.h"
 
 namespace Base
 {
-    class BinaryReader;
+    class ByteReader;
 
-    // SERIALIZE_FIELDS로 Read(BinaryReader&)를 가진 클래스
+    // SERIALIZE_FIELDS로 Read(ByteReader&)를 가진 클래스
     template <typename T>
-    concept BinaryReadable = requires(T& object, BinaryReader& reader) { object.Read(reader); };
+    concept ByteReadable = requires(T& object, ByteReader& reader) { object.Read(reader); };
 
-    // 바이트를 값으로 읽는다(>>). BinaryWriter가 쓴 순서대로 읽어야 한다. 형식은 BinaryTraits.h 맨 위.
+    // 바이트를 값으로 읽는다(>>). ByteWriter가 쓴 순서대로 읽어야 한다. 형식은 ByteTraits.h 맨 위.
     //
     // 받은 버퍼를 복사하지 않고 가리키기만 한다(string_view와 같다).
     // 그래서 읽는 동안 원본 버퍼가 살아 있어야 한다. 받은 자리에서 읽고 끝내고, 다른 곳에 넘길 때는 읽은 객체를 넘긴다.
@@ -25,16 +25,16 @@ namespace Base
     // 데이터가 모자라거나, 개수·인덱스가 맞지 않거나, UTF-8이 잘못되면 실패 표시를 남기고 이후 읽기는 모두 무시한다.
     // 실패한 값은 빈 값(T{}, 빈 컨테이너, nullopt)이 된다. 끝에서 IsValid()로 한 번 확인한다.
     // 읽는 타입은 기본 생성할 수 있어야 한다.
-    class BinaryReader
+    class ByteReader
     {
     public:
-        static constexpr std::size_t MaxCount{BinaryMaxCount};
+        static constexpr std::size_t MaxCount{ByteMaxCount};
 
-        explicit BinaryReader(const std::span<const std::byte> data);
+        explicit ByteReader(const std::span<const std::byte> data);
 
-        // 판별 순서는 BinaryWriter와 같다. 쓰기만 되는 타입(string_view, 리터럴, 포인터)은 읽을 수 없다.
+        // 판별 순서는 ByteWriter와 같다. 쓰기만 되는 타입(string_view, 리터럴, 포인터)은 읽을 수 없다.
         template <typename T>
-        BinaryReader& operator>>(T& value)
+        ByteReader& operator>>(T& value)
         {
             if constexpr (std::is_same_v<T, bool>)
             {
@@ -91,7 +91,7 @@ namespace Base
                 *this >> count;
                 value = T{typename T::duration{count}};
             }
-            else if constexpr (BinaryReadable<T>)
+            else if constexpr (ByteReadable<T>)
             {
                 value.Read(*this);
             }
@@ -109,7 +109,7 @@ namespace Base
             }
             else
             {
-                static_assert(false, "BinaryReader가 지원하지 않는 타입이다(포인터, 스마트 포인터, span 등)");
+                static_assert(false, "ByteReader가 지원하지 않는 타입이다(포인터, 스마트 포인터, span 등)");
             }
             return *this;
         }

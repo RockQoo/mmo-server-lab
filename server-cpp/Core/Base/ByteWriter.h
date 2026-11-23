@@ -8,28 +8,28 @@
 #include <string_view>
 #include <vector>
 
-#include "Base/BinaryTraits.h"
+#include "Base/ByteTraits.h"
 #include "Base/Utf8.h"
 
 namespace Base
 {
-    class BinaryWriter;
+    class ByteWriter;
 
-    // SERIALIZE_FIELDS로 Write(BinaryWriter&)를 가진 클래스
+    // SERIALIZE_FIELDS로 Write(ByteWriter&)를 가진 클래스
     template <typename T>
-    concept BinaryWritable = requires(const T& object, BinaryWriter& writer) { object.Write(writer); };
+    concept ByteWritable = requires(const T& object, ByteWriter& writer) { object.Write(writer); };
 
-    // 값을 바이트로 쓴다(<<). 데이터는 자기 vector에 담는다(소유). 형식은 BinaryTraits.h 맨 위.
+    // 값을 바이트로 쓴다(<<). 데이터는 자기 vector에 담는다(소유). 형식은 ByteTraits.h 맨 위.
     // 실패하면(길이·개수 초과, 잘못된 UTF-16/32, null 문자열 포인터) 실패 표시를 남기고 이후 쓰기는 모두 무시한다.
     // 보내기 전에 IsValid()로 확인한다.
-    class BinaryWriter
+    class ByteWriter
     {
     public:
-        static constexpr std::size_t MaxCount{BinaryMaxCount};
+        static constexpr std::size_t MaxCount{ByteMaxCount};
 
         // 지원하는 타입을 위에서부터 차례로 판별한다. 원소가 다시 이 함수를 불러 중첩이 된다.
         template <typename T>
-        BinaryWriter& operator<<(const T& value)
+        ByteWriter& operator<<(const T& value)
         {
             if constexpr (std::is_same_v<T, bool>)
             {
@@ -94,7 +94,7 @@ namespace Base
             {
                 *this << value.time_since_epoch().count();
             }
-            else if constexpr (BinaryWritable<T>)
+            else if constexpr (ByteWritable<T>)
             {
                 value.Write(*this);
             }
@@ -112,7 +112,7 @@ namespace Base
             }
             else
             {
-                static_assert(false, "BinaryWriter가 지원하지 않는 타입이다(포인터, 스마트 포인터, 함수 등)");
+                static_assert(false, "ByteWriter가 지원하지 않는 타입이다(포인터, 스마트 포인터, 함수 등)");
             }
             return *this;
         }

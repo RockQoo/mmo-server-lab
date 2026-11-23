@@ -1,0 +1,14 @@
+# C++ ByteWriter와 C# ByteWriter가 똑같이 만들어야 하는 바이트(정답).
+# 테스트: server-cpp/Core/Base/Tests/ByteFormatTest.cpp, server-cs/Core/Base/Tests/ByteFormatTest.cs
+# 형식: 16진수 바이트를 공백으로 구분, # 뒤는 주석. 리틀 엔디안, 길이 = uint16 + UTF-8.
+
+fe ff ff ff                # int32  -2
+34 12                      # uint16 0x1234
+01                         # bool   true
+00                         # bool   false
+00 00 c0 3f                # float  1.5
+00 00 00 00 00 00 02 c0    # double -2.25
+03                         # enum Color(uint8) Blue = 3
+08 07 06 05 04 03 02 01    # int64  0x0102030405060708
+04 00 ea b0 80 61          # string "가a" (길이 4 = '가' 3바이트 + 'a' 1바이트)
+00 00                      # string "" (빈 문자열)

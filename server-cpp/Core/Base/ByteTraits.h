@@ -15,7 +15,7 @@
 #include <utility>
 #include <variant>
 
-// BinaryWriter와 BinaryReader가 함께 쓰는 형식 규칙과 타입 판별.
+// ByteWriter와 ByteReader가 함께 쓰는 형식 규칙과 타입 판별.
 //
 // 형식 (리틀 엔디안, 길이·개수는 uint16)
 //   bool                       1바이트 0/1
@@ -32,10 +32,10 @@
 namespace Base
 {
     // 형식은 리틀 엔디안 고정. x86/x64는 원래 리틀 엔디안이라 변환 없이 그대로 복사한다.
-    static_assert(std::endian::native == std::endian::little, "BinaryWriter/Reader는 리틀 엔디안 CPU만 지원한다");
+    static_assert(std::endian::native == std::endian::little, "ByteWriter/Reader는 리틀 엔디안 CPU만 지원한다");
 
     // string 길이, 컨테이너 개수의 상한(uint16)
-    inline constexpr std::size_t BinaryMaxCount{std::numeric_limits<std::uint16_t>::max()};
+    inline constexpr std::size_t ByteMaxCount{std::numeric_limits<std::uint16_t>::max()};
 
     // ---- 기본형: 메모리를 그대로 복사해도 되는 정수, 실수, enum(std::byte 포함). bool은 그보다 먼저 따로 잡는다.
     template <typename T>
@@ -143,7 +143,7 @@ namespace Base
 } // namespace Base
 
 // 클래스 안에 적으면 Write/Read 멤버 함수를 만든다. 적은 순서가 곧 직렬화 순서다.
-// 필드는 최소 1개. 쓰는 쪽에서 BinaryWriter.h와 BinaryReader.h를 include한다. (나중에 CodeGen으로 대체 예정)
+// 필드는 최소 1개. 쓰는 쪽에서 ByteWriter.h와 ByteReader.h를 include한다. (나중에 CodeGen으로 대체 예정)
 //
 //     struct Item
 //     {
@@ -152,11 +152,11 @@ namespace Base
 //         SERIALIZE_FIELDS(id, name)
 //     };
 #define SERIALIZE_FIELDS(...)                                                                                          \
-    void Write(Base::BinaryWriter& writer) const                                                                       \
+    void Write(Base::ByteWriter& writer) const                                                                       \
     {                                                                                                                  \
         writer.WriteFields(__VA_ARGS__);                                                                               \
     }                                                                                                                  \
-    void Read(Base::BinaryReader& reader)                                                                              \
+    void Read(Base::ByteReader& reader)                                                                              \
     {                                                                                                                  \
         reader.ReadFields(__VA_ARGS__);                                                                                \
     }

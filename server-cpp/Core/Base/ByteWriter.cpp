@@ -1,34 +1,34 @@
-#include "Base/BinaryWriter.h"
+#include "Base/ByteWriter.h"
 
 namespace Base
 {
-    std::span<const std::byte> BinaryWriter::Data() const
+    std::span<const std::byte> ByteWriter::Data() const
     {
         return _buffer;
     }
 
-    std::size_t BinaryWriter::Size() const
+    std::size_t ByteWriter::Size() const
     {
         return _buffer.size();
     }
 
-    std::size_t BinaryWriter::Capacity() const
+    std::size_t ByteWriter::Capacity() const
     {
         return _buffer.capacity();
     }
 
-    bool BinaryWriter::IsValid() const
+    bool ByteWriter::IsValid() const
     {
         return _valid;
     }
 
-    void BinaryWriter::Clear()
+    void ByteWriter::Clear()
     {
         _buffer.clear(); // vector::clear는 capacity를 줄이지 않는다
         _valid = true;
     }
 
-    void BinaryWriter::WriteBytes(const void* src, const std::size_t size)
+    void ByteWriter::WriteBytes(const void* src, const std::size_t size)
     {
         if (!_valid)
         {
@@ -38,7 +38,7 @@ namespace Base
         _buffer.insert(_buffer.end(), bytes, bytes + size);
     }
 
-    bool BinaryWriter::WriteCount(const std::size_t count)
+    bool ByteWriter::WriteCount(const std::size_t count)
     {
         if (count > MaxCount)
         {
@@ -49,7 +49,7 @@ namespace Base
         return _valid;
     }
 
-    void BinaryWriter::WriteString(const void* data, const std::size_t size)
+    void ByteWriter::WriteString(const void* data, const std::size_t size)
     {
         if (WriteCount(size))
         {
@@ -57,7 +57,7 @@ namespace Base
         }
     }
 
-    void BinaryWriter::WriteCString(const char* value)
+    void ByteWriter::WriteCString(const char* value)
     {
         if (!_valid || value == nullptr)
         {

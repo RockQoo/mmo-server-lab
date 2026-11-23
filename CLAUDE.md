@@ -18,11 +18,18 @@ MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 벤치마�
 
 ## 두 언어로 같이 만드는 규칙
 
+- **C#은 C++의 포팅이 아니다(2026-11-23).** 같은 서버 구조를 C++은 C++다운 서버로, C#은 C#다운 서버로 각자 작성한다. C++ 코드를 C#으로 옮겨 적지 않는다.
 - **같은 주제는 C++ 먼저, 바로 이어서 C#.** 단위 하나 = 같은 주제의 C++판 + C#판.
-- **같은 개념이면 클래스 이름과 namespace가 같다**(`Base::BinaryWriter` ↔ `Base.BinaryWriter`). 대응표는 `docs/naming.md`.
+- **같은 개념이면 클래스 이름과 namespace가 같다**(`Base::ByteWriter` ↔ `Base.ByteWriter`). 대응표는 `docs/naming.md`. 이름이 표준 라이브러리·BCL과 충돌하면 C++ 쪽 이름을 바꿔 둘 다 겹치지 않게 한다.
 - **한쪽 언어에만 필요한 것은 그쪽에만 둔다.** 예: C++ `RwLocked<T>`는 C#에 대응 클래스가 없다(이유는 `docs/naming.md`). 빠진 이유는 단위 보고서 비교표에 적는다.
-- 구현은 각 언어답게 한다. 이름이 같다고 C++ 코드를 C#으로 옮겨 적지 않는다.
 - 파일 이름, 메서드 표기 같은 세부는 각 언어 관례를 따른다.
+
+## 이미 있는 것을 쓴다 (직접 만들지 않는다)
+
+- **표준 라이브러리·BCL에 있는 기능은 그대로 쓴다.** C#: `IBufferWriter<T>`, `BinaryPrimitives`, `Channel<T>`, `System.IO.Pipelines`, `ArrayPool<T>` 등. C++: 표준 라이브러리.
+- **대중적으로 많이 쓰는 외부 라이브러리는 구현하지 않고 가져다 쓴다.** 예: C# Dapper(DB), C++ Boost, JSON(nlohmann/json 등), enum 리플렉션(magic_enum 등).
+- **외부 라이브러리를 새로 설치(vcpkg, NuGet)할 때는 먼저 사용자에게 알린다.** 무엇을, 왜, 대안은 무엇인지 말하고 확인받는다. 설치한 것은 `docs/libraries.md`에 적는다.
+- 직접 만드는 것은 라이브러리가 해 주지 않는 부분(두 언어가 같아야 하는 바이트 형식, 서버 구조 자체, 벤치마크로 비교할 대상)뿐이다.
 
 ## 프로토콜과 CodeGen
 
@@ -37,7 +44,7 @@ MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 벤치마�
 |---|---|
 | `proto/` | 프로토콜 스키마 원본 (하나) |
 | `tools/CodeGen/` | C# 콘솔. proto → C++·C# 코드 생성 |
-| `server-cpp/Core/` | C++ 서버 코어. 기술마다 정적 라이브러리 하나(`Base/`, `Messaging/`, `Network/`...), 폴더 이름 = namespace. .h와 .cpp를 같은 폴더에 둔다. include는 `Core/` 기준(`#include "Base/BinaryWriter.h"`). 게임을 모른다. 목록은 `PROGRESS.md` |
+| `server-cpp/Core/` | C++ 서버 코어. 기술마다 정적 라이브러리 하나(`Base/`, `Messaging/`, `Network/`...), 폴더 이름 = namespace. .h와 .cpp를 같은 폴더에 둔다. include는 `Core/` 기준(`#include "Base/ByteWriter.h"`). 게임을 모른다. 목록은 `PROGRESS.md` |
 | `server-cpp/Core/<Lib>/Tests/` | 라이브러리별 단위 테스트(gtest), 실행 파일 `<Lib>Tests` (예: `BaseTests`) |
 | `server-cpp/Gateway/` | 클라 소켓, 세션별 경로표, 세션별 묶음 전송 |
 | `server-cpp/ZoneServer/` | 전투·이동. 프로세스 하나에 존 여러 개, 존마다 전용 스레드와 틱 |
@@ -49,6 +56,7 @@ MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 벤치마�
 | `server-cs/` | C# 서버(.slnx). 안은 `server-cpp/`와 같은 모양: `Core/<Lib>/`(+`Tests/`), `Gateway/`, `ZoneServer/`, `Bench/` |
 | `client-ue5/` | UE5 5.8 클라이언트(뷰어). Starter Content 없이. 바이너리 에셋은 Git LFS(첫 에셋 때 설정) |
 | `bench/` | 봇 부하 시나리오와 결과 원본(C++/C# 서버 공통) |
+| `testdata/` | 두 언어 테스트가 같이 쓰는 정답 파일(`bytes/*.hex`: 같은 값 → 같은 바이트) |
 | `docs/decisions/` | 결정 기록 `NNN-제목.md` |
 | `docs/units/` | 단위별 보고서 HTML `NNN-주제.html`: 흐름도, 클래스 설명, C++/C# 비교표 (공개) |
 | `docs/naming.md` | C++ ↔ C# 이름 대응표 |
@@ -68,7 +76,8 @@ powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 �
 - 외부 라이브러리는 `server-cpp/vcpkg.json`(manifest, VS 포함 vcpkg)에 추가한다.
 - `build.ps1`은 UTF-8 **BOM**으로 저장한다(Windows PowerShell 5.1이 BOM 없는 한글을 깨뜨림).
 - **Visual Studio**: 루트의 `OpenVS.bat`(= `build.ps1 -Sln`)이 `server-cpp/build/vs/mmo_server_lab.slnx`를 만들고 연다. 솔루션 폴더는 Core / Servers / Tests(CMake 기본 대상은 `_CMake`), 시작 프로젝트는 ZoneServer. 대상마다 `FOLDER` 속성을 주고 헤더도 소스 목록에 적는다. 명령줄 빌드와 QA는 Ninja 프리셋 그대로.
-- C# 서버 빌드·테스트는 `server-cs/`를 만들 때 여기에 추가하고, `qa.json`에도 넣는다. 코어 기본 QA는 두 언어 모두 기능으로 만들어 둔다.
+- **C#**: `powershell -File server-cs/build.ps1 -Config debug|release [-Test]` (`dotnet build/test`, 솔루션 `server-cs/mmo_server_lab.slnx`, VS에서 바로 열린다). 공통 설정은 `server-cs/Directory.Build.props`(net10.0, nullable 경고는 에러). 테스트는 xUnit v3 + Microsoft.Testing.Platform(`global.json`). 출력 언어는 영어로 고정(qa.json 정규식).
+- `qa.json`은 C++과 C# 빌드·테스트를 둘 다 돌린다. 코어 기본 QA는 두 언어 모두 기능으로 만들어 둔다.
 
 ## 진행 방식 (가장 중요)
 

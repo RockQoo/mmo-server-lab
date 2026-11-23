@@ -32,23 +32,23 @@ find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
 # Core/ 아래 라이브러리는 Core/를 include 기준으로 쓴다.
-# 그래서 #include "Base/BinaryWriter.h"처럼 경로가 namespace(Base::)와 일치한다.
+# 그래서 #include "Base/ByteWriter.h"처럼 경로가 namespace(Base::)와 일치한다.
 set(CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Core)
 
 # ======== Core 라이브러리 (정적 라이브러리, 게임을 모른다) ========
 
-# ---- Base: 직렬화(BinaryWriter, BinaryReader), 빌드 정보
+# ---- Base: 직렬화(ByteWriter, ByteReader), 빌드 정보
 # 헤더도 적어야 VS 프로젝트에 보인다(컴파일은 .cpp만 한다).
 add_library(Base STATIC
     Core/Base/Assert.cpp
     Core/Base/Assert.h
-    Core/Base/BinaryReader.cpp
-    Core/Base/BinaryReader.h
-    Core/Base/BinaryTraits.h
-    Core/Base/BinaryWriter.cpp
-    Core/Base/BinaryWriter.h
     Core/Base/BuildInfo.cpp
     Core/Base/BuildInfo.h
+    Core/Base/ByteReader.cpp
+    Core/Base/ByteReader.h
+    Core/Base/ByteTraits.h
+    Core/Base/ByteWriter.cpp
+    Core/Base/ByteWriter.h
     Core/Base/Utf8.cpp
     Core/Base/Utf8.h
 )
@@ -58,9 +58,12 @@ set_target_properties(Base PROPERTIES FOLDER Core)
 add_executable(BaseTests
     Core/Base/Tests/AssertTest.cpp
     Core/Base/Tests/BuildInfoTest.cpp
-    Core/Base/Tests/BinaryRWTest.cpp
+    Core/Base/Tests/ByteFormatTest.cpp
+    Core/Base/Tests/ByteRWTest.cpp
 )
 target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
+# C# 테스트와 같이 쓰는 정답 파일 위치(저장소 최상위 testdata/)
+target_compile_definitions(BaseTests PRIVATE MMO_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../testdata")
 set_target_properties(BaseTests PROPERTIES FOLDER Tests)
 # 예외 잡기를 끈다: 크래시를 gtest가 삼키지 않고 실제 종료 코드로 남긴다(ASSERT 예외 코드 확인).
 # ctest는 테스트마다 프로세스를 따로 띄우므로 하나가 죽어도 나머지는 돈다.

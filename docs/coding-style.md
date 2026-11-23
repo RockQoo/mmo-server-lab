@@ -80,13 +80,13 @@ switch (state)
 | 지역 변수, 매개변수 | camel | `bytesTransferred` |
 | 상수, constexpr | Pascal | `MaxPacketSize` |
 | 매크로 | 대문자 + `_`, 되도록 쓰지 않음 | `ASSERT_CRASH` |
-| 파일 | 클래스 이름과 같게, .h와 .cpp는 같은 폴더 | `Base/BinaryWriter.h`, `Base/BinaryWriter.cpp` |
+| 파일 | 클래스 이름과 같게, .h와 .cpp는 같은 폴더 | `Base/ByteWriter.h`, `Base/ByteWriter.cpp` |
 
 ### 폴더 (2026-11-17)
 
 - 저장소 최상위는 소문자(GitHub 관습): `server-cpp/`, `server-cs/`, `client-ue5/`, `docs/`
 - `server-cpp/`·`server-cs/` 안은 **전부 Pascal**(게임 서버 관습): `Core/Network/`, `ZoneServer/World/`, `Core/Base/Tests/`, `Bench/`, `Tools/`
-- include는 `server-cpp/Core/` 기준 경로로 쓴다: `#include "Base/BinaryWriter.h"` → `Base::BinaryWriter` (경로 = namespace)
+- include는 `server-cpp/Core/` 기준 경로로 쓴다: `#include "Base/ByteWriter.h"` → `Base::ByteWriter` (경로 = namespace)
 - include/src 분리는 하지 않는다. 그래서 Game이 Core의 어떤 헤더든 include할 수 있다. **Game은 Core 내부 구현에 기대지 않는다**는 것은 규칙으로 지킨다(빌드로 강제하지 않음).
 
 ### const, constexpr (2026-11-18)
