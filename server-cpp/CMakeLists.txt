@@ -66,14 +66,22 @@ set_target_properties(BaseTests PROPERTIES FOLDER Tests)
 # ctest는 테스트마다 프로세스를 따로 띄우므로 하나가 죽어도 나머지는 돈다.
 gtest_discover_tests(BaseTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
-# ======== 실행 파일 ========
+# ======== 실행 파일 (분산 존 구조, docs/decisions/001-서버-구조.md) ========
+# 서버는 Core 라이브러리에만 의존한다. 서버끼리는 서로 링크하지 않는다.
 
-# ---- GameServer: 게임 서버 (Core 라이브러리에만 의존)
-add_executable(GameServer
-    GameServer/main.cpp
+# ---- Gateway: 클라 소켓을 들고, 세션별 경로표로 Zone에 넘기고, Zone이 보낸 패킷을 세션별로 모아 보낸다
+add_executable(Gateway
+    Gateway/main.cpp
 )
-target_link_libraries(GameServer PRIVATE Base)
-set_target_properties(GameServer PROPERTIES FOLDER Servers)
+target_link_libraries(Gateway PRIVATE Base)
+set_target_properties(Gateway PROPERTIES FOLDER Servers)
 
-# VS로 열면 GameServer가 시작 프로젝트(F5로 실행할 대상)
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT GameServer)
+# ---- ZoneServer: 전투·이동. 프로세스 하나에 존 여러 개, 존마다 전용 스레드와 틱
+add_executable(ZoneServer
+    ZoneServer/main.cpp
+)
+target_link_libraries(ZoneServer PRIVATE Base)
+set_target_properties(ZoneServer PROPERTIES FOLDER Servers)
+
+# VS로 열면 ZoneServer가 시작 프로젝트(F5로 실행할 대상)
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ZoneServer)

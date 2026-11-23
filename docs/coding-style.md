@@ -1,5 +1,7 @@
 # 코딩 규칙 (C++)
 
+C# 쪽도 이름(Pascal, `_camel` 멤버)과 namespace는 C++과 같게 한다(`docs/naming.md`). C# 고유 규칙은 C# 코드를 만들 때 이 파일에 추가한다.
+
 개발하면서 하나씩 정한다. 정한 날짜를 함께 적는다.
 
 ## 자동 정리 (2026-11-17)
@@ -70,7 +72,7 @@ switch (state)
 
 | 대상 | 규칙 | 예 |
 |---|---|---|
-| namespace | Pascal | `Base`, `Messaging`, `GameServer` |
+| namespace | Pascal | `Base`, `Messaging`, `ZoneServer` |
 | 클래스, 구조체, enum | Pascal | `RecvBuffer`, `SessionState` |
 | enum 값 | Pascal, `enum class`만 사용 | `SessionState::Connected` |
 | 함수, 멤버 함수 | Pascal | `BuildInfo()`, `OnRecv()` |
@@ -82,8 +84,8 @@ switch (state)
 
 ### 폴더 (2026-11-17)
 
-- 저장소 최상위는 소문자(GitHub 관습): `server-cpp/`, `viewer/`, `docs/`
-- `server-cpp/` 안은 **전부 Pascal**(게임 서버 관습): `Core/Network/`, `GameServer/World/`, `Core/Base/Tests/`, `Bench/`, `Tools/`
+- 저장소 최상위는 소문자(GitHub 관습): `server-cpp/`, `server-cs/`, `client-ue5/`, `docs/`
+- `server-cpp/`·`server-cs/` 안은 **전부 Pascal**(게임 서버 관습): `Core/Network/`, `ZoneServer/World/`, `Core/Base/Tests/`, `Bench/`, `Tools/`
 - include는 `server-cpp/Core/` 기준 경로로 쓴다: `#include "Base/BinaryWriter.h"` → `Base::BinaryWriter` (경로 = namespace)
 - include/src 분리는 하지 않는다. 그래서 Game이 Core의 어떤 헤더든 include할 수 있다. **Game은 Core 내부 구현에 기대지 않는다**는 것은 규칙으로 지킨다(빌드로 강제하지 않음).
 

@@ -7,8 +7,13 @@ obj/
 .vs/
 vcpkg_installed/
 
-# Godot
-.godot/
+# Unreal (client-ue5/): 엔진이 다시 만드는 폴더
+client-ue5/**/Binaries/
+client-ue5/**/Intermediate/
+client-ue5/**/Saved/
+client-ue5/**/DerivedDataCache/
+client-ue5/*.sln
+client-ue5/*.slnx
 
 .DS_Store
 Thumbs.db
