@@ -11,8 +11,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # LLVM 은 PATH 에 있으면 그것을, 없으면 기본 설치 위치를 쓴다.
-$llvm = Split-Path (Get-Command clang-tidy.exe -ErrorAction SilentlyContinue).Source -ErrorAction SilentlyContinue
-if (-not $llvm) { $llvm = "$env:ProgramFiles\LLVM\bin" }
+$found = Get-Command clang-tidy.exe -ErrorAction SilentlyContinue
+$llvm = if ($found) { Split-Path $found.Source } else { "$env:ProgramFiles\LLVM\bin" }
 $format = Join-Path $llvm 'clang-format.exe'
 $tidy = Join-Path $llvm 'clang-tidy.exe'
 foreach ($tool in $format, $tidy) {
@@ -49,10 +49,17 @@ foreach ($file in $files) {
 $tidyArgs = @('-p', $db, '--quiet')
 if ($Fix) { $tidyArgs += '--fix' }
 $out = & $tidy @tidyArgs $sources 2>&1 | ForEach-Object { "$_" }
-$found = $out | Where-Object { $_ -match '(warning|error): .*\[[a-z]' } | Sort-Object -Unique
-foreach ($line in $found) {
+$tidyExit = $LASTEXITCODE
+$diagnostics = $out | Where-Object { $_ -match '(warning|error): .*\[[a-z]' } | Sort-Object -Unique
+foreach ($line in $diagnostics) {
     $problems++
     Write-Output "tidy: $line"
+}
+# 설정 오류·옵션 오류처럼 진단 형식이 아닌 실패도 놓치지 않는다: 종료 코드가 0이 아니면 출력을 보여 주고 실패로 센다.
+if ($tidyExit -and -not $diagnostics) {
+    $problems++
+    Write-Output "tidy: clang-tidy failed (exit $tidyExit)"
+    $out | Where-Object { $_ -notmatch 'Processing file' } | Select-Object -First 20 | ForEach-Object { Write-Output "  $_" }
 }
 
 Write-Output "lint: $problems problem(s)"
