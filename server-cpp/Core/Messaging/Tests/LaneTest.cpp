@@ -46,6 +46,21 @@ TEST(Lane, RunsOnItsOwnThread)
     EXPECT_NE(jobThread, std::this_thread::get_id());
 }
 
+// 다른 Lane의 일 안에서는 false. 멈춘 Lane의 스레드 ID를 새 Lane이 다시 받아도 마찬가지다.
+TEST(Lane, IsInLaneIsFalseInOtherLane)
+{
+    Lane first;
+    first.Stop();
+    for (auto i = 0; i < 20; ++i) // ID 재사용이 일어날 기회를 여러 번 준다
+    {
+        auto inFirst = true;
+        Lane other;
+        ASSERT_TRUE(other.Post([&] { inFirst = first.IsInLane(); }));
+        other.Stop();
+        EXPECT_FALSE(inFirst);
+    }
+}
+
 // 여러 스레드가 동시에 넣어도 하나도 잃지 않고, 같은 생산자가 넣은 일끼리는 순서가 지켜진다.
 TEST(Lane, KeepsOrderPerProducer)
 {

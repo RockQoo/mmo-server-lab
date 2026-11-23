@@ -6,13 +6,18 @@
 
 namespace Messaging
 {
+    namespace
+    {
+        // 이 스레드를 돌리는 Lane. 스레드 ID로 비교하지 않는 이유: 끝난 스레드의 ID는 OS가 다시 쓰므로,
+        // 멈춘 Lane A와 새 Lane B가 같은 ID를 받으면 B의 일에서 A.IsInLane()이 true가 된다.
+        thread_local const Lane* tCurrent{};
+    } // namespace
+
     Lane::Lane()
     {
         // 본문에서 시작한다: 모든 멤버가 만들어진 뒤라 Run이 덜 만들어진 객체를 보지 않는다
         // (초기화 목록에서 this를 넘기면 C4355).
         thread_ = std::jthread{[this](const std::stop_token stop) { Run(stop); }};
-        // 일은 생성자가 끝난 뒤에만 들어온다(Post의 mutex가 이 쓰기를 일 쪽에 보이게 한다).
-        id_ = thread_.get_id();
     }
 
     Lane::~Lane()
@@ -60,11 +65,12 @@ namespace Messaging
 
     bool Lane::IsInLane() const noexcept
     {
-        return std::this_thread::get_id() == id_;
+        return tCurrent == this;
     }
 
     void Lane::Run(const std::stop_token stop)
     {
+        tCurrent = this; // 이 스레드는 끝날 때까지 이 Lane만 돌린다
         std::vector<Job> running;
         while (true)
         {

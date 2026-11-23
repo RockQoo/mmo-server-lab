@@ -30,6 +30,22 @@ public class LaneTest
         Assert.False(lane.IsInLane);
     }
 
+    // 다른 Lane의 일 안에서는 false(스레드 풀 스레드를 같이 써도 Lane 끼리 구분된다).
+    [Fact]
+    public async Task IsInLaneIsFalseInOtherLane()
+    {
+        var first = new Lane();
+        await first.DisposeAsync();
+        for (var i = 0; i < 20; i++)
+        {
+            var inFirst = true;
+            var other = new Lane();
+            Assert.True(other.TryPost(() => inFirst = first.IsInLane));
+            await other.DisposeAsync();
+            Assert.False(inFirst);
+        }
+    }
+
     // 여러 스레드가 동시에 넣어도 하나도 잃지 않고, 같은 생산자가 넣은 일끼리는 순서가 지켜진다.
     [Fact]
     public async Task KeepsOrderPerProducer()

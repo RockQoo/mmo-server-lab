@@ -48,7 +48,6 @@ namespace Messaging
         std::mutex mutex_;
         std::condition_variable_any wake_; // stop_token으로도 깨어나는 condition_variable
         std::vector<Job> pending_;         // mutex_가 지킨다
-        std::thread::id id_;               // 생성자에서 한 번 쓰고 이후 읽기만 한다
         std::jthread thread_;              // 생성자 본문에서 시작, Stop()에서 join
     };
 } // namespace Messaging
