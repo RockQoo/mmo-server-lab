@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>004 Messaging Lane</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>004 · Messaging: Lane, 코딩 규칙 검사</h1>
+<p class="sub">C++ · C# · 2026-11-24 · 커밋 <code>23ef9bd</code>, <code>f44fa65</code>, <code>52e385f</code>, <code>3363d49</code>, <code>60b1831</code></p>
+
+<div class="card">
+  <strong>무엇을 했나.</strong> 새 라이브러리 <code>Messaging</code>을 만들고, 첫 클래스 <code>Lane</code>을 C++과 C#으로 만들었다.
+  Lane은 일(함수)을 받아 <strong>넣은 순서대로, 한 번에 하나씩</strong> 처리한다. 존 하나처럼 한 Lane에 묶인 데이터는 그 Lane의 일만 만지므로 락 없이 쓸 수 있다(스레드 어피니티).
+  여러 Lane 중 키(존 ID 등)로 하나를 고르는 묶음은 다음 단위에서 만든다.
+</div>
+
+<h2>왜 Base가 아니라 Messaging인가</h2>
+<ul>
+  <li>경계는 <strong>"스레드를 만들고 돌리는가"</strong>다. Base(직렬화, Assert, UTF-8, 이후 <code>RwLocked&lt;T&gt;</code>)는 스레드를 갖지 않는 부품이고, Messaging은 스레드를 소유하고 일을 처리한다.</li>
+  <li>의존 방향이 한쪽으로만 흐른다: <code>Base ← Messaging ← Log·Network ← 서버</code>. 비동기 로거도 이 큐를 쓴다.</li>
+  <li>스레드 테스트는 느리고 타이밍에 민감하다. <code>MessagingTests</code>로 나눠 Base 테스트는 빠르고 결정적으로 둔다.</li>
+</ul>
+
+<h2>흐름 (C++)</h2>
+<div class="diagram">
+<svg viewBox="0 0 1000 250" role="img" aria-label="생산자 스레드가 pending에 넣고 Lane 스레드가 running과 바꿔 락 밖에서 처리하는 흐름">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+  <rect class="d-box" x="20" y="30" width="170" height="44" rx="8"/><text class="d-t" x="105" y="57" text-anchor="middle">생산자 스레드 1</text>
+  <rect class="d-box" x="20" y="90" width="170" height="44" rx="8"/><text class="d-t" x="105" y="117" text-anchor="middle">생산자 스레드 2</text>
+  <rect class="d-box" x="20" y="150" width="170" height="44" rx="8"/><text class="d-t" x="105" y="177" text-anchor="middle">Lane 안의 일(자기에게)</text>
+  <path class="d-line" d="M190,52 L300,100"/><path class="d-line" d="M190,112 L300,112"/><path class="d-line" d="M190,172 L300,124"/>
+  <text class="d-m" x="245" y="80" text-anchor="middle">Post(job)</text>
+  <rect class="d-cpp" x="300" y="80" width="200" height="64" rx="8"/>
+  <text class="d-t" x="400" y="106" text-anchor="middle">pending_ (vector)</text>
+  <text class="d-m" x="400" y="126" text-anchor="middle">mutex_ 안: 멈춤 확인 + push</text>
+  <path class="d-line" d="M500,112 L610,112"/>
+  <text class="d-m" x="555" y="100" text-anchor="middle">swap</text>
+  <text class="d-m" x="555" y="134" text-anchor="middle">(락은 여기까지)</text>
+  <rect class="d-ok" x="610" y="80" width="170" height="64" rx="8"/>
+  <text class="d-t" x="695" y="106" text-anchor="middle">running (vector)</text>
+  <text class="d-m" x="695" y="126" text-anchor="middle">락 밖에서 차례로 job()</text>
+  <path class="d-line" d="M780,112 L850,112"/>
+  <rect class="d-box" x="850" y="80" width="130" height="64" rx="8"/>
+  <text class="d-t" x="915" y="106" text-anchor="middle">clear()</text>
+  <text class="d-m" x="915" y="126" text-anchor="middle">용량은 남김</text>
+  <path class="d-dash" d="M915,144 C915,230 400,230 400,146"/>
+  <text class="d-m" x="660" y="222" text-anchor="middle">다음 swap 때 용량이 pending_으로 돌아간다 → 일정량을 넘으면 더 할당하지 않음</text>
+  <text class="d-m" x="400" y="40" text-anchor="middle">비어 있을 때만 notify_one</text>
+  <path class="d-dash" d="M400,46 L400,78"/>
+</svg>
+</div>
+<p class="muted">Lane 스레드는 일이 들어오거나 멈춤 요청이 올 때까지 <code>condition_variable_any</code>에서 잔다. 멈춤 요청이 와도 남은 일이 있으면 먼저 처리하고, 비었을 때 끝난다.</p>
+
+<h2>같은 역할, 다른 방법</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>역할</th><th>C++ (<code>Messaging::Lane</code>)</th><th>C# (<code>Messaging.Lane</code>)</th></tr>
+  <tr><td>큐</td><td class="cpp">mutex + 두 버퍼 교체(직접 만듦)</td><td class="cs">BCL <code>Channel&lt;Action&gt;</code>(<code>SingleReader = true</code>)</td></tr>
+  <tr><td>처리하는 곳</td><td class="cpp">Lane마다 전용 <code>std::jthread</code></td><td class="cs">스레드 풀에서 도는 async 루프. 쉬는 동안 스레드를 잡지 않는다. 처리 스레드는 바뀔 수 있지만 동시에 두 개 돌지 않는다</td></tr>
+  <tr><td>한꺼번에 처리</td><td class="cpp">버퍼를 통째로 swap</td><td class="cs"><code>WaitToReadAsync</code> 후 <code>TryRead</code>로 쌓인 만큼</td></tr>
+  <tr><td>일 넣기</td><td class="cpp"><code>[[nodiscard]] bool Post(std::move_only_function&lt;void()&gt;)</code></td><td class="cs"><code>bool TryPost(Action)</code>: bool을 돌려주므로 C# 관례대로 Try 접두사(<code>TryWrite</code>와 같음)</td></tr>
+  <tr><td>빈 일 / null</td><td class="cpp"><code>false</code></td><td class="cs"><code>ArgumentNullException</code>(프로그래머 실수는 예외가 C# 관례)</td></tr>
+  <tr><td>멈춤</td><td class="cpp"><code>Stop()</code> / 소멸자: 새 일 거부 → 남은 일 처리 → join</td><td class="cs"><code>await using</code> / <code>DisposeAsync()</code>: 같은 순서</td></tr>
+  <tr><td>자기 스레드에서 멈춤</td><td class="cpp"><code>ASSERT</code>(자기를 join하면 교착)</td><td class="cs"><code>Trace.Assert</code></td></tr>
+  <tr><td>"이 Lane 안인가"</td><td class="cpp"><code>IsInLane()</code>: <code>thread_local</code> Lane 포인터</td><td class="cs"><code>IsInLane</code>: <code>[ThreadStatic]</code> Lane, 일을 처리하는 동안만 설정</td></tr>
+  <tr><td>일이 예외를 던지면</td><td class="cpp">잡지 않음 → <code>std::terminate</code></td><td class="cs"><code>Environment.FailFast</code>(그대로 두면 루프 Task만 조용히 죽고 일이 쌓이기만 한다)</td></tr>
+</table>
+</div>
+<p class="muted">일이 예외를 던지면 두 언어 모두 프로세스를 끝낸다. 반쯤 바뀐 상태로 계속 도는 것보다 죽고 덤프를 남기는 편이 안전하다(Assert와 같은 생각).</p>
+
+<h2>클래스: Lane</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span>
+    <ul>
+      <li><code>Post</code>: 같은 락 안에서 "멈춤 요청 확인 + 넣기". Run이 "비었고 멈춤 요청됨"을 보고 끝난 뒤에는 반드시 멈춤이 보이므로, 끝난 Lane에 넣고 잃어버리는 일이 없다</li>
+      <li>비어 있지 않았으면 깨우지 않는다(이미 깨어 있거나 깨우는 중)</li>
+      <li>스레드는 생성자 본문에서 시작한다(초기화 목록에서 <code>this</code>를 넘기면 C4355)</li>
+      <li>복사·이동 금지(스레드가 <code>this</code>를 쥐고 있다)</li>
+    </ul></div>
+  <div class="card cs"><span class="tag cs">C#</span>
+    <ul>
+      <li><code>sealed class</code> + <code>IAsyncDisposable</code></li>
+      <li>멈춘 뒤 <code>TryPost</code>는 <code>Channel</code>이 닫혀 <code>false</code></li>
+      <li>라이브러리 코드라 <code>await</code>마다 <code>ConfigureAwait(false)</code>(CA2007을 지킴)</li>
+      <li>테스트에서만 CA2007을 껐다: xUnit은 테스트 안에서 <code>ConfigureAwait(false)</code>를 쓰지 말라고 한다(xUnit1030)</li>
+    </ul></div>
+</div>
+
+<h2>테스트</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>확인하는 것</th><th>C++ gtest</th><th>C# xUnit</th></tr>
+  <tr><td>넣은 순서대로 처리(1000개)</td><td><code>RunsJobsInPostedOrder</code></td><td><code>RunsJobsInPostedOrder</code></td></tr>
+  <tr><td>Lane 안/밖 구분</td><td><code>RunsOnItsOwnThread</code></td><td><code>IsInLaneOnlyInsideJobs</code></td></tr>
+  <tr><td>다른 Lane 안에서는 false(리뷰 R1)</td><td><code>IsInLaneIsFalseInOtherLane</code></td><td><code>IsInLaneIsFalseInOtherLane</code></td></tr>
+  <tr><td>생산자 4 × 10000: 잃지 않음, 생산자별 순서</td><td><code>KeepsOrderPerProducer</code></td><td><code>KeepsOrderPerProducer</code>(+ 동시에 두 개 안 돎)</td></tr>
+  <tr><td>멈출 때 남은 일 처리</td><td><code>StopRunsRemainingJobs</code></td><td><code>DisposeRunsRemainingJobs</code></td></tr>
+  <tr><td>일 안에서 자기 Lane에 넣기</td><td><code>JobCanPostToItsOwnLane</code></td><td><code>JobCanPostToItsOwnLane</code></td></tr>
+  <tr><td>멈춘 뒤 거부, 두 번 멈춰도 됨</td><td><code>RejectsAfterStop</code></td><td><code>RejectsAfterDispose</code></td></tr>
+  <tr><td>빈 일 / null</td><td><code>RejectsEmptyJob</code></td><td><code>NullJobThrows</code></td></tr>
+  <tr><td>자기 스레드에서 멈추면 크래시</td><td><code>LaneDeathTest.StopFromOwnThreadCrashes</code></td><td>없음(FailFast는 테스트 러너까지 끝낸다)</td></tr>
+</table>
+</div>
+<p class="muted">C# 테스트에서 일 안에서는 <code>Assert</code>를 쓰지 않는다. 실패하면 예외 → FailFast로 테스트 러너가 죽으므로, 일 안에서는 기록만 하고 밖에서 확인한다.</p>
+
+<h2>코딩 규칙: 왜 어긋났고, 어떻게 막나</h2>
+<div class="card">
+  <strong>무슨 일이 있었나.</strong> Lane C++ 멤버를 <code>mutex_</code>처럼 뒤에 <code>_</code>를 붙여 썼다. 규칙(<code>docs/coding-style.md</code>)은 앞에 붙이는 <code>_camel</code>이고 Base는 그렇게 되어 있었다.
+  멤버 <code>{}</code> 초기화와 지역 변수 <code>auto</code>도 빠졌다. 규칙 문서를 다시 보지 않고 썼고, 그것을 잡아 줄 검사가 없었다. 그래서 <strong>규칙은 사람이 기억하지 않고 도구가 검사한다</strong>로 바꿨다.
+</div>
+<h3>변수 이름: 두 언어가 같은 규칙</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>범위</th><th>C++</th><th>C#</th><th>왜 나누나(스레드)</th></tr>
+  <tr><td>멤버(private·protected)</td><td><code>_pending</code></td><td><code>_pending</code></td><td>객체 하나에 속한다</td></tr>
+  <tr><td>static</td><td><code>s_count</code></td><td><code>s_count</code></td><td>모든 스레드가 같이 본다</td></tr>
+  <tr><td>스레드별</td><td><code>t_currentLane</code></td><td><code>t_currentLane</code></td><td>스레드마다 따로, 락 필요 없음</td></tr>
+  <tr><td>전역</td><td><code>g_config</code>(되도록 안 씀)</td><td>없음</td><td>모든 스레드가 같이 본다</td></tr>
+  <tr><td>지역·매개변수 / 상수</td><td><code>running</code> / <code>MaxCount</code></td><td>같음</td><td></td></tr>
+</table>
+</div>
+<p class="muted">C# 은 MS 공식 규칙(<code>_camel</code>, <code>s_</code>, <code>t_</code>)이다. C++ 에서는 <code>m_</code>가 더 흔하지만 두 서버가 같은 모양이도록 C# 쪽에 맞췄다. 멤버에 쓰는 <code>_</code>+소문자는 C++ 표준상 문제없다(예약은 <code>_</code>+대문자, <code>__</code>, 전역 범위의 <code>_</code>).</p>
+
+<h3>검사 도구</h3>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span>
+    <ul>
+      <li><code>.clang-format</code>: 서식(있었지만 적용·검사를 안 했다. Base 파일 3개도 어긋나 있었다)</li>
+      <li><code>.clang-tidy</code>: 이름 규칙(<code>readability-identifier-naming</code>) + 버그가 되기 쉬운 코드(<code>bugprone-*</code>)</li>
+      <li><code>server-cpp/lint.ps1</code>: 둘 다 돌림, <code>-Fix</code>로 고침. MSVC 빌드 명령에서 clang이 모르는 <code>/analyze</code>, <code>/Wall</code>은 뺀다(<code>RemovedArgs</code>)</li>
+      <li>끈 것: <code>easily-swappable-parameters</code>(모든 함수가 걸려 신호 없음), <code>main</code>의 예외 검사(빠져나가면 크래시 → 덤프가 우리 정책)</li>
+    </ul></div>
+  <div class="card cs"><span class="tag cs">C#</span>
+    <ul>
+      <li><code>.editorconfig</code> 이름 규칙(IDE1006)·서식(IDE0055) + <code>EnforceCodeStyleInBuild</code> → <strong>빌드 에러</strong></li>
+      <li><code>build.ps1 -Lint</code>: <code>dotnet format --verify-no-changes</code></li>
+      <li>한계: editorconfig는 <code>[ThreadStatic]</code>을 구분하지 못해 <code>t_</code>도 <code>s_</code>로 요구한다. <code>t_currentLane</code> 한 곳만 그 자리에서 끄고 이유를 적었다</li>
+      <li>일부러 틀린 임시 파일로 멤버·static·매개변수 위반이 모두 걸리는 것을 확인했다</li>
+    </ul></div>
+</div>
+<p class="muted"><code>qa.json</code>이 두 언어 lint를 함께 돌린다(빌드·테스트 → lint).</p>
+
+<h3>검사가 처음 잡은 것</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>지적</th><th>처리</th></tr>
+  <tr><td>이름: Lane 멤버 4개, <code>tCurrent</code>, 테스트 <code>constexpr</code> 2개, C# 지역 <code>const</code> 3개</td><td><span class="tag ok">수정</span> 규칙대로</td></tr>
+  <tr><td>enum 에 0 값이 없는데 <code>{}</code>로 만듦(테스트 <code>Job</code>, <code>Color</code>)</td><td><span class="tag ok">수정</span> <code>None = 0</code>. "enum은 0 값을 둔다"를 규칙으로(C# CA1008과 같음). 정답 바이트는 그대로</td></tr>
+  <tr><td><code>ByteWriter</code>의 같은 본문 분기(고정 배열 / 시퀀스)</td><td><span class="tag ok">수정</span> 고정 배열은 key_type이 없어 순서를 바꿔 하나로 합침(동작 같음)</td></tr>
+  <tr><td><code>main</code>에서 예외가 빠져나갈 수 있음</td><td>검사 제외(크래시 정책)</td></tr>
+</table>
+</div>
+
+<h2>결과</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> Debug·Release 경고 0, gtest <strong>53개</strong> 통과(Base 44 + Lane 9). <code>MessagingTests</code> 30~50회 반복 실행에서도 실패 0</div>
+  <div class="card cs"><span class="tag cs">C#</span> Debug·Release 경고 0, xUnit <strong>31개</strong> 통과(Base 23 + Lane 8). 10회 반복 실행에서도 실패 0</div>
+</div>
+<p class="muted">에디터: clangd는 빌드 명령이 <code>cl.exe</code>라 clang-cl 모드로 읽는데, 이 모드에서는 003에서 넣은 <code>-Wall</code>도 <code>/Wall</code>(= <code>-Weverything</code>)이 되어 C++98 호환 경고가 다시 떴다. <code>.clangd</code>에서 <code>/W4</code>(= clang의 <code>-Wall -Wextra</code>)로 바꿨다. 003의 설명을 바로잡는다.</p>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>차수</th><th>범위</th><th>결과</th></tr>
+  <tr><td>1차</td><td><code>23ef9bd</code> Lane (C++ 4, C# 5 등 14개 파일)</td><td>1건(medium): 끝난 스레드의 ID는 OS가 다시 쓰므로, 멈춘 Lane A와 새 Lane B가 같은 ID를 받으면 B의 일에서 <code>A.IsInLane()</code>이 true가 된다 → <span class="tag ok">동의, 수정</span> 스레드 ID 비교를 <code>thread_local</code> Lane 포인터로 바꾸고 두 언어에 테스트 추가</td></tr>
+  <tr><td>2차</td><td><code>f44fa65</code> 수정 (C++ 3, C# 1)</td><td><span class="tag ok">0건</span></td></tr>
+  <tr><td>3차</td><td><code>52e385f</code> 코딩 규칙 검사 (C++ 10, C# 9 등 22개 파일)</td><td>2건(medium), 모두 <code>lint.ps1</code>: (R1) clang-tidy가 설정 오류로 실패해도 진단 형식이 아니면 0건으로 통과, (R2) LLVM이 PATH에 없으면 기본 설치 경로로 가지 못하고 멈춤 → <span class="tag ok">동의, 수정</span> 종료 코드도 실패로 세고, PATH 확인을 먼저. 정상·설정 오류·PATH 없음 세 경우를 돌려 확인</td></tr>
+  <tr><td>4차</td><td><code>3363d49</code> 수정 (1개 파일)</td><td><span class="tag ok">0건</span></td></tr>
+  <tr><td>5차</td><td><code>60b1831</code> <code>build.ps1</code>가 VS 솔루션도 갱신 (2개 파일). VS 솔루션(<code>build/vs</code>)이 Messaging 추가 전 그대로라 VS에 Messaging이 보이지 않았다</td><td><span class="tag ok">0건</span></td></tr>
+</table>
+</div>
+
+<h2>나중에</h2>
+<ul>
+  <li>성능 비교(<code>PROGRESS.md</code>): mutex + 두 버퍼 vs lock-free MPSC vs <code>moodycamel::ConcurrentQueue</code>, C# <code>Channel&lt;T&gt;</code> 설정별. 생산자 수·일 크기별 처리량과 지연</li>
+  <li>레인 스레드 이름(디버거·덤프에서 보이게)과 코어 고정</li>
+</ul>
+
+<h2>다음</h2>
+<ul>
+  <li>여러 Lane 묶음: 키(존 ID 등)로 Lane을 고르는 스레드 어피니티. 클래스 이름 후보부터 제안</li>
+</ul>
+
+</main>
+</body>
+</html>
