@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>002 C# 직렬화</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>002 · C# 직렬화: 코덱으로 컨테이너·nullable·Dictionary·클래스</h1>
+<p class="sub">C# (C++ 따라잡기) · 2026-11-24 · 커밋 <code>43ae8cc</code> ~ <code>9c5d808</code></p>
+
+<div class="card">
+  <strong>무엇을 했나.</strong> C++ <code>ByteWriter</code>/<code>ByteReader</code>가 이미 지원하던 컨테이너, optional, map, 클래스를
+  C#에서 <strong>같은 바이트</strong>로 쓰고 읽게 했다. 정답 파일 두 개(<code>containers.hex</code>, <code>classes.hex</code>)를 두 언어 테스트가 같이 확인한다.
+  <br><br>
+  <strong>왜 이 방식인가.</strong> C++은 <code>operator&lt;&lt;</code> 하나 안의 <code>if constexpr</code>로 타입을 컴파일 시간에 가른다.
+  C#에는 그 기능이 없다. 그래서 타입마다 쓰기·읽기 묶음인 <strong>코덱(codec: 인코더 + 디코더)</strong>을 <code>struct</code>로 두고
+  static abstract 인터페이스(<code>IByteCodec&lt;T&gt;</code>)로 묶었다. JIT(Just-In-Time 컴파일러: 실행할 때 기계어로 바꾸는 .NET 컴파일러)가
+  struct 코덱마다 전용 코드를 만들어 호출이 인라인된다. 규칙 "안전 &gt; 성능 &gt; 편의"에 따라 편의(짧은 코드)보다 성능을 골랐다.
+  손으로 쓰면 길지만 패킷·데이터 클래스는 CodeGen이 만든다.
+</div>
+
+<h2>흐름</h2>
+<div class="diagram">
+<svg viewBox="0 0 980 280" role="img" aria-label="Player 클래스를 PlayerCodec이 필드 순서대로 쓰고, 컨테이너 필드는 ListCodec과 DictionaryCodec이 원소 코덱을 불러 쓴다">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+    </marker>
+  </defs>
+  <rect class="d-cs" x="10" y="40" width="170" height="60" rx="8"/>
+  <text class="d-t" x="95" y="65" text-anchor="middle">writer.Write&lt;Player,</text>
+  <text class="d-t" x="95" y="83" text-anchor="middle">PlayerCodec&gt;(p)</text>
+
+  <rect class="d-cs" x="230" y="40" width="200" height="60" rx="8"/>
+  <text class="d-t" x="330" y="65" text-anchor="middle">PlayerCodec.Write</text>
+  <text class="d-m" x="330" y="83" text-anchor="middle">필드를 적은 순서대로</text>
+  <path class="d-line" d="M180,70 H226"/>
+
+  <rect class="d-box" x="490" y="14" width="230" height="34" rx="6"/>
+  <text class="d-t" x="605" y="36" text-anchor="middle">Level · Job · Name</text>
+  <rect class="d-box" x="490" y="56" width="230" height="34" rx="6"/>
+  <text class="d-t" x="605" y="78" text-anchor="middle">ListCodec&lt;Item, ItemCodec&gt;</text>
+  <rect class="d-box" x="490" y="98" width="230" height="34" rx="6"/>
+  <text class="d-t" x="605" y="120" text-anchor="middle">DictionaryCodec&lt;string, int, …&gt;</text>
+  <path class="d-line" d="M430,58 L486,33"/>
+  <path class="d-line" d="M430,70 L486,73"/>
+  <path class="d-line" d="M430,82 L486,113"/>
+
+  <rect class="d-box" x="770" y="56" width="200" height="34" rx="6"/>
+  <text class="d-t" x="870" y="78" text-anchor="middle">개수 + ItemCodec × N</text>
+  <rect class="d-box" x="770" y="98" width="200" height="34" rx="6"/>
+  <text class="d-t" x="870" y="120" text-anchor="middle">개수 + (키, 값) × N</text>
+  <path class="d-line" d="M720,73 H766"/>
+  <path class="d-line" d="M720,115 H766"/>
+
+  <rect class="d-ok" x="330" y="190" width="320" height="74" rx="8"/>
+  <text class="d-t" x="490" y="214" text-anchor="middle">testdata/bytes/classes.hex</text>
+  <text class="d-m" x="490" y="233" text-anchor="middle">C++ SERIALIZE_FIELDS 와 같은 바이트</text>
+  <text class="d-m" x="490" y="251" text-anchor="middle">containers.hex: vector · optional · 중첩</text>
+  <path class="d-dash" d="M605,132 V188"/>
+</svg>
+</div>
+
+<h2>C++ ↔ C# 대응</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>C++</th><th>C# 코덱</th><th>메모</th></tr>
+  <tr><td class="cpp">정수, enum, bool, float/double, string</td><td class="cs"><code>IntegerCodec&lt;T&gt;</code>, <code>EnumCodec&lt;T&gt;</code>, <code>BoolCodec</code>, <code>SingleCodec</code>, <code>DoubleCodec</code>, <code>StringCodec</code></td><td>001에서 만든 메서드를 감싼다</td></tr>
+  <tr><td class="cpp"><code>std::vector&lt;T&gt;</code></td><td class="cs"><code>ArrayCodec</code>(<code>T[]</code>), <code>ListCodec</code>(<code>List&lt;T&gt;</code>)</td><td><code>List</code>는 <code>CollectionsMarshal.AsSpan</code>으로 복사 없이 본다</td></tr>
+  <tr><td class="cpp">정수 <code>std::vector</code></td><td class="cs"><code>IntegerArrayCodec&lt;T&gt;</code></td><td>원소별이 아니라 메모리 통째 복사(memcpy 한 번). 바이트는 같다</td></tr>
+  <tr><td class="cpp"><code>std::optional&lt;T&gt;</code></td><td class="cs"><code>NullableCodec</code>(<code>int?</code>), <code>NullableRefCodec</code>(<code>string?</code>)</td><td>bool(있음) + 값</td></tr>
+  <tr><td class="cpp"><code>std::map&lt;K, V&gt;</code></td><td class="cs"><code>DictionaryCodec&lt;K, V, KC, VC&gt;</code></td><td>C++ map은 키 순, C# Dictionary는 넣은 순. 같은 키는 먼저 온 값 유지</td></tr>
+  <tr><td class="cpp"><code>SERIALIZE_FIELDS(a, b)</code></td><td class="cs">클래스 + 코덱 struct 쌍(<code>Player</code> + <code>PlayerCodec</code>)</td><td>코덱을 클래스 자신으로 하면 JIT가 공유 코드로 만들어 인라인이 안 된다 → struct로 분리. CodeGen이 이 모양을 생성</td></tr>
+  <tr><td class="cpp"><code>wstring</code>, <code>u16string</code></td><td class="cs">(<code>string</code>과 같음)</td><td>C# string이 이미 UTF-16이라 따로 없다</td></tr>
+  <tr><td class="cpp"><code>variant</code>, <code>tuple</code>, <code>chrono</code>, 고정 배열</td><td class="cs">따로 만들지 않음</td><td>C++ 타입을 C#에 옮기지 않는다. 같은 역할이 필요해지면 C#다운 형식을 쓴다(시간은 <code>TimeSpan</code>, 여러 값은 클래스·record 등)</td></tr>
+</table>
+</div>
+
+<h2>안전 (C++과 같은 규칙)</h2>
+<ul>
+  <li><strong>거짓 개수:</strong> 개수 × 원소 크기가 남은 바이트보다 크면 <strong>할당 전에</strong> 실패(<code>ReadCount(minElementSize)</code>). long 65535개짜리 512KB 배열을 데이터 없이 만들게 하지 못한다.</li>
+  <li><strong>실패한 nullable:</strong> "있음" 뒤 값 읽기에 실패하면 0이나 ""가 아니라 <code>null</code>(C++ optional을 비우는 것과 같다).</li>
+  <li><strong>null 쓰기:</strong> null 문자열·배열·List·Dictionary·클래스는 예외 대신 실패 표시(<code>ByteWriter.Fail()</code>), 이후 쓰기 무시.</li>
+  <li><strong>실패 뒤:</strong> 컨테이너 읽기가 실패하면 빈 컨테이너. 끝에서 <code>IsValid</code>로 한 번 확인한다.</li>
+</ul>
+
+<h2>테스트</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> gtest <strong>44개</strong> 통과
+    <ul><li>새로: <code>ByteFormat.ContainersMatchGoldenFile</code>, <code>ByteFormat.ClassesMatchGoldenFile</code></li></ul></div>
+  <div class="card cs"><span class="tag cs">C#</span> xUnit <strong>21개</strong> 통과
+    <ul><li>정답 파일: 컨테이너, 클래스</li>
+        <li>실패 처리: 개수 초과, 거짓 개수(원소별·통째 복사), 원소 크기×개수, 실패한 nullable, null 쓰기, 중복 키, 0바이트 값 쌍</li></ul></div>
+</div>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>차수</th><th>범위</th><th>결과</th></tr>
+  <tr><td>1차</td><td><code>43ae8cc</code> 코덱·배열·List·nullable (C++ 테스트, C# 코드·테스트, 정답 파일 등 9개 파일)</td><td>2건 → 동의, 수정</td></tr>
+  <tr><td>2차</td><td><code>74481ed</code> 수정분 (3개 파일)</td><td><span class="tag ok">0건</span></td></tr>
+  <tr><td>3차</td><td><code>bdc8eff</code> Dictionary·클래스 (C++ 테스트 1, C# 4 등)</td><td>1건 → 동의, 수정</td></tr>
+  <tr><td>4차</td><td><code>9c5d808</code> 수정분 (2개 파일)</td><td><span class="tag ok">0건</span> 완료</td></tr>
+</table>
+</div>
+<h3>지적과 조치</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>지적</th><th>판단</th><th>조치</th></tr>
+  <tr><td>정수 배열이 개수만 보고 할당해, 데이터가 모자란 패킷에도 큰 배열을 먼저 만든다</td><td><span class="tag ok">동의</span></td><td>원소 크기 × 개수로 할당 전 검사</td></tr>
+  <tr><td>nullable 안의 값 읽기가 실패해도 0을 돌려준다</td><td><span class="tag ok">동의</span></td><td>실패하면 null</td></tr>
+  <tr><td>Dictionary 쌍 최소 2바이트 가정이 한쪽이 0바이트인 정상 쌍을 거부한다(C++은 허용)</td><td><span class="tag ok">동의</span></td><td>쌍 최소 1바이트 + 왕복 테스트</td></tr>
+</table>
+</div>
+
+<h2>다음</h2>
+<ul>
+  <li>C# Assert(실패 처리): C++ <code>ASSERT</code>처럼 덤프로 이어지는 크래시를 C#다운 방법으로</li>
+  <li>그다음 Messaging부터 C++·C# 같이</li>
+  <li>나중에: 직접 만든 형식 vs MemoryPack vs Protobuf 벤치마크(<code>docs/decisions/</code>)</li>
+</ul>
+
+</main>
+</body>
+</html>
