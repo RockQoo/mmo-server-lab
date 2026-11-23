@@ -120,7 +120,7 @@ TEST(ByteFormat, ContainersMatchGoldenFile)
     Base::ByteWriter writer;
     writer << std::vector<std::int32_t>{1, 2, 3} << std::vector<std::int32_t>{}
            << std::vector<std::string>{"a", "가"} << std::optional<std::int32_t>{7} << std::optional<std::int32_t>{}
-           << std::optional<std::string>{"x"} << std::vector<std::optional<std::int16_t>>{5, std::nullopt}
+           << std::optional<std::string>{"x"} << std::vector<std::optional<std::int16_t>>{std::int16_t{5}, std::nullopt}
            << std::vector<Bytes>{{1, 2}, {}};
     ASSERT_TRUE(writer.IsValid());
     EXPECT_TRUE(std::ranges::equal(writer.Data(), expected));
@@ -144,7 +144,7 @@ TEST(ByteFormat, ContainersMatchGoldenFile)
     EXPECT_EQ(seven, 7);
     EXPECT_FALSE(missing.has_value());
     EXPECT_EQ(x, "x");
-    EXPECT_EQ(shorts, (std::vector<std::optional<std::int16_t>>{5, std::nullopt}));
+    EXPECT_EQ(shorts, (std::vector<std::optional<std::int16_t>>{std::int16_t{5}, std::nullopt}));
     EXPECT_EQ(nested, (std::vector<Bytes>{{1, 2}, {}}));
 }
 
@@ -153,7 +153,7 @@ TEST(ByteFormat, ClassesMatchGoldenFile)
     const auto expected = LoadHex("classes.hex");
     ASSERT_FALSE(expected.empty());
 
-    const auto player = Player{
+    const Player player{
         .level = 10,
         .job = Job::Archer,
         .name = "쿠",

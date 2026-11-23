@@ -21,7 +21,7 @@ public class ByteFormatTest
         return File.ReadLines(path)
             .Select(line => line.Split('#')[0])
             .SelectMany(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            .Select(token => byte.Parse(token, NumberStyles.HexNumber))
+            .Select(token => byte.Parse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture))
             .ToArray();
     }
 

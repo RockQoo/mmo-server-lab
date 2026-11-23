@@ -5,9 +5,14 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- C++의 /W4처럼 경고를 많이 본다. 안전 우선: nullable 경고는 에러로 막는다. -->
-    <AnalysisLevel>latest</AnalysisLevel>
-    <WarningsAsErrors>nullable</WarningsAsErrors>
+    <!-- 경고는 가장 높게, 경고가 하나라도 나오면 빌드 실패(C++ 의 /Wall /WX /analyze 와 같은 목적).
+         WarningLevel 9999: 컴파일러 경고를 새 단계(warning wave)까지 전부. AnalysisLevel latest-all: .NET 코드 분석(CA) 규칙 전부.
+         Features strict: 컴파일러의 엄격 모드. -->
+    <WarningLevel>9999</WarningLevel>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <Features>strict</Features>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
     <!-- 소스를 UTF-8로 본다(C++의 /utf-8과 같은 목적). -->
     <CodePage>65001</CodePage>
     <!-- Trace.Assert(= C++ ASSERT, Release 에서도 검사)는 TRACE 기호가 있어야 남는다. SDK 기본값이지만 빠지면 검사가

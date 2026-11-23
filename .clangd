@@ -2,3 +2,7 @@
 # server-cpp/build.ps1 -Config debug 를 한 번 돌리면 생긴다.
 CompileFlags:
   CompilationDatabase: server-cpp/build/debug
+  # MSVC 의 /Wall 을 clang 은 -Weverything(C++98 호환 경고까지 전부)으로 읽는다. 에디터에서는 빼고 clang 기준 높은 경고를 쓴다.
+  # 진짜 기준은 MSVC 빌드(/Wall /WX /analyze)다. /analyze 도 clang 은 모르므로 뺀다.
+  Remove: [/Wall, /analyze, "/analyze:*"]
+  Add: [-Wall, -Wextra, -Wpedantic, -Wconversion, -Wsign-conversion, -Wshadow]

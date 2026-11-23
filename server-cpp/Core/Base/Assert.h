@@ -31,11 +31,15 @@ namespace Base
     } while (false)
 
 #ifdef NDEBUG
-// Release: 평가하지 않는다. sizeof 안에 두어 문법 검사는 받고, 조건에만 쓰는 변수의 "안 쓰임" 경고도 막는다.
+// Release: 평가하지 않는다. if constexpr (false) 안은 컴파일(문법 검사)만 되고 코드가 생기지 않는다.
+// 조건에만 쓰는 변수의 "안 쓰임" 경고도 막는다. (sizeof(!(조건)) 은 /analyze 가 C6334 로 막아 이 방식으로 바꿨다)
 #define DEBUG_ASSERT(condition, message)                                                                               \
     do                                                                                                                 \
     {                                                                                                                  \
-        (void)sizeof(!(condition));                                                                                    \
+        if constexpr (false)                                                                                           \
+        {                                                                                                              \
+            static_cast<void>(condition);                                                                              \
+        }                                                                                                              \
     } while (false)
 #else
 #define DEBUG_ASSERT(condition, message) ASSERT(condition, message)

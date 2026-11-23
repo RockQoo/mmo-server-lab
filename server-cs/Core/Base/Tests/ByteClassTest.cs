@@ -7,19 +7,19 @@ namespace Base.Tests;
 // static abstract 호출이 인라인되지 않는다. struct 코덱은 타입마다 전용 코드가 생긴다.
 public class ByteClassTest
 {
-    public enum Job : byte
+    private enum Job : byte
     {
         Warrior = 1,
         Archer = 2,
     }
 
-    public sealed class Item
+    private sealed class Item
     {
         public int Id { get; set; }
         public string Name { get; set; } = "";
     }
 
-    public readonly struct ItemCodec : IByteCodec<Item>
+    private readonly struct ItemCodec : IByteCodec<Item>
     {
         public static void Write(ref ByteWriter writer, Item value)
         {
@@ -40,7 +40,7 @@ public class ByteClassTest
         };
     }
 
-    public sealed class Player
+    private sealed class Player
     {
         public int Level { get; set; }
         public Job Job { get; set; }
@@ -49,7 +49,7 @@ public class ByteClassTest
         public Dictionary<string, int> Stats { get; set; } = [];
     }
 
-    public readonly struct PlayerCodec : IByteCodec<Player>
+    private readonly struct PlayerCodec : IByteCodec<Player>
     {
         public static void Write(ref ByteWriter writer, Player value)
         {

@@ -8,12 +8,12 @@ public class BuildInfoTest
     {
         var info = BuildInfo.Describe();
 
-        Assert.Contains(".NET ", info);
-        Assert.Contains("GC", info);
+        Assert.Contains(".NET ", info, StringComparison.Ordinal);
+        Assert.Contains("GC", info, StringComparison.Ordinal);
 #if DEBUG
-        Assert.Contains("Debug", info);
+        Assert.Contains("Debug", info, StringComparison.Ordinal);
 #else
-        Assert.Contains("Release", info);
+        Assert.Contains("Release", info, StringComparison.Ordinal);
 #endif
     }
 

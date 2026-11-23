@@ -61,19 +61,19 @@ namespace Base
         if ((lead & 0xE0) == 0xC0)
         {
             length = 2;
-            codePoint = lead & 0x1F;
+            codePoint = static_cast<char32_t>(lead & 0x1F);
             minimum = 0x80;
         }
         else if ((lead & 0xF0) == 0xE0)
         {
             length = 3;
-            codePoint = lead & 0x0F;
+            codePoint = static_cast<char32_t>(lead & 0x0F);
             minimum = 0x800;
         }
         else if ((lead & 0xF8) == 0xF0)
         {
             length = 4;
-            codePoint = lead & 0x07;
+            codePoint = static_cast<char32_t>(lead & 0x07);
             minimum = 0x10000;
         }
         else

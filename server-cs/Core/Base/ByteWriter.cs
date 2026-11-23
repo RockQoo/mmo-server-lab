@@ -25,17 +25,14 @@ public ref struct ByteWriter
     private int _written;
     private bool _valid;
 
-    static ByteWriter()
+    public ByteWriter(IBufferWriter<byte> output)
     {
         // 형식은 리틀 엔디안 고정. 메모리를 그대로 복사하므로 빅 엔디안 CPU에서는 형식이 깨진다.
+        // JIT 가 상수로 접어 x64 에서는 코드가 남지 않는다. 정적 생성자에서 던지면 타입 전체가 못 쓰게 되어(CA1065) 여기서 본다.
         if (!BitConverter.IsLittleEndian)
         {
             throw new PlatformNotSupportedException("ByteWriter는 리틀 엔디안 CPU만 지원한다");
         }
-    }
-
-    public ByteWriter(IBufferWriter<byte> output)
-    {
         _output = output;
         _valid = true;
     }

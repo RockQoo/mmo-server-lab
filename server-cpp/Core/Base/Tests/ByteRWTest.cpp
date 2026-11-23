@@ -126,7 +126,7 @@ TEST(ByteRW, EverythingRoundTrip)
     const auto names = std::vector<std::string>{"a", "", "다"};
     const auto table = std::map<std::int32_t, std::string>{{1, "one"}, {2, "two"}};
     const auto lookup = std::unordered_map<std::string, std::int32_t>{{"x", 10}, {"y", 20}};
-    const auto player = Player{
+    const Player player{
         .level = 10,
         .job = Job::Archer,
         .name = "궁수",
@@ -401,7 +401,7 @@ TEST(ByteRW, SequenceContainersRoundTrip)
 // 고정 배열도 개수를 쓰고(안전), 읽을 때 크기가 다르면 실패한다.
 TEST(ByteRW, FixedArraysRoundTripAndCheckCount)
 {
-    const auto stats = std::array<std::int16_t, 3>{10, 20, 30};
+    const auto stats = std::array<std::int16_t, 3>{{10, 20, 30}};
     const std::uint8_t slots[2] = {4, 5};
 
     Base::ByteWriter writer;
@@ -417,7 +417,7 @@ TEST(ByteRW, FixedArraysRoundTripAndCheckCount)
     EXPECT_EQ(readSlots[0], 4);
     EXPECT_EQ(readSlots[1], 5);
 
-    auto wrongSize = std::array<std::int16_t, 4>{1, 1, 1, 1};
+    auto wrongSize = std::array<std::int16_t, 4>{{1, 1, 1, 1}};
     Base::ByteReader mismatch(writer.Data());
     mismatch >> wrongSize;
 
@@ -524,7 +524,7 @@ TEST(ByteRW, DeeplyNestedRoundTrip)
         {"빈칸", {}},
     };
     const auto places = Places{
-        {1, {L"마을", {0.f, 1.f}}},
+        {1, {L"마을", {{0.f, 1.f}}}},
     };
 
     Base::ByteWriter writer;

@@ -21,16 +21,13 @@ public ref struct ByteReader
     private int _pos;
     private bool _valid;
 
-    static ByteReader()
+    public ByteReader(ReadOnlySpan<byte> data)
     {
+        // 리틀 엔디안 고정(ByteWriter 생성자 주석 참고)
         if (!BitConverter.IsLittleEndian)
         {
             throw new PlatformNotSupportedException("ByteReader는 리틀 엔디안 CPU만 지원한다");
         }
-    }
-
-    public ByteReader(ReadOnlySpan<byte> data)
-    {
         _data = data;
         _valid = true;
     }

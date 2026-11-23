@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# 경고 = 빌드 에러(컴파일 /WX, 링크 /WX). 모든 대상에 걸린다.
+set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+set(CMAKE_LINK_WARNING_AS_ERROR ON)
+
 # 모듈(import)을 쓰지 않고 헤더 방식으로 간다(2026-11-17 결정).
 # 켜 두면 빌드마다 소스를 훑어 모듈 의존성을 찾는 단계가 추가된다.
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
@@ -13,7 +17,18 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 if(MSVC)
     # /W4: 경고 많이, /permissive-: 표준 엄격, /utf-8: 소스와 실행 문자셋 UTF-8
     # /Zc:__cplusplus: __cplusplus 매크로가 실제 표준 값을 갖게 함(없으면 199711L 고정)
-    add_compile_options(/W4 /permissive- /utf-8 /Zc:__cplusplus)
+    add_compile_options(/permissive- /utf-8 /Zc:__cplusplus)
+
+    # 경고는 가장 높게(/Wall), 경고가 하나라도 나오면 빌드 실패(아래 COMPILE/LINK_WARNING_AS_ERROR = /WX).
+    # <...>로 include한 헤더(표준, vcpkg의 gtest)는 경고를 보지 않는다(/external). 우리 코드가 만든 템플릿 인스턴스의
+    # 경고는 그대로 본다.
+    add_compile_options(/Wall /external:anglebrackets /external:W0)
+    # /Wall 에는 "문제"가 아니라 "컴파일러가 이렇게 했다"는 안내도 섞여 있다. 그런 것만 끈다(나머지는 전부 에러).
+    #   C4514 쓰지 않는 inline 함수를 지웠다          C4710 inline 하지 않았다   C4711 자동으로 inline 했다
+    #   C4820 구조체에 패딩을 넣었다                   C5045 Spectre 완화 코드를 넣을 수 있다(/Qspectre 안내)
+    add_compile_options(/wd4514 /wd4710 /wd4711 /wd4820 /wd5045)
+    # 정적 분석(/analyze): 컴파일하면서 널 역참조·버퍼 넘침·초기화 안 된 값 같은 버그를 찾는다. 경고와 같이 에러가 된다.
+    add_compile_options(/analyze /analyze:external-)
 
     # VS Code clangd용. cl은 INCLUDE 환경 변수(VS 개발자 환경)로 표준 헤더를 찾지만
     # clangd는 그 경로를 모른다. compile_commands.json에 경로를 직접 넣어 준다.
@@ -65,6 +80,10 @@ target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
 # C# 테스트와 같이 쓰는 정답 파일 위치(저장소 최상위 testdata/)
 target_compile_definitions(BaseTests PRIVATE MMO_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../testdata")
 set_target_properties(BaseTests PROPERTIES FOLDER Tests)
+# gtest 의 EXPECT_*/ASSERT_* 매크로가 안에서 상수끼리 비교해 /analyze 가 C6326 을 낸다(gtest 오탐). 테스트에서만 끈다.
+if(MSVC)
+    target_compile_options(BaseTests PRIVATE /wd6326)
+endif()
 # 예외 잡기를 끈다: 크래시를 gtest가 삼키지 않고 실제 종료 코드로 남긴다(ASSERT 예외 코드 확인).
 # ctest는 테스트마다 프로세스를 따로 띄우므로 하나가 죽어도 나머지는 돈다.
 gtest_discover_tests(BaseTests EXTRA_ARGS --gtest_catch_exceptions=0)
