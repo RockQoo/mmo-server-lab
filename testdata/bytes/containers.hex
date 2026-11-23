@@ -1,0 +1,12 @@
+# 컨테이너·optional 정답 바이트. C++ ByteWriter 와 C# 코덱이 똑같이 만들어야 한다.
+# 테스트: server-cpp/Core/Base/Tests/ByteFormatTest.cpp, server-cs/Core/Base/Tests/ByteFormatTest.cs
+# 컨테이너 = uint16 개수 + 원소, optional = bool(있음) + 값
+
+03 00 01 00 00 00 02 00 00 00 03 00 00 00   # vector<int32> {1, 2, 3}          C#: int[] (IntegerArrayCodec, 통째 복사)
+00 00                                       # vector<int32> {}                 C#: int[] (ArrayCodec, 원소별)
+02 00 01 00 61 03 00 ea b0 80               # vector<string> {"a", "가"}       C#: List<string>
+01 07 00 00 00                              # optional<int32> 7                C#: int?
+00                                          # optional<int32> 없음             C#: int? null
+01 01 00 78                                 # optional<string> "x"             C#: string?
+02 00 01 05 00 00                           # vector<optional<int16>> {5, 없음} C#: List<short?>
+02 00 02 00 01 02 00 00                     # vector<vector<uint8>> {{1, 2}, {}} C#: byte[][]

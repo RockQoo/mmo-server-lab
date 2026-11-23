@@ -86,9 +86,28 @@ public ref struct ByteReader
         return Encoding.UTF8.GetString(bytes);
     }
 
-    // 길이·개수를 읽는다. 남은 바이트보다 크면 실패 표시 후 0.
+    // 코덱으로 읽는다: 컨테이너, nullable, 클래스(ByteCodecs.cs). 예: reader.Read<int[], IntegerArrayCodec<int>>()
+    public T Read<T, TCodec>() where TCodec : IByteCodec<T>
+    {
+        return TCodec.Read(ref this);
+    }
+
+    // 바이트를 그대로 채운다(정수 배열 통째 복사 등). 모자라면 실패 표시 후 false.
+    public bool ReadBytes(Span<byte> destination)
+    {
+        if (!_valid || destination.Length > Remaining)
+        {
+            _valid = false;
+            return false;
+        }
+        _data.Slice(_pos, destination.Length).CopyTo(destination);
+        _pos += destination.Length;
+        return true;
+    }
+
+    // 길이·개수를 읽는다. 남은 바이트보다 크면 실패 표시 후 0. 코덱과 CodeGen 이 쓴다.
     // 원소는 최소 1바이트이므로, 거짓 개수로 큰 메모리를 잡게 하는 패킷을 여기서 막는다.
-    private int ReadCount()
+    public int ReadCount()
     {
         int count = ReadRaw<ushort>();
         if (count > Remaining)

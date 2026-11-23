@@ -105,6 +105,35 @@ public ref struct ByteWriter
         Advance(sizeof(ushort) + length);
     }
 
+    // 코덱으로 쓴다: 컨테이너, nullable, 클래스(ByteCodecs.cs). 예: writer.Write<int[], IntegerArrayCodec<int>>(ids)
+    public void Write<T, TCodec>(T value) where TCodec : IByteCodec<T>
+    {
+        TCodec.Write(ref this, value);
+    }
+
+    // 컨테이너 개수(uint16). 상한(MaxCount)을 넘거나 음수면 실패 표시 후 false. 코덱과 CodeGen 이 쓴다.
+    public bool WriteCount(int count)
+    {
+        if (!_valid || count < 0 || count > MaxCount)
+        {
+            _valid = false;
+            return false;
+        }
+        Write((ushort)count);
+        return _valid;
+    }
+
+    // 바이트를 그대로 쓴다(정수 배열 통째 복사 등).
+    public void WriteBytes(ReadOnlySpan<byte> bytes)
+    {
+        if (!_valid || bytes.IsEmpty)
+        {
+            return;
+        }
+        bytes.CopyTo(_output.GetSpan(bytes.Length));
+        Advance(bytes.Length);
+    }
+
     private void WriteRaw<T>(T value) where T : unmanaged
     {
         if (!_valid)

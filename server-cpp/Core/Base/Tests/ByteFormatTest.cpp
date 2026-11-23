@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -79,4 +80,41 @@ TEST(ByteFormat, BasicMatchesGoldenFile)
     EXPECT_EQ(i64, 0x0102030405060708);
     EXPECT_EQ(text, "가a");
     EXPECT_EQ(empty, "");
+}
+
+TEST(ByteFormat, ContainersMatchGoldenFile)
+{
+    const auto expected = LoadHex("containers.hex");
+    ASSERT_FALSE(expected.empty());
+
+    using Bytes = std::vector<std::uint8_t>;
+    Base::ByteWriter writer;
+    writer << std::vector<std::int32_t>{1, 2, 3} << std::vector<std::int32_t>{}
+           << std::vector<std::string>{"a", "가"} << std::optional<std::int32_t>{7} << std::optional<std::int32_t>{}
+           << std::optional<std::string>{"x"} << std::vector<std::optional<std::int16_t>>{5, std::nullopt}
+           << std::vector<Bytes>{{1, 2}, {}};
+    ASSERT_TRUE(writer.IsValid());
+    EXPECT_TRUE(std::ranges::equal(writer.Data(), expected));
+
+    auto ints = std::vector<std::int32_t>{};
+    auto none = std::vector<std::int32_t>{9};
+    auto strings = std::vector<std::string>{};
+    auto seven = std::optional<std::int32_t>{};
+    auto missing = std::optional<std::int32_t>{1};
+    auto x = std::optional<std::string>{};
+    auto shorts = std::vector<std::optional<std::int16_t>>{};
+    auto nested = std::vector<Bytes>{};
+    Base::ByteReader reader(expected);
+    reader >> ints >> none >> strings >> seven >> missing >> x >> shorts >> nested;
+
+    EXPECT_TRUE(reader.IsValid());
+    EXPECT_EQ(reader.ReadPos(), expected.size());
+    EXPECT_EQ(ints, (std::vector<std::int32_t>{1, 2, 3}));
+    EXPECT_TRUE(none.empty());
+    EXPECT_EQ(strings, (std::vector<std::string>{"a", "가"}));
+    EXPECT_EQ(seven, 7);
+    EXPECT_FALSE(missing.has_value());
+    EXPECT_EQ(x, "x");
+    EXPECT_EQ(shorts, (std::vector<std::optional<std::int16_t>>{5, std::nullopt}));
+    EXPECT_EQ(nested, (std::vector<Bytes>{{1, 2}, {}}));
 }

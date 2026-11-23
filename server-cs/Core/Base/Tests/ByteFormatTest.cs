@@ -61,4 +61,40 @@ public class ByteFormatTest
         Assert.True(reader.IsValid);
         Assert.Equal(0, reader.Remaining);
     }
+
+    // C++ vector / optional 과 같은 바이트. 코덱을 조합해 중첩(List<short?>, byte[][])도 쓴다.
+    [Fact]
+    public void ContainersMatchGoldenFile()
+    {
+        var expected = LoadHex("containers.hex");
+        Assert.NotEmpty(expected);
+
+        var buffer = new ArrayBufferWriter<byte>();
+        var writer = new ByteWriter(buffer);
+        writer.Write<int[], IntegerArrayCodec<int>>([1, 2, 3]);
+        writer.Write<int[], ArrayCodec<int, IntegerCodec<int>>>([]);
+        writer.Write<List<string>, ListCodec<string, StringCodec>>(["a", "가"]);
+        writer.Write<int?, NullableCodec<int, IntegerCodec<int>>>(7);
+        writer.Write<int?, NullableCodec<int, IntegerCodec<int>>>(null);
+        writer.Write<string?, NullableRefCodec<string, StringCodec>>("x");
+        writer.Write<List<short?>, ListCodec<short?, NullableCodec<short, IntegerCodec<short>>>>([5, null]);
+        writer.Write<byte[][], ArrayCodec<byte[], IntegerArrayCodec<byte>>>([[1, 2], []]);
+        Assert.True(writer.IsValid);
+        Assert.Equal(expected, buffer.WrittenSpan.ToArray());
+
+        var reader = new ByteReader(expected);
+        Assert.Equal([1, 2, 3], reader.Read<int[], IntegerArrayCodec<int>>());
+        Assert.Empty(reader.Read<int[], ArrayCodec<int, IntegerCodec<int>>>());
+        Assert.Equal(["a", "가"], reader.Read<List<string>, ListCodec<string, StringCodec>>());
+        Assert.Equal(7, reader.Read<int?, NullableCodec<int, IntegerCodec<int>>>());
+        Assert.Null(reader.Read<int?, NullableCodec<int, IntegerCodec<int>>>());
+        Assert.Equal("x", reader.Read<string?, NullableRefCodec<string, StringCodec>>());
+        Assert.Equal([5, null], reader.Read<List<short?>, ListCodec<short?, NullableCodec<short, IntegerCodec<short>>>>());
+        var nested = reader.Read<byte[][], ArrayCodec<byte[], IntegerArrayCodec<byte>>>();
+        Assert.Equal(2, nested.Length);
+        Assert.Equal([1, 2], nested[0]);
+        Assert.Empty(nested[1]);
+        Assert.True(reader.IsValid);
+        Assert.Equal(0, reader.Remaining);
+    }
 }

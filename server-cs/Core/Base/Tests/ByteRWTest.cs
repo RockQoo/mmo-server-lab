@@ -100,6 +100,34 @@ public class ByteRWTest
         Assert.True(reader.IsValid);
     }
 
+    // 개수가 상한(uint16)을 넘으면 실패, 이후 쓰기는 무시(C++ TooLong... 과 같은 규칙).
+    [Fact]
+    public void ContainerLongerThanMaxCountFails()
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        var writer = new ByteWriter(buffer);
+        writer.Write<int[], IntegerArrayCodec<int>>(new int[ByteWriter.MaxCount + 1]);
+        writer.Write(1);
+
+        Assert.False(writer.IsValid);
+        Assert.Equal(0, buffer.WrittenCount);
+    }
+
+    // 거짓 개수: 개수는 크게, 데이터는 조금. 실패하고 빈 컨테이너를 돌려준다(통째 복사와 원소별 둘 다).
+    [Fact]
+    public void ContainerCountLargerThanDataFails()
+    {
+        byte[] data = [3, 0, 1, 0, 0, 0];  // int 3개라 했지만 4바이트뿐
+
+        var bulk = new ByteReader(data);
+        Assert.Empty(bulk.Read<int[], IntegerArrayCodec<int>>());
+        Assert.False(bulk.IsValid);
+
+        var each = new ByteReader(data);
+        Assert.Empty(each.Read<List<int>, ListCodec<int, IntegerCodec<int>>>());
+        Assert.False(each.IsValid);
+    }
+
     // GetSpan에 요청한 크기 중 가장 큰 값을 기록하는 버퍼.
     private sealed class SizeHintRecorder : IBufferWriter<byte>
     {
