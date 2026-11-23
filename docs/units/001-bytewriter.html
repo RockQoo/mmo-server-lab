@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>001 ByteWriter</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>001 · Base 직렬화: ByteWriter / ByteReader</h1>
+<p class="sub">C++ · C# · 2026-11-23 · 커밋 <code>4492703</code>, <code>60e958d</code></p>
+
+<div class="card">
+  <strong>무엇을 했나.</strong> 값을 바이트로 바꾸는 직렬화를 C#에 만들었다. C++에는 이미 있었다.
+  목표는 <strong>두 언어가 같은 값에서 같은 바이트를 만드는 것</strong>이다.
+  이 바이트가 패킷, 존 이동 데이터, DB 저장 데이터가 된다.
+  C++은 템플릿과 <code>if constexpr</code>로, C#은 .NET에 이미 있는 <code>IBufferWriter&lt;byte&gt;</code>,
+  <code>MemoryMarshal</code>, <code>System.Text.Unicode.Utf8</code> 위에 얇게 만들었다. C++을 C#으로 옮겨 적지 않았다.
+  <br><br>
+  <strong>이름.</strong> .NET에 <code>System.IO.BinaryWriter</code>가 있어서, C++의 <code>BinaryWriter</code>/<code>BinaryReader</code>/<code>BinaryTraits</code>를
+  <code>ByteWriter</code>/<code>ByteReader</code>/<code>ByteTraits</code>로 바꿨다. 이제 두 언어가 같은 이름이다.
+</div>
+
+<h2>흐름</h2>
+<div class="diagram">
+<svg viewBox="0 0 980 330" role="img" aria-label="값이 ByteWriter를 거쳐 바이트가 되고 ByteReader로 다시 값이 되는 흐름. 두 언어가 같은 정답 파일로 확인한다">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+    </marker>
+  </defs>
+
+  <!-- C++ 줄 -->
+  <rect class="d-cpp" x="10" y="20" width="120" height="56" rx="8"/>
+  <text class="d-t" x="70" y="44" text-anchor="middle">값</text>
+  <text class="d-m" x="70" y="62" text-anchor="middle">int, string, vector…</text>
+
+  <rect class="d-cpp" x="170" y="20" width="190" height="56" rx="8"/>
+  <text class="d-t" x="265" y="44" text-anchor="middle">ByteWriter  &lt;&lt;</text>
+  <text class="d-m" x="265" y="62" text-anchor="middle">if constexpr로 타입 판별</text>
+
+  <rect class="d-cpp" x="400" y="20" width="170" height="56" rx="8"/>
+  <text class="d-t" x="485" y="44" text-anchor="middle">vector&lt;byte&gt;</text>
+  <text class="d-m" x="485" y="62" text-anchor="middle">Writer가 소유</text>
+
+  <rect class="d-cpp" x="610" y="20" width="190" height="56" rx="8"/>
+  <text class="d-t" x="705" y="44" text-anchor="middle">ByteReader  &gt;&gt;</text>
+  <text class="d-m" x="705" y="62" text-anchor="middle">span, 복사 없음</text>
+
+  <rect class="d-cpp" x="840" y="20" width="130" height="56" rx="8"/>
+  <text class="d-t" x="905" y="44" text-anchor="middle">값</text>
+  <text class="d-m" x="905" y="62" text-anchor="middle">IsValid()로 확인</text>
+
+  <path class="d-line" d="M130,48 H166"/>
+  <path class="d-line" d="M360,48 H396"/>
+  <path class="d-line" d="M570,48 H606"/>
+  <path class="d-line" d="M800,48 H836"/>
+
+  <!-- 가운데: 형식과 정답 파일 -->
+  <rect class="d-ok" x="330" y="128" width="320" height="74" rx="8"/>
+  <text class="d-t" x="490" y="152" text-anchor="middle">testdata/bytes/basic.hex</text>
+  <text class="d-m" x="490" y="171" text-anchor="middle">같은 값 → 같은 바이트 (정답)</text>
+  <text class="d-m" x="490" y="189" text-anchor="middle">리틀 엔디안 · 길이 = uint16 + UTF-8</text>
+  <path class="d-dash" d="M485,76 V126"/>
+  <path class="d-dash" d="M485,204 V252"/>
+  <text class="d-m" x="660" y="110">C++ 테스트가 비교</text>
+  <text class="d-m" x="660" y="232">C# 테스트가 비교</text>
+
+  <!-- C# 줄 -->
+  <rect class="d-cs" x="10" y="254" width="120" height="56" rx="8"/>
+  <text class="d-t" x="70" y="278" text-anchor="middle">값</text>
+  <text class="d-m" x="70" y="296" text-anchor="middle">int, enum, string…</text>
+
+  <rect class="d-cs" x="170" y="254" width="190" height="56" rx="8"/>
+  <text class="d-t" x="265" y="278" text-anchor="middle">ByteWriter.Write</text>
+  <text class="d-m" x="265" y="296" text-anchor="middle">ref struct 커서, 제약 조건</text>
+
+  <rect class="d-cs" x="400" y="254" width="170" height="56" rx="8"/>
+  <text class="d-t" x="485" y="278" text-anchor="middle">IBufferWriter&lt;byte&gt;</text>
+  <text class="d-m" x="485" y="296" text-anchor="middle">ArrayBufferWriter / PipeWriter</text>
+
+  <rect class="d-cs" x="610" y="254" width="190" height="56" rx="8"/>
+  <text class="d-t" x="705" y="278" text-anchor="middle">ByteReader.Read</text>
+  <text class="d-m" x="705" y="296" text-anchor="middle">ReadOnlySpan, 복사 없음</text>
+
+  <rect class="d-cs" x="840" y="254" width="130" height="56" rx="8"/>
+  <text class="d-t" x="905" y="278" text-anchor="middle">값</text>
+  <text class="d-m" x="905" y="296" text-anchor="middle">IsValid로 확인</text>
+
+  <path class="d-line" d="M130,282 H166"/>
+  <path class="d-line" d="M360,282 H396"/>
+  <path class="d-line" d="M570,282 H606"/>
+  <path class="d-line" d="M800,282 H836"/>
+
+  <text x="10" y="12" class="d-m">C++</text>
+  <text x="10" y="246" class="d-m">C#</text>
+</svg>
+</div>
+
+<h2>바이트 형식 (두 언어 공통)</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>값</th><th>바이트</th><th>규칙</th></tr>
+  <tr><td>int32 -2</td><td><code>fe ff ff ff</code></td><td>크기 그대로, 리틀 엔디안</td></tr>
+  <tr><td>uint16 0x1234</td><td><code>34 12</code></td><td></td></tr>
+  <tr><td>bool true / false</td><td><code>01</code> / <code>00</code></td><td>1바이트. 읽을 때는 0이 아니면 true</td></tr>
+  <tr><td>float 1.5</td><td><code>00 00 c0 3f</code></td><td>IEEE 754</td></tr>
+  <tr><td>enum Blue (uint8 바탕)</td><td><code>03</code></td><td>바탕 타입 크기</td></tr>
+  <tr><td>string "가a"</td><td><code>04 00 ea b0 80 61</code></td><td>uint16 길이(UTF-8 바이트 수) + UTF-8. 최대 65535</td></tr>
+</table>
+</div>
+<p class="muted">전체 정답은 <code>testdata/bytes/basic.hex</code>. C++ <code>ByteFormatTest.cpp</code>와 C# <code>ByteFormatTest.cs</code>가 같은 파일을 읽는다. 한쪽 형식이 바뀌면 양쪽 테스트가 같이 깨진다.</p>
+
+<h2>클래스</h2>
+<div class="grid2">
+  <div class="card cpp">
+    <span class="tag cpp">C++</span><strong>Base::ByteWriter</strong>
+    <ul>
+      <li><code>vector&lt;std::byte&gt;</code>를 <strong>소유</strong>한다. <code>writer &lt;&lt; a &lt;&lt; b</code></li>
+      <li><code>operator&lt;&lt;</code> 하나에서 <code>if constexpr</code>로 위에서부터 타입 판별(기본형 → 문자열 → optional … → 컨테이너), 마지막은 <code>static_assert</code></li>
+      <li>컨테이너, map, optional, variant, tuple, chrono, 고정 배열, <code>SERIALIZE_FIELDS</code> 클래스까지</li>
+    </ul>
+    <span class="tag cpp">C++</span><strong>Base::ByteReader</strong>
+    <ul>
+      <li><code>span&lt;const std::byte&gt;</code>를 가리키기만 한다(복사 없음). 원본 수명은 <strong>주석 규칙</strong>으로 지킨다</li>
+      <li>개수 &gt; 남은 바이트면 실패(거짓 개수로 큰 메모리 잡기 방어), UTF-8 검사는 직접 만든 <code>Base/Utf8.h</code></li>
+    </ul>
+  </div>
+  <div class="card cs">
+    <span class="tag cs">C#</span><strong>Base.ByteWriter</strong> <span class="muted">(ref struct)</span>
+    <ul>
+      <li>버퍼를 갖지 않고 <code>IBufferWriter&lt;byte&gt;</code>에 쓴다. 테스트는 <code>ArrayBufferWriter</code>, 나중에 네트워크는 <code>PipeWriter</code>를 넘겨 <strong>소켓 버퍼에 바로</strong> 쓴다</li>
+      <li>정수 전부는 <code>Write&lt;T&gt;() where T : unmanaged, IBinaryInteger&lt;T&gt;</code> 하나. 지원 안 하는 타입은 <strong>제약 조건에 걸려 컴파일 에러</strong></li>
+      <li>string은 <code>Encoding.UTF8.GetByteCount</code>로 정확한 크기를 세고 <code>Utf8.FromUtf16</code>으로 바로 버퍼에 쓴다(중간 배열 없음)</li>
+    </ul>
+    <span class="tag cs">C#</span><strong>Base.ByteReader</strong> <span class="muted">(ref struct)</span>
+    <ul>
+      <li><code>ReadOnlySpan&lt;byte&gt;</code>를 가리키기만 한다. ref struct라 원본보다 오래 살거나 <code>await</code>를 넘기면 <strong>컴파일러가 막는다</strong></li>
+      <li>UTF-8 검사는 .NET의 <code>Utf8.IsValid</code></li>
+    </ul>
+  </div>
+</div>
+
+<h2>C++ vs C#</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>주제</th><th>C++</th><th>C#</th></tr>
+  <tr><td>버퍼</td><td class="cpp">Writer가 vector 소유</td><td class="cs">.NET의 <code>IBufferWriter</code>가 소유. Writer는 커서. 패킷마다 GC 할당 0</td></tr>
+  <tr><td>타입 판별</td><td class="cpp"><code>if constexpr</code> 사슬 한 곳</td><td class="cs">제네릭 제약(<code>IBinaryInteger&lt;T&gt;</code>, <code>Enum</code>) + 오버로드</td></tr>
+  <tr><td>지원 안 하는 타입</td><td class="cpp"><code>static_assert</code></td><td class="cs">제약 조건 컴파일 에러</td></tr>
+  <tr><td>읽기 버퍼 수명</td><td class="cpp">주석 규칙(<code>span</code>은 원본이 살아 있어야)</td><td class="cs"><code>ref struct</code>라 컴파일러가 강제</td></tr>
+  <tr><td>UTF 변환·검사</td><td class="cpp">직접 구현(<code>Base/Utf8.h</code>)</td><td class="cs">.NET 기본 제공(<code>Utf8.FromUtf16</code>, <code>Utf8.IsValid</code>)</td></tr>
+  <tr><td>엔디안 확인</td><td class="cpp">컴파일 시간 <code>static_assert</code></td><td class="cs">정적 생성자에서 실행 시간 확인</td></tr>
+  <tr><td>실패 처리</td><td colspan="2">같다: 실패 표시를 남기고 이후 작업 무시, 끝에서 <code>IsValid</code>로 한 번 확인. C#도 예외를 쓰지 않는다(패킷마다 도는 경로라 예외 비용을 피함)</td></tr>
+  <tr><td>지원 범위</td><td class="cpp">컨테이너·optional·variant·chrono·클래스까지 전부</td><td class="cs">이번 조각: 정수, enum, bool, float/double, string. 컨테이너 등은 다음 조각</td></tr>
+  <tr><td>클래스 직렬화</td><td class="cpp"><code>SERIALIZE_FIELDS</code> 매크로(나중에 CodeGen)</td><td class="cs">CodeGen이 생성 예정</td></tr>
+</table>
+</div>
+
+<h2>테스트</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> gtest <strong>42개</strong> 통과 (Debug, Release)
+    <ul><li>새로 추가: <code>ByteFormat.BasicMatchesGoldenFile</code></li><li>기존 ByteRW 33개는 이름만 바뀜</li></ul></div>
+  <div class="card cs"><span class="tag cs">C#</span> xUnit <strong>12개</strong> 통과 (Debug, Release)
+    <ul>
+      <li>정답 파일 1, BuildInfo 2</li>
+      <li>실패 처리 9: 길이 초과, 정확히 상한, UTF-8 바이트 수 초과, 정확한 크기 요청, 짝 없는 서로게이트, 데이터 부족, 거짓 길이, 잘못된 UTF-8, 0/1 아닌 bool</li>
+    </ul></div>
+</div>
+<p class="muted">기본 QA(<code>qa.json</code>)가 C++·C# 빌드와 테스트를 모두 돌린다. 통과.</p>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>차수</th><th>범위</th><th>결과</th></tr>
+  <tr><td>1차</td><td>원격 <code>448100f</code> 이후 커밋. C++ Assert, VS 솔루션, Gateway·ZoneServer (13개 파일)</td><td>1건 → 동의, 수정</td></tr>
+  <tr><td>2차</td><td>커밋 <code>4492703</code>. C++ ByteWriter/Reader/Traits·테스트, C# 전체(<code>server-cs/</code>), <code>testdata/</code>, <code>qa.json</code> (28개 파일)</td><td>3건 → 모두 동의, 수정</td></tr>
+  <tr><td>3차</td><td>수정 커밋 <code>60e958d</code> (4개 파일)</td><td><span class="tag ok">0건</span> 완료</td></tr>
+</table>
+</div>
+<h3>지적과 조치</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>지적</th><th>판단</th><th>조치</th></tr>
+  <tr><td>ASSERT 진단 출력(<code>std::print</code> 등)이 예외를 던지면 크래시까지 못 간다</td><td><span class="tag ok">동의</span></td><td>출력부를 try/catch로 감싸 반드시 <code>RaiseException</code>에 닿게</td></tr>
+  <tr><td><code>qa.json</code> 정규식 백슬래시가 JSON 이스케이프로 잘못됨</td><td><span class="tag ok">동의</span></td><td><code>\\d</code>, <code>\\w</code>로 수정. 파싱 확인</td></tr>
+  <tr><td>C# <code>build.ps1</code>을 루트에서 부르면 <code>global.json</code>을 못 읽어 테스트 실행 방식이 바뀜</td><td><span class="tag ok">동의</span></td><td>스크립트 폴더에서 <code>dotnet</code> 실행</td></tr>
+  <tr><td>string 쓰기가 글자당 3바이트로 버퍼를 요청해 긴 ASCII에서 3배 확장</td><td><span class="tag ok">동의</span></td><td>UTF-8 바이트 수를 먼저 세서 정확히 요청 + 테스트</td></tr>
+</table>
+</div>
+
+<h2>다음 조각</h2>
+<ul>
+  <li>C# 컨테이너(<code>List</code>, 배열, <code>Dictionary</code>), nullable(= optional), 클래스 직렬화 방식. 정답 파일에 같은 항목을 추가해 C++과 같은 바이트인지 확인</li>
+  <li>그다음 C# Assert(실패 처리) → Messaging부터 C++·C# 같이</li>
+</ul>
+
+</main>
+</body>
+</html>
