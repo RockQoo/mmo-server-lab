@@ -10,5 +10,8 @@
     <WarningsAsErrors>nullable</WarningsAsErrors>
     <!-- 소스를 UTF-8로 본다(C++의 /utf-8과 같은 목적). -->
     <CodePage>65001</CodePage>
+    <!-- Trace.Assert(= C++ ASSERT, Release 에서도 검사)는 TRACE 기호가 있어야 남는다. SDK 기본값이지만 빠지면 검사가
+         소리 없이 사라지므로 명시한다. 빠지면 Base.Tests 의 AssertTest 가 깨진다. -->
+    <DefineConstants>$(DefineConstants);TRACE</DefineConstants>
   </PropertyGroup>
 </Project>

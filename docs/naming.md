@@ -19,7 +19,7 @@
 |---|---|---|---|---|
 | Base | `ByteWriter` / `ByteReader` | 있음(`<<`, `>>`, 버퍼 소유) | 있음(정수·enum·bool·실수·string, 코덱으로 배열·List·nullable·Dictionary·클래스) | C#은 `IBufferWriter<byte>`에 쓰는 ref struct 커서(버퍼는 .NET이 소유: `ArrayBufferWriter`, 나중에 `PipeWriter`). 같은 바이트는 `testdata/bytes/*.hex`로 양쪽 테스트가 확인. .NET `System.IO.BinaryWriter`와 겹쳐 C++ 이름을 Binary→Byte로 바꿈 |
 | Base | `BuildInfo` | 있음(함수 `BuildInfo()`) | 있음(`BuildInfo.Describe()`) | C#은 자유 함수가 없어 정적 클래스. C++은 컴파일러·`__cplusplus`, C#은 런타임·GC 모드(Server/Workstation)를 남긴다 |
-| Base | `ASSERT` / `DEBUG_ASSERT` | 있음(매크로) | 예정 | C#은 매크로가 없어 메서드로. 실패 처리 방식(덤프로 이어지는 크래시)은 같게 |
+| Base | `ASSERT` / `DEBUG_ASSERT` | 있음(매크로, 직접 만듦) | BCL `Trace.Assert` / `Debug.Assert`(만들지 않음) | 같은 역할: 항상 검사 / Debug만 검사, 실패하면 기록 → 디버거면 멈춤 → 잡을 수 없는 종료. C++은 RaiseException(0xE000A55E), C#은 FailFast(0x80131623). 덤프는 C# 은 런타임 설정(`DOTNET_DbgEnableMiniDump=1`), C++ 은 나중에 CrashDump |
 | Base | `RwLocked<T>` | 예정 | **없음** | 아래 참고 |
 
 ## 한쪽에만 있는 것

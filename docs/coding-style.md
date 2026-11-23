@@ -139,3 +139,20 @@ void Push(Message msg)
 - `return std::move(local);`은 쓰지 않는다. 반환값 최적화(NRVO)를 막는다. `return local;`
 - const 변수에는 쓰지 않는다(복사가 된다). 그래서 move할 지역 변수는 const를 붙이지 않는다.
 - 기본형(int, 포인터)은 move가 곧 복사라 쓰지 않는다.
+
+# 코딩 규칙 (C#)
+
+C++ 규칙 중 이름(Pascal, `_camel` 멤버)과 namespace는 같게 한다(`docs/naming.md`). 나머지는 C# 관례를 따른다.
+
+### 검사(Assert) (2026-11-24)
+
+C++ `ASSERT` / `DEBUG_ASSERT`를 따로 만들지 않고 BCL(Base Class Library: .NET 기본 제공)을 쓴다.
+
+| 쓸 때 | C# | C++ |
+|---|---|---|
+| 기본. Debug·Release 모두 검사 | `Trace.Assert(조건, "메시지")` | `ASSERT(조건, "메시지")` |
+| 비싼 검사만. Debug에서만 | `Debug.Assert(조건, "메시지")` | `DEBUG_ASSERT(조건, "메시지")` |
+
+- 실패하면 메시지와 호출 스택(파일·줄)을 남기고 `Environment.FailFast`로 끝난다. try/catch로 잡을 수 없다(종료 코드 `0x80131623`).
+- `Trace.Assert`는 `TRACE` 기호가 있어야 남는다. `server-cs/Directory.Build.props`에 명시했고, 빠지면 `AssertTest`가 깨진다.
+- 받은 데이터 검사(패킷 길이 등)에는 쓰지 않는다. 그건 실패 표시(`IsValid`)로 처리한다. Assert는 "코드가 틀렸다"는 뜻이다.
