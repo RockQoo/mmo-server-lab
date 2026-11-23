@@ -225,8 +225,8 @@ public readonly struct DictionaryCodec<TKey, TValue, TKeyCodec, TValueCodec> : I
 
     public static Dictionary<TKey, TValue> Read(ref ByteReader reader)
     {
-        // 키·값은 각각 최소 1바이트라 쌍은 최소 2바이트
-        var count = reader.ReadCount(minElementSize: 2);
+        // 쌍은 최소 1바이트로 본다. 키나 값 한쪽은 0바이트일 수 있다(C++ map 도 허용). 둘 다 0바이트인 쌍은 C++ 처럼 지원하지 않는다.
+        var count = reader.ReadCount();
         var items = new Dictionary<TKey, TValue>(count);
         for (var i = 0; i < count && reader.IsValid; i++)
         {

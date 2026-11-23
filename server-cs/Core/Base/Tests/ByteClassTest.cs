@@ -124,6 +124,31 @@ public class ByteClassTest
         Assert.False(lists.IsValid);
     }
 
+    // 아무것도 쓰지 않는 값(0바이트). C++ 의 std::monostate 같은 것.
+    private readonly struct NothingCodec : IByteCodec<bool>
+    {
+        public static void Write(ref ByteWriter writer, bool value)
+        {
+        }
+
+        public static bool Read(ref ByteReader reader) => true;
+    }
+
+    // 키 1바이트 + 값 0바이트 쌍도 왕복한다(C++ map 도 한쪽이 0바이트인 쌍을 허용한다)
+    [Fact]
+    public void DictionaryWithZeroSizeValueRoundTrips()
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        var writer = new ByteWriter(buffer);
+        writer.Write<Dictionary<byte, bool>, DictionaryCodec<byte, bool, IntegerCodec<byte>, NothingCodec>>(new() { [7] = true });
+        Assert.Equal([1, 0, 7], buffer.WrittenSpan.ToArray());
+
+        var reader = new ByteReader(buffer.WrittenSpan);
+        var map = reader.Read<Dictionary<byte, bool>, DictionaryCodec<byte, bool, IntegerCodec<byte>, NothingCodec>>();
+        Assert.True(reader.IsValid);
+        Assert.Equal(7, Assert.Single(map).Key);
+    }
+
     // 같은 키가 두 번 오면 먼저 온 값을 유지한다(C++ map 읽기와 같다)
     [Fact]
     public void DuplicateKeyKeepsFirstValue()
