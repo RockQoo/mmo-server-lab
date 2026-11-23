@@ -1,10 +1,13 @@
 ﻿# C# 서버를 빌드한다(server-cpp/build.ps1과 같은 사용법).
-# 사용: powershell -File server-cs/build.ps1 [-Config debug|release] [-Test]
+# 사용: powershell -File server-cs/build.ps1 [-Config debug|release] [-Test] [-Lint]
 #   -Test: 빌드 후 dotnet test로 단위 테스트까지 돌린다(qa.json이 쓴다).
+#   -Lint: 서식·스타일이 .editorconfig 와 같은지만 본다(dotnet format, 고치지 않음). 이름 규칙은 빌드가 검사한다.
+#          고칠 때는 server-cs 에서 dotnet format mmo_server_lab.slnx
 param(
     [ValidateSet('debug', 'release')]
     [string]$Config = 'debug',
-    [switch]$Test
+    [switch]$Test,
+    [switch]$Lint
 )
 $ErrorActionPreference = 'Stop'
 
@@ -19,6 +22,12 @@ $solution = Join-Path $PSScriptRoot 'mmo_server_lab.slnx'
 # 저장소 루트에서 불려도 server-cs/global.json을 읽도록 이 폴더에서 실행한다.
 Push-Location $PSScriptRoot
 try {
+    if ($Lint) {
+        dotnet format $solution --verify-no-changes
+        if ($LASTEXITCODE) { Write-Output "lint: FAIL"; exit $LASTEXITCODE }
+        Write-Output "lint: OK"
+        exit 0
+    }
     dotnet build $solution -c $configuration --nologo
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     if ($Test) {

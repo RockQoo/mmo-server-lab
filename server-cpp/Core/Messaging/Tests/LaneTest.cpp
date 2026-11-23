@@ -35,10 +35,12 @@ TEST(Lane, RunsOnItsOwnThread)
     auto inLane = false;
     std::thread::id jobThread;
     Lane lane;
-    ASSERT_TRUE(lane.Post([&] {
-        inLane = lane.IsInLane();
-        jobThread = std::this_thread::get_id();
-    }));
+    ASSERT_TRUE(lane.Post(
+        [&]
+        {
+            inLane = lane.IsInLane();
+            jobThread = std::this_thread::get_id();
+        }));
     lane.Stop();
 
     EXPECT_TRUE(inLane);
@@ -64,27 +66,29 @@ TEST(Lane, IsInLaneIsFalseInOtherLane)
 // 여러 스레드가 동시에 넣어도 하나도 잃지 않고, 같은 생산자가 넣은 일끼리는 순서가 지켜진다.
 TEST(Lane, KeepsOrderPerProducer)
 {
-    constexpr auto producers = 4;
-    constexpr auto perProducer = 10000;
+    constexpr auto Producers = 4;
+    constexpr auto PerProducer = 10000;
     std::vector<std::pair<int, int>> seen; // (생산자, 순번). Lane 스레드만 쓴다
     {
         Lane lane;
         std::vector<std::jthread> threads;
-        for (auto p = 0; p < producers; ++p)
+        for (auto p = 0; p < Producers; ++p)
         {
-            threads.emplace_back([&lane, &seen, p] {
-                for (auto n = 0; n < perProducer; ++n)
+            threads.emplace_back(
+                [&lane, &seen, p]
                 {
-                    // Post는 Stop 전이라 실패하지 않는다. 실패하면 아래 개수 확인에서 드러난다.
-                    static_cast<void>(lane.Post([&seen, p, n] { seen.emplace_back(p, n); }));
-                }
-            });
+                    for (auto n = 0; n < PerProducer; ++n)
+                    {
+                        // Post는 Stop 전이라 실패하지 않는다. 실패하면 아래 개수 확인에서 드러난다.
+                        static_cast<void>(lane.Post([&seen, p, n] { seen.emplace_back(p, n); }));
+                    }
+                });
         }
         threads.clear(); // 생산자 join
     } // Lane 소멸 = Stop: 남은 일 처리 후 join
 
-    ASSERT_EQ(seen.size(), static_cast<std::size_t>(producers * perProducer));
-    std::vector<int> next(producers, 0);
+    ASSERT_EQ(seen.size(), static_cast<std::size_t>(Producers * PerProducer));
+    std::vector<int> next(Producers, 0);
     for (const auto& [p, n] : seen)
     {
         ASSERT_EQ(n, next[static_cast<std::size_t>(p)]) << "producer " << p;
@@ -111,10 +115,12 @@ TEST(Lane, JobCanPostToItsOwnLane)
 {
     std::promise<bool> second;
     Lane lane;
-    ASSERT_TRUE(lane.Post([&] {
-        const auto posted = lane.Post([&second, &lane] { second.set_value(lane.IsInLane()); });
-        EXPECT_TRUE(posted);
-    }));
+    ASSERT_TRUE(lane.Post(
+        [&]
+        {
+            const auto posted = lane.Post([&second, &lane] { second.set_value(lane.IsInLane()); });
+            EXPECT_TRUE(posted);
+        }));
 
     EXPECT_TRUE(second.get_future().get());
 }

@@ -83,7 +83,11 @@ powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 �
 - **경고는 가장 높게, 경고 = 빌드 에러(2026-11-24).** 끄는 것은 해당 없는 규칙만, 가장 좁은 범위로, 이유를 적어서.
   - C++: `/Wall` + `/analyze`(정적 분석) + 컴파일·링크 `/WX`(`CMAKE_COMPILE/LINK_WARNING_AS_ERROR`). 꺼진 것: 안내성 경고 C4514·C4710·C4711·C4820·C5045, 테스트만 C6326(gtest 매크로 오탐). `<...>` 헤더(표준, vcpkg)는 `/external:W0`. 에디터 clangd 는 `.clangd`에서 `/Wall` 대신 clang 기준 경고.
   - C#: `WarningLevel 9999` + `AnalysisLevel latest-all`(CA 규칙 전부) + `Features strict` + `TreatWarningsAsErrors`. 꺼진 것은 `server-cs/.editorconfig`(코덱 파일의 CA1815·CA1000, 테스트의 CA2007: xUnit 은 테스트에서 `ConfigureAwait(false)`를 쓰지 말라고 함).
-- `qa.json`은 C++과 C# 빌드·테스트를 둘 다 돌린다. 코어 기본 QA는 두 언어 모두 기능으로 만들어 둔다.
+- **코딩 규칙은 도구가 검사한다(2026-11-24).** 이름·서식 규칙은 `docs/coding-style.md`, 검사 설정은 `.clang-format`, `.clang-tidy`(이름 + bugprone), `server-cs/.editorconfig`(이름 규칙 IDE1006, 서식 IDE0055 → 빌드 에러).
+  - C++: `powershell -File server-cpp/lint.ps1 [-Config debug|release] [-Fix]` (같은 Config 를 먼저 빌드. LLVM의 clang-format·clang-tidy 사용)
+  - C#: 이름 규칙은 빌드가 검사한다. 서식 확인은 `powershell -File server-cs/build.ps1 -Lint`, 고칠 때는 `server-cs`에서 `dotnet format mmo_server_lab.slnx`
+  - 코드를 쓴 뒤 커밋 전에 lint 를 돌린다. 규칙 문서를 기억에 기대지 않는다.
+- `qa.json`은 C++과 C# 빌드·테스트와 lint 를 모두 돌린다. 코어 기본 QA는 두 언어 모두 기능으로 만들어 둔다.
 
 ## 진행 방식 (가장 중요)
 

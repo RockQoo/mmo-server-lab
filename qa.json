@@ -7,9 +7,19 @@
       "summary": "\\d+% tests passed, \\d+ tests failed out of \\d+"
     },
     {
+      "name": "cpp lint",
+      "cmd": "powershell -NoProfile -ExecutionPolicy Bypass -File server-cpp/lint.ps1 -Config release",
+      "summary": "lint: \\d+ problem\\(s\\)"
+    },
+    {
       "name": "cs build+test",
       "cmd": "powershell -NoProfile -ExecutionPolicy Bypass -File server-cs/build.ps1 -Config release -Test",
       "summary": "Test run summary: \\w+!"
+    },
+    {
+      "name": "cs lint",
+      "cmd": "powershell -NoProfile -ExecutionPolicy Bypass -File server-cs/build.ps1 -Lint",
+      "summary": "lint: \\w+"
     }
   ]
 }

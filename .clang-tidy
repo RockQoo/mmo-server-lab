@@ -1,0 +1,58 @@
+# C++ 검사기(clang-tidy) 설정. 이름 규칙(docs/coding-style.md)과 버그가 되기 쉬운 코드를 검사한다.
+# 실행: server-cpp/tidy.ps1 (qa.json 이 돌린다). 경고가 하나라도 있으면 실패한다.
+#
+# 끈 것(이유):
+#   bugprone-easily-swappable-parameters  같은 타입 매개변수가 나란히 있으면 모두 경고한다. 거의 모든 함수가 걸려 신호가 없다
+#   clang-diagnostic-*                    컴파일러 경고는 MSVC 빌드(/Wall /analyze /WX)가 기준이다. 여기서 또 보지 않는다
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  readability-identifier-naming,
+  -clang-diagnostic-*
+WarningsAsErrors: '*'
+# 컴파일 명령은 MSVC(cl) 것을 그대로 쓴다. clang 이 모르는 /analyze 와, clang 에서 -Weverything 이 되는 /Wall, -WX 는 뺀다
+RemovedArgs: ['/analyze', '/analyze:external-', '/Wall', '-WX']
+# 우리 코드의 헤더만 본다(표준, vcpkg 헤더 제외)
+HeaderFilterRegex: '.*[/\\]server-cpp[/\\]Core[/\\].*'
+CheckOptions:
+  # 타입, 함수: Pascal
+  readability-identifier-naming.NamespaceCase: CamelCase
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  readability-identifier-naming.TypedefCase: CamelCase
+  readability-identifier-naming.TemplateParameterCase: CamelCase
+  readability-identifier-naming.ConceptCase: CamelCase
+  readability-identifier-naming.FunctionCase: CamelCase
+  readability-identifier-naming.MethodCase: CamelCase
+  readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
+  # 상수: Pascal, 접두사 없음(static 이어도)
+  readability-identifier-naming.ConstexprVariableCase: CamelCase
+  readability-identifier-naming.GlobalConstantCase: CamelCase
+  readability-identifier-naming.ClassConstantCase: CamelCase
+  readability-identifier-naming.StaticConstantCase: CamelCase
+  # 멤버: private·protected 는 _ + camel, public(데이터 구조체 필드)은 camel
+  readability-identifier-naming.PrivateMemberPrefix: _
+  readability-identifier-naming.PrivateMemberCase: camelBack
+  readability-identifier-naming.ProtectedMemberPrefix: _
+  readability-identifier-naming.ProtectedMemberCase: camelBack
+  readability-identifier-naming.PublicMemberCase: camelBack
+  # static: s_ + camel
+  readability-identifier-naming.ClassMemberPrefix: s_
+  readability-identifier-naming.ClassMemberCase: camelBack
+  readability-identifier-naming.StaticVariablePrefix: s_
+  readability-identifier-naming.StaticVariableCase: camelBack
+  # 전역: g_ + camel. thread_local 은 clang-tidy 가 전역과 구분하지 못해 t_ 로 시작하는 이름을 따로 허용한다
+  readability-identifier-naming.GlobalVariablePrefix: g_
+  readability-identifier-naming.GlobalVariableCase: camelBack
+  readability-identifier-naming.GlobalVariableIgnoredRegexp: '^t_[a-z][a-zA-Z0-9]*$'
+  # 지역 변수, 매개변수: camel (지역 const 도 camel. constexpr 만 Pascal)
+  readability-identifier-naming.LocalVariableCase: camelBack
+  readability-identifier-naming.LocalConstantCase: camelBack
+  readability-identifier-naming.ParameterCase: camelBack
+  readability-identifier-naming.ConstantParameterCase: camelBack
+  # main 에서 예외가 빠져나가면 크래시 → 덤프가 우리 정책이다(ASSERT, Lane 과 같다). 소멸자·이동·swap·noexcept 검사는 그대로
+  bugprone-exception-escape.CheckMain: false

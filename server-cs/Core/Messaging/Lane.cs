@@ -17,8 +17,11 @@ namespace Messaging;
 public sealed class Lane : IAsyncDisposable
 {
     // 지금 이 스레드에서 일을 처리 중인 Lane. 일은 동기 Action 이라 처리하는 동안 스레드가 바뀌지 않는다.
+    // 스레드별 static 은 t_ 접두사다. .editorconfig 이름 규칙은 [ThreadStatic] 을 구분하지 못해 s_ 를 요구하므로 여기서만 끈다.
+#pragma warning disable IDE1006 // 이름 규칙
     [ThreadStatic]
-    private static Lane? t_current;
+    private static Lane? t_currentLane;
+#pragma warning restore IDE1006
 
     private readonly Channel<Action> _jobs = Channel.CreateUnbounded<Action>(new UnboundedChannelOptions
     {
@@ -32,7 +35,7 @@ public sealed class Lane : IAsyncDisposable
     }
 
     // 지금 이 코드가 이 Lane의 일 안에서 도는가. "이 데이터는 이 Lane에서만" 확인(Trace.Assert)에 쓴다.
-    public bool IsInLane => t_current == this;
+    public bool IsInLane => t_currentLane == this;
 
     // 일을 넣는다. 어느 스레드에서 불러도 된다. 멈추는 중(Lane 안의 일에서 넣는 것도 포함)이면 넣지 않고 false.
     // bool 을 돌려주는 메서드라 C# 관례대로 Try 를 붙였다(Channel 의 TryWrite 와 같다). null 은 프로그래머 실수라 예외.
@@ -67,7 +70,7 @@ public sealed class Lane : IAsyncDisposable
 
     private void Run(Action job)
     {
-        t_current = this;
+        t_currentLane = this;
         try
         {
             job();
@@ -81,7 +84,7 @@ public sealed class Lane : IAsyncDisposable
         }
         finally
         {
-            t_current = null;
+            t_currentLane = null;
         }
     }
 }

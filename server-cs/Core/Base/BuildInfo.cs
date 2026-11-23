@@ -15,11 +15,11 @@ public static class BuildInfo
         var gc = GCSettings.IsServerGC ? "ServerGC" : "WorkstationGC";
 
 #if DEBUG
-        const string config = "Debug";
+        const string Config = "Debug";
 #else
-        const string config = "Release";
+        const string Config = "Release";
 #endif
 
-        return $"{RuntimeInformation.FrameworkDescription}, {RuntimeInformation.ProcessArchitecture}, {gc}, {config}";
+        return $"{RuntimeInformation.FrameworkDescription}, {RuntimeInformation.ProcessArchitecture}, {gc}, {Config}";
     }
 }

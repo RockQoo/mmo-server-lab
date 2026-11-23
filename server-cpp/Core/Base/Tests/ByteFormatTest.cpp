@@ -18,6 +18,7 @@ namespace
 {
     enum class Color : std::uint8_t
     {
+        None = 0, // enum 은 0 값을 둔다({} 로 만든 값이 유효하게)
         Red = 1,
         Green = 2,
         Blue = 3,
@@ -26,6 +27,7 @@ namespace
     // classes.hex 용. C# 테스트의 Item / Player(코덱 struct)와 필드 순서가 같다.
     enum class Job : std::uint8_t
     {
+        None = 0, // enum 은 0 값을 둔다({} 로 만든 값이 유효하게)
         Warrior = 1,
         Archer = 2,
     };
@@ -118,10 +120,9 @@ TEST(ByteFormat, ContainersMatchGoldenFile)
 
     using Bytes = std::vector<std::uint8_t>;
     Base::ByteWriter writer;
-    writer << std::vector<std::int32_t>{1, 2, 3} << std::vector<std::int32_t>{}
-           << std::vector<std::string>{"a", "가"} << std::optional<std::int32_t>{7} << std::optional<std::int32_t>{}
-           << std::optional<std::string>{"x"} << std::vector<std::optional<std::int16_t>>{std::int16_t{5}, std::nullopt}
-           << std::vector<Bytes>{{1, 2}, {}};
+    writer << std::vector<std::int32_t>{1, 2, 3} << std::vector<std::int32_t>{} << std::vector<std::string>{"a", "가"}
+           << std::optional<std::int32_t>{7} << std::optional<std::int32_t>{} << std::optional<std::string>{"x"}
+           << std::vector<std::optional<std::int16_t>>{std::int16_t{5}, std::nullopt} << std::vector<Bytes>{{1, 2}, {}};
     ASSERT_TRUE(writer.IsValid());
     EXPECT_TRUE(std::ranges::equal(writer.Data(), expected));
 

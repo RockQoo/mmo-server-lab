@@ -37,9 +37,8 @@ TEST(AssertDeathTest, ExitsWithAssertExceptionCode)
     {
         GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
     }
-    const auto isAssertCrash = [](const int exitCode) {
-        return static_cast<unsigned long>(exitCode) == Base::AssertExceptionCode;
-    };
+    const auto isAssertCrash = [](const int exitCode)
+    { return static_cast<unsigned long>(exitCode) == Base::AssertExceptionCode; };
     EXPECT_EXIT(ASSERT(false, "code check"), isAssertCrash, "code check");
 }
 

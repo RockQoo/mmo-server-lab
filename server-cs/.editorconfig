@@ -1,5 +1,69 @@
+root = true
+
 # server-cs 코드 분석 설정. 기본은 Directory.Build.props 의 "모든 규칙(latest-all) + 경고 = 에러".
 # 여기서는 설계상 해당하지 않는 규칙만, 해당하는 파일에서만 끈다(이유를 함께 적는다).
+
+# ======== 이름 규칙(docs/coding-style.md). 어기면 IDE1006 → 빌드 에러(EnforceCodeStyleInBuild) ========
+# 서식(들여쓰기, 공백)은 IDE0055 로 같이 검사한다. 고칠 때는 dotnet format.
+[*.cs]
+dotnet_diagnostic.IDE1006.severity = error
+dotnet_diagnostic.IDE0055.severity = error
+
+dotnet_naming_style.pascal.capitalization = pascal_case
+dotnet_naming_style.camel.capitalization = camel_case
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.s_camel.capitalization = camel_case
+dotnet_naming_style.s_camel.required_prefix = s_
+dotnet_naming_style.i_pascal.capitalization = pascal_case
+dotnet_naming_style.i_pascal.required_prefix = I
+dotnet_naming_style.t_pascal.capitalization = pascal_case
+dotnet_naming_style.t_pascal.required_prefix = T
+
+# 상수: Pascal(static 이어도 접두사 없음)
+dotnet_naming_symbols.constants.applicable_kinds = field, local
+dotnet_naming_symbols.constants.required_modifiers = const
+dotnet_naming_rule.constants.symbols = constants
+dotnet_naming_rule.constants.style = pascal
+dotnet_naming_rule.constants.severity = error
+
+# static 필드(private·internal): s_ + camel. [ThreadStatic] 은 t_ 인데 editorconfig 는 특성을 구분하지 못해
+# 그 자리에서만 IDE1006 을 끄고 이유를 적는다.
+dotnet_naming_symbols.static_fields.applicable_kinds = field
+dotnet_naming_symbols.static_fields.applicable_accessibilities = private, internal, private_protected
+dotnet_naming_symbols.static_fields.required_modifiers = static
+dotnet_naming_rule.static_fields.symbols = static_fields
+dotnet_naming_rule.static_fields.style = s_camel
+dotnet_naming_rule.static_fields.severity = error
+
+# 멤버 필드(private·internal): _ + camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, internal, private_protected
+dotnet_naming_rule.private_fields.symbols = private_fields
+dotnet_naming_rule.private_fields.style = underscore_camel
+dotnet_naming_rule.private_fields.severity = error
+
+# 인터페이스 I + Pascal, 형식 매개변수 T + Pascal
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_rule.interfaces.symbols = interfaces
+dotnet_naming_rule.interfaces.style = i_pascal
+dotnet_naming_rule.interfaces.severity = error
+dotnet_naming_symbols.type_parameters.applicable_kinds = type_parameter
+dotnet_naming_rule.type_parameters.symbols = type_parameters
+dotnet_naming_rule.type_parameters.style = t_pascal
+dotnet_naming_rule.type_parameters.severity = error
+
+# 형식, 메서드, 속성, 이벤트, public 필드, enum 값: Pascal
+dotnet_naming_symbols.pascal_members.applicable_kinds = namespace, class, struct, enum, delegate, method, property, event, field, local_function
+dotnet_naming_rule.pascal_members.symbols = pascal_members
+dotnet_naming_rule.pascal_members.style = pascal
+dotnet_naming_rule.pascal_members.severity = error
+
+# 지역 변수, 매개변수: camel
+dotnet_naming_symbols.locals.applicable_kinds = local, parameter
+dotnet_naming_rule.locals.symbols = locals
+dotnet_naming_rule.locals.style = camel
+dotnet_naming_rule.locals.severity = error
 
 # 코덱(IByteCodec<T> 를 구현하는 struct). 비교하지 않는 표시용 타입이고, static 멤버는 static abstract 인터페이스 구현이다.
 #   CA1815 struct 는 Equals/== 를 재정의하라   CA1000 제네릭 타입에 static 멤버를 두지 마라

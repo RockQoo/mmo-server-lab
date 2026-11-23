@@ -26,6 +26,7 @@ namespace
 {
     enum class Job : std::uint8_t
     {
+        None = 0, // enum 은 0 값을 둔다({} 로 만든 값이 유효하게)
         Warrior = 1,
         Archer = 2,
     };

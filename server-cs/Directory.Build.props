@@ -13,6 +13,8 @@
     <Features>strict</Features>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
+    <!-- .editorconfig 의 이름·서식 규칙(IDE*)도 빌드에서 검사한다(기본은 에디터에서만). -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- 소스를 UTF-8로 본다(C++의 /utf-8과 같은 목적). -->
     <CodePage>65001</CodePage>
     <!-- Trace.Assert(= C++ ASSERT, Release 에서도 검사)는 TRACE 기호가 있어야 남는다. SDK 기본값이지만 빠지면 검사가

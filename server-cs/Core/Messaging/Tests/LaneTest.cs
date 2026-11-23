@@ -50,16 +50,16 @@ public class LaneTest
     [Fact]
     public async Task KeepsOrderPerProducer()
     {
-        const int producers = 4;
-        const int perProducer = 10000;
+        const int Producers = 4;
+        const int PerProducer = 10000;
         var seen = new List<(int Producer, int Seq)>(); // Lane 의 일만 쓴다
         var lane = new Lane();
         var running = 0; // 일이 동시에 두 개 돌면 1보다 커진다
         var overlapped = false;
 
-        await Task.WhenAll(Enumerable.Range(0, producers).Select(p => Task.Run(() =>
+        await Task.WhenAll(Enumerable.Range(0, Producers).Select(p => Task.Run(() =>
         {
-            for (var n = 0; n < perProducer; n++)
+            for (var n = 0; n < PerProducer; n++)
             {
                 var seq = n;
                 Assert.True(lane.TryPost(() =>
@@ -74,8 +74,8 @@ public class LaneTest
         await lane.DisposeAsync();
 
         Assert.False(overlapped);
-        Assert.Equal(producers * perProducer, seen.Count);
-        var next = new int[producers];
+        Assert.Equal(Producers * PerProducer, seen.Count);
+        var next = new int[Producers];
         foreach (var (p, seq) in seen)
         {
             Assert.Equal(next[p]++, seq);

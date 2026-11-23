@@ -98,15 +98,12 @@ namespace Base
             {
                 value.Write(*this);
             }
-            else if constexpr (FixedArray<T>)
-            {
-                WriteSequence(value);
-            }
             else if constexpr (KeyValueContainer<T>)
             {
                 WriteKeyValues(value);
             }
-            else if constexpr (WritableSequence<T>)
+            // 고정 배열(std::array, T[N])은 key_type 이 없어 위 분기에 걸리지 않으므로 순서를 바꿔 하나로 합쳤다.
+            else if constexpr (FixedArray<T> || WritableSequence<T>)
             {
                 WriteSequence(value);
             }

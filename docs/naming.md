@@ -9,6 +9,7 @@
 | namespace | 폴더 이름 = namespace: `Base`, `Messaging` | **C++과 같다**: `namespace Base;` |
 | 클래스, 메서드 | Pascal | Pascal |
 | 멤버 변수 | `_camel` | `_camel` |
+| static / 스레드별 | `s_camel` / `t_camel` | 같음 |
 | 파일 | `ByteWriter.h` + `ByteWriter.cpp` | `ByteWriter.cs` |
 | 라이브러리 단위 | 정적 라이브러리 `Base` | 프로젝트 `Base.csproj` |
 | 테스트 | `Core/Base/Tests/`, gtest, `BaseTests` | `Core/Base/Tests/`, xUnit, `Base.Tests` |

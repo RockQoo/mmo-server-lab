@@ -152,11 +152,11 @@ namespace Base
 //         SERIALIZE_FIELDS(id, name)
 //     };
 #define SERIALIZE_FIELDS(...)                                                                                          \
-    void Write(Base::ByteWriter& writer) const                                                                       \
+    void Write(Base::ByteWriter& writer) const                                                                         \
     {                                                                                                                  \
         writer.WriteFields(__VA_ARGS__);                                                                               \
     }                                                                                                                  \
-    void Read(Base::ByteReader& reader)                                                                              \
+    void Read(Base::ByteReader& reader)                                                                                \
     {                                                                                                                  \
         reader.ReadFields(__VA_ARGS__);                                                                                \
     }

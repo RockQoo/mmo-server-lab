@@ -9,6 +9,7 @@ public class ByteFormatTest
 {
     private enum Color : byte
     {
+        None = 0, // enum 은 0 값을 둔다(default 로 만든 값이 유효하게, CA1008)
         Red = 1,
         Green = 2,
         Blue = 3,

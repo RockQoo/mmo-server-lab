@@ -1,6 +1,8 @@
 # 코딩 규칙 (C++)
 
-C# 쪽도 이름(Pascal, `_camel` 멤버)과 namespace는 C++과 같게 한다(`docs/naming.md`). C# 고유 규칙은 C# 코드를 만들 때 이 파일에 추가한다.
+클래스·namespace 이름은 C#과 같다(`docs/naming.md`). 변수 이름 규칙도 C#과 같다(C#의 MS 공식 규칙에 C++을 맞췄다, 2026-11-24). C# 고유 규칙은 아래 "코딩 규칙 (C#)".
+
+**검사(2026-11-24)**: 이름과 서식은 사람이 지키는 것이 아니라 도구가 검사한다. C++은 `.clang-format`(서식) + `.clang-tidy`(이름, 버그 검사), C#은 `.editorconfig`(이름, 스타일, 빌드 에러) + `dotnet format`. `qa.json`이 모두 돌린다.
 
 개발하면서 하나씩 정한다. 정한 날짜를 함께 적는다.
 
@@ -59,12 +61,22 @@ switch (state)
 }
 ```
 
-### 멤버 변수 (2026-11-17)
+### 변수 이름: 범위를 접두사로 (2026-11-17 멤버 `_camel`, 2026-11-24 `s_`·`t_`·`g_` 추가)
 
-- 앞에 `_`를 붙이고 그 뒤는 camelCase: `_readPos`, `_sessionId`
-- `_` 다음은 **항상 소문자**. `_ReadPos`처럼 `_` + 대문자는 C++ 표준이 예약한 이름이라 금지. `__`도 금지.
-- `_`는 멤버 변수에만 쓴다. 지역 변수, 전역, 함수에는 쓰지 않는다.
-- C# 서버의 `_field` 관습과 같아서 두 서버에서 같은 이름을 쓸 수 있다.
+변수가 어디에 사는지를 "글자 하나 + `_`"로 이름 앞에 적는다. 서버에서는 이름만 보고 **여러 스레드가 같이 보는 변수인지** 알 수 있어야 한다.
+
+| 범위 | 접두사 | 예 | 스레드 |
+|---|---|---|---|
+| 멤버 변수(private·protected) | `_` + camel | `_readPos` | 객체 하나에 속한다. Lane처럼 한 스레드만 만지게 설계하는 단위 |
+| static(클래스 static, 파일 안 static, 함수 안 static) | `s_` + camel | `s_instanceCount` | 프로세스에 하나. 모든 스레드가 같이 본다(락 필요) |
+| 스레드별(`thread_local`) | `t_` + camel | `t_currentLane` | 스레드마다 따로. 락 필요 없음 |
+| 전역 | `g_` + camel, 되도록 쓰지 않는다 | `g_config` | 모든 스레드가 같이 본다 |
+| 지역 변수, 매개변수 | camel(접두사 없음) | `bytesTransferred` | |
+| 상수(`constexpr`, 전역·static `const`) | Pascal(static이어도 접두사 없음). 지역 `const auto x` 는 지역 변수라 camel | `MaxCount` | 바뀌지 않아 같이 봐도 안전 |
+
+- 데이터 구조체의 public 필드(패킷·저장 구조체)는 접두사 없이 camel: `id`, `name`.
+- C# 의 MS 공식 규칙(`_camel`, `s_`, `t_`)과 같다. C++ 에서는 `m_`(MFC·Win32, 국내 게임 서버)가 더 흔하지만, 두 서버가 같은 모양이도록 C# 쪽에 맞췄다.
+- `_` 다음은 **항상 소문자**. `_` + 대문자와 `__`는 C++ 표준이 예약한 이름이다(`_` + 소문자는 전역 범위에서만 예약이라 멤버에는 문제없다). 그래서 `_`로 시작하는 이름은 멤버에만 쓴다.
 
 ### 이름 (2026-11-17)
 
@@ -76,11 +88,14 @@ switch (state)
 | 클래스, 구조체, enum | Pascal | `RecvBuffer`, `SessionState` |
 | enum 값 | Pascal, `enum class`만 사용 | `SessionState::Connected` |
 | 함수, 멤버 함수 | Pascal | `BuildInfo()`, `OnRecv()` |
-| 멤버 변수 | `_` + camel | `_readPos` |
-| 지역 변수, 매개변수 | camel | `bytesTransferred` |
+| 변수 | 위 "변수 이름" 표 | `_readPos`, `s_count`, `t_currentLane`, `size` |
 | 상수, constexpr | Pascal | `MaxPacketSize` |
 | 매크로 | 대문자 + `_`, 되도록 쓰지 않음 | `ASSERT_CRASH` |
 | 파일 | 클래스 이름과 같게, .h와 .cpp는 같은 폴더 | `Base/ByteWriter.h`, `Base/ByteWriter.cpp` |
+
+### enum (2026-11-24)
+
+- `enum class`에는 **0 값을 둔다**(보통 `None = 0`). `Job job{}`처럼 기본값으로 만든 값이 없는 값(0)이 되지 않게 한다. clang-tidy `bugprone-invalid-enum-default-initialization`과 C# CA1008이 같은 규칙이고, 두 언어 모두 검사한다.
 
 ### 폴더 (2026-11-17)
 
@@ -142,7 +157,19 @@ void Push(Message msg)
 
 # 코딩 규칙 (C#)
 
-C++ 규칙 중 이름(Pascal, `_camel` 멤버)과 namespace는 같게 한다(`docs/naming.md`). 나머지는 C# 관례를 따른다.
+클래스·namespace 이름은 C++과 같다(`docs/naming.md`). 나머지는 C# 관례(MS 공식 이름 규칙)를 따른다.
+
+### 변수 이름 (2026-11-24)
+
+| 범위 | 규칙 | 예 | C++ |
+|---|---|---|---|
+| private·internal 필드 | `_` + camel | `_pending` | 같음 |
+| static 필드 | `s_` + camel | `s_instanceCount` | 같음 |
+| 스레드별(`[ThreadStatic]`) | `t_` + camel | `t_currentLane` | 같음 |
+| 지역 변수, 매개변수 | camel | `running` | 같음 |
+| 상수(`const`), public 멤버, 메서드, 속성 | Pascal | `MaxCount` | 같음 |
+
+`.editorconfig`의 이름 규칙이 검사하고, 어기면 빌드 에러다(IDE1006).
 
 ### 검사(Assert) (2026-11-24)
 
