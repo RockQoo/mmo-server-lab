@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>003 Assert와 경고</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>003 · C# Assert, 경고를 가장 높게 + 경고 = 빌드 에러</h1>
+<p class="sub">C++ · C# · 2026-11-24 · 커밋 <code>9790c5d</code>, <code>8cb71e6</code></p>
+
+<div class="card">
+  <strong>무엇을 했나.</strong> (1) C#의 검사(Assert)는 새로 만들지 않고 BCL(Base Class Library: .NET 기본 제공)의 <code>Trace.Assert</code> / <code>Debug.Assert</code>를 쓰기로 했다.
+  직접 돌려 보니 C++ <code>ASSERT</code> / <code>DEBUG_ASSERT</code>와 역할이 같았다.
+  (2) 두 서버 모두 경고를 가장 높은 단계로 켜고, 경고가 하나라도 나오면 빌드가 실패하게 했다. 끄는 것은 해당 없는 규칙만, 가장 좁은 범위로, 이유를 적어서 끈다.
+</div>
+
+<h2>Assert: 같은 역할, 다른 방법</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>역할</th><th>C++ (직접 만듦)</th><th>C# (BCL)</th></tr>
+  <tr><td>항상 검사(Release 포함)</td><td class="cpp"><code>ASSERT(조건, 메시지)</code></td><td class="cs"><code>Trace.Assert(조건, 메시지)</code></td></tr>
+  <tr><td>Debug에서만(비싼 검사)</td><td class="cpp"><code>DEBUG_ASSERT</code></td><td class="cs"><code>Debug.Assert</code></td></tr>
+  <tr><td>실패하면 기록</td><td class="cpp">stderr + VS 출력 창(조건식 글자 포함)</td><td class="cs">stderr(메시지 + 파일·줄이 담긴 호출 스택)</td></tr>
+  <tr><td>디버거가 붙어 있으면</td><td class="cpp"><code>__debugbreak</code></td><td class="cs">그 자리에서 멈춤</td></tr>
+  <tr><td>잡아서 무시하지 못하게 종료</td><td class="cpp"><code>RaiseException(0xE000A55E)</code> → <code>abort</code></td><td class="cs"><code>Environment.FailFast</code>(종료 코드 <code>0x80131623</code>), try/catch 불가</td></tr>
+  <tr><td>덤프</td><td class="cpp">나중에 CrashDump(<code>SetUnhandledExceptionFilter</code>)</td><td class="cs">런타임 설정(<code>DOTNET_DbgEnableMiniDump=1</code>)</td></tr>
+  <tr><td>검사가 빌드에서 사라지지 않게</td><td class="cpp">매크로라 항상 남음</td><td class="cs"><code>Trace.Assert</code>는 <code>TRACE</code> 기호가 있어야 남는다 → <code>Directory.Build.props</code>에 명시, 빠지면 <code>AssertTest</code>가 깨짐</td></tr>
+</table>
+</div>
+<p class="muted">받은 데이터 검사(패킷 길이 등)에는 Assert를 쓰지 않는다. 그건 실패 표시(<code>IsValid</code>)로 처리한다. Assert는 "코드가 틀렸다"는 뜻이다.</p>
+
+<h2>경고 정책</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++ (MSVC)</span>
+    <ul>
+      <li><code>/Wall</code>: 가장 높은 경고 단계</li>
+      <li><code>/analyze</code>: 정적 분석(널 역참조, 버퍼 넘침, 초기화 안 된 값)</li>
+      <li>컴파일·링크 <code>/WX</code>: 경고 = 에러</li>
+      <li><code>/external:anglebrackets /external:W0</code>: 표준·vcpkg 헤더는 보지 않는다(우리 코드가 만든 템플릿 인스턴스는 본다)</li>
+      <li>끈 것: 안내성 C4514·C4710·C4711(inline 안내), C4820(패딩 안내), C5045(Spectre 안내). 테스트만 C6326(gtest 매크로 오탐)</li>
+    </ul></div>
+  <div class="card cs"><span class="tag cs">C# (.NET)</span>
+    <ul>
+      <li><code>WarningLevel 9999</code>: 컴파일러 경고 새 단계(warning wave)까지 전부</li>
+      <li><code>AnalysisLevel latest-all</code>: 코드 분석(CA) 규칙 전부</li>
+      <li><code>Features strict</code>: 컴파일러 엄격 모드</li>
+      <li><code>TreatWarningsAsErrors</code>: 경고 = 에러</li>
+      <li>끈 것: 코덱 파일에서만 CA1815(struct 비교 재정의: 비교하지 않는 표시용 타입), CA1000(제네릭 static 멤버: static abstract 구현) — <code>.editorconfig</code></li>
+    </ul></div>
+</div>
+
+<h2>켜자마자 나온 것과 처리</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>언어</th><th>경고</th><th>원인</th><th>처리</th></tr>
+  <tr><td>C++</td><td>C4365</td><td><code>Utf8.cpp</code> 부호 있는 값 → <code>char32_t</code></td><td><span class="tag ok">코드 수정</span> 명시적 변환</td></tr>
+  <tr><td>C++</td><td>C4242</td><td>테스트의 <code>{5, nullopt}</code>가 int → int16</td><td><span class="tag ok">코드 수정</span> <code>std::int16_t{5}</code></td></tr>
+  <tr><td>C++</td><td>C5246</td><td>테스트의 <code>std::array</code> 중괄호 생략</td><td><span class="tag ok">코드 수정</span> <code>{{...}}</code></td></tr>
+  <tr><td>C++</td><td>C6001</td><td>지정 초기화로 다 채운 구조체를 "초기화 안 됨"으로 봄(분석기 오탐)</td><td><span class="tag ok">코드 수정</span> 직접 초기화 형태로</td></tr>
+  <tr><td>C++</td><td>C6334</td><td>Release <code>DEBUG_ASSERT</code>의 <code>sizeof(!(조건))</code></td><td><span class="tag ok">코드 수정</span> <code>if constexpr (false)</code>(평가 안 함, 문법 검사는 유지)</td></tr>
+  <tr><td>C++</td><td>C6326</td><td>gtest <code>EXPECT_*</code> 안쪽 상수 비교</td><td>테스트 대상에서만 끔</td></tr>
+  <tr><td>C#</td><td>CA1065</td><td>정적 생성자에서 예외(엔디안 확인)</td><td><span class="tag ok">코드 수정</span> 생성자로 이동(JIT가 상수로 접어 비용 0)</td></tr>
+  <tr><td>C#</td><td>CA1307, CA1305</td><td>테스트의 문자열 비교·숫자 파싱 문화권 미지정</td><td><span class="tag ok">코드 수정</span> <code>Ordinal</code>, <code>InvariantCulture</code></td></tr>
+  <tr><td>C#</td><td>CA1034 등</td><td>테스트 전용 타입이 <code>public</code></td><td><span class="tag ok">코드 수정</span> <code>private</code></td></tr>
+  <tr><td>C#</td><td>CA1815, CA1000</td><td>코덱 struct(설계상 해당 없음)</td><td>코덱 파일에서만 끔</td></tr>
+</table>
+</div>
+<p class="muted">에디터: clangd(VS Code)는 MSVC의 <code>/Wall</code>을 clang <code>-Weverything</code>(C++98 호환 경고까지)로 읽는다. <code>.clangd</code>에서 빼고 clang 기준 높은 경고(<code>-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow</code>)를 준다. 진짜 기준은 MSVC 빌드다.</p>
+
+<h2>결과</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> Debug·Release 경고 0, gtest <strong>44개</strong> 통과</div>
+  <div class="card cs"><span class="tag cs">C#</span> Debug·Release 경고 0, xUnit <strong>23개</strong> 통과(새로 <code>AssertTest</code> 2개)</div>
+</div>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>차수</th><th>범위</th><th>결과</th></tr>
+  <tr><td>1차</td><td><code>9790c5d</code> C# Assert (5개 파일)</td><td><span class="tag ok">0건</span></td></tr>
+  <tr><td>2차</td><td><code>8cb71e6</code> 경고 정책 (C++ 6, C# 7 등 14개 파일)</td><td><span class="tag ok">0건</span></td></tr>
+</table>
+</div>
+
+<h2>다음</h2>
+<ul>
+  <li>Messaging부터 C++·C# 같이: 메시지 큐, 스레드 어피니티(C++) / <code>Channel&lt;T&gt;</code>(C#)</li>
+</ul>
+
+</main>
+</body>
+</html>
