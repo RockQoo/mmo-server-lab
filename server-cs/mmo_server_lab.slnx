@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/Core/">
     <Project Path="Core/Base/Base.csproj" />
+    <Project Path="Core/Messaging/Messaging.csproj" />
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Core/Base/Tests/Base.Tests.csproj" />
+    <Project Path="Core/Messaging/Tests/Messaging.Tests.csproj" />
   </Folder>
 </Solution>

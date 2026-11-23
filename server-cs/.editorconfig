@@ -6,3 +6,8 @@
 [**/ByteCodecs.cs]
 dotnet_diagnostic.CA1815.severity = none
 dotnet_diagnostic.CA1000.severity = none
+
+# 테스트. xUnit 은 테스트 안에서 ConfigureAwait(false)를 쓰지 말라고 한다(xUnit1030: 테스트 문맥을 벗어나 병렬 제한이 깨짐).
+#   CA2007 await 마다 ConfigureAwait 를 붙여라(라이브러리용 규칙. 라이브러리 코드에서는 지킨다)
+[**/Tests/**.cs]
+dotnet_diagnostic.CA2007.severity = none

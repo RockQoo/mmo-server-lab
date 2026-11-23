@@ -82,7 +82,7 @@ powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 �
 - **C#**: `powershell -File server-cs/build.ps1 -Config debug|release [-Test]` (`dotnet build/test`, 솔루션 `server-cs/mmo_server_lab.slnx`, VS에서 바로 열린다). 공통 설정은 `server-cs/Directory.Build.props`(net10.0, nullable 경고는 에러). 테스트는 xUnit v3 + Microsoft.Testing.Platform(`global.json`). 출력 언어는 영어로 고정(qa.json 정규식).
 - **경고는 가장 높게, 경고 = 빌드 에러(2026-11-24).** 끄는 것은 해당 없는 규칙만, 가장 좁은 범위로, 이유를 적어서.
   - C++: `/Wall` + `/analyze`(정적 분석) + 컴파일·링크 `/WX`(`CMAKE_COMPILE/LINK_WARNING_AS_ERROR`). 꺼진 것: 안내성 경고 C4514·C4710·C4711·C4820·C5045, 테스트만 C6326(gtest 매크로 오탐). `<...>` 헤더(표준, vcpkg)는 `/external:W0`. 에디터 clangd 는 `.clangd`에서 `/Wall` 대신 clang 기준 경고.
-  - C#: `WarningLevel 9999` + `AnalysisLevel latest-all`(CA 규칙 전부) + `Features strict` + `TreatWarningsAsErrors`. 꺼진 것은 `server-cs/.editorconfig`(코덱 파일의 CA1815·CA1000).
+  - C#: `WarningLevel 9999` + `AnalysisLevel latest-all`(CA 규칙 전부) + `Features strict` + `TreatWarningsAsErrors`. 꺼진 것은 `server-cs/.editorconfig`(코덱 파일의 CA1815·CA1000, 테스트의 CA2007: xUnit 은 테스트에서 `ConfigureAwait(false)`를 쓰지 말라고 함).
 - `qa.json`은 C++과 C# 빌드·테스트를 둘 다 돌린다. 코어 기본 QA는 두 언어 모두 기능으로 만들어 둔다.
 
 ## 진행 방식 (가장 중요)

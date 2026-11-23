@@ -4,5 +4,7 @@ CompileFlags:
   CompilationDatabase: server-cpp/build/debug
   # MSVC 의 /Wall 을 clang 은 -Weverything(C++98 호환 경고까지 전부)으로 읽는다. 에디터에서는 빼고 clang 기준 높은 경고를 쓴다.
   # 진짜 기준은 MSVC 빌드(/Wall /WX /analyze)다. /analyze 도 clang 은 모르므로 뺀다.
+  # 빌드 명령이 cl.exe 라 clangd 는 clang-cl 모드로 읽는다. 이 모드에서는 -Wall 도 /Wall(= -Weverything)이 되므로
+  # 높은 경고는 /W4(= clang 의 -Wall -Wextra)로 넣는다.
   Remove: [/Wall, /analyze, "/analyze:*"]
-  Add: [-Wall, -Wextra, -Wpedantic, -Wconversion, -Wsign-conversion, -Wshadow]
+  Add: [/W4, -Wpedantic, -Wconversion, -Wsign-conversion, -Wshadow]
