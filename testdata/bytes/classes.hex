@@ -1,0 +1,16 @@
+# 클래스 정답 바이트. 필드를 적은 순서대로 쓴다(C++ SERIALIZE_FIELDS, C# 코덱 struct).
+# 테스트: server-cpp/Core/Base/Tests/ByteFormatTest.cpp, server-cs/Core/Base/Tests/ByteFormatTest.cs
+# Player { level = 10, job = Archer(2), name = "쿠", items = { Item { id = 1, name = "검" } }, stats = { "hp": 100, "mp": 50 } }
+# map 은 키 순(C++ std::map). C# Dictionary 는 같은 순서로 넣는다.
+
+0a 00 00 00          # level int32 10
+02                   # job (uint8 enum) Archer
+03 00 ec bf a0       # name "쿠"
+01 00                # items 개수 1
+01 00 00 00          #   Item.id 1
+03 00 ea b2 80       #   Item.name "검"
+02 00                # stats 개수 2
+02 00 68 70          #   "hp"
+64 00 00 00          #   100
+02 00 6d 70          #   "mp"
+32 00 00 00          #   50

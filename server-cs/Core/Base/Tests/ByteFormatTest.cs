@@ -15,7 +15,7 @@ public class ByteFormatTest
     }
 
     // "fe ff # 주석" 형식의 줄을 바이트로 바꾼다.
-    private static byte[] LoadHex(string name)
+    internal static byte[] LoadHex(string name)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "testdata", "bytes", name);
         return File.ReadLines(path)

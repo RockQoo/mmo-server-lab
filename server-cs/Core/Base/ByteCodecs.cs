@@ -108,7 +108,15 @@ public readonly struct NullableRefCodec<T, TCodec> : IByteCodec<T?> where T : cl
 
 public readonly struct ArrayCodec<T, TCodec> : IByteCodec<T[]> where TCodec : IByteCodec<T>
 {
-    public static void Write(ref ByteWriter writer, T[] value) => WriteItems<T, TCodec>(ref writer, value);
+    public static void Write(ref ByteWriter writer, T[] value)
+    {
+        if (value is null)
+        {
+            writer.Fail(); // null 은 예외 대신 실패(빈 배열과 구분한다)
+            return;
+        }
+        WriteItems<T, TCodec>(ref writer, value);
+    }
 
     public static T[] Read(ref ByteReader reader)
     {
@@ -138,8 +146,15 @@ public readonly struct ArrayCodec<T, TCodec> : IByteCodec<T[]> where TCodec : IB
 public readonly struct ListCodec<T, TCodec> : IByteCodec<List<T>> where TCodec : IByteCodec<T>
 {
     // List 의 내부 배열을 복사 없이 span 으로 본다(쓰는 동안 List 를 바꾸지 않는다는 전제)
-    public static void Write(ref ByteWriter writer, List<T> value) =>
+    public static void Write(ref ByteWriter writer, List<T> value)
+    {
+        if (value is null)
+        {
+            writer.Fail();
+            return;
+        }
         ArrayCodec<T, TCodec>.WriteItems<T, TCodec>(ref writer, CollectionsMarshal.AsSpan(value));
+    }
 
     public static List<T> Read(ref ByteReader reader)
     {
@@ -158,6 +173,11 @@ public readonly struct IntegerArrayCodec<T> : IByteCodec<T[]> where T : unmanage
 {
     public static void Write(ref ByteWriter writer, T[] value)
     {
+        if (value is null)
+        {
+            writer.Fail();
+            return;
+        }
         if (writer.WriteCount(value.Length))
         {
             writer.WriteBytes(MemoryMarshal.AsBytes(value.AsSpan()));
@@ -174,5 +194,49 @@ public readonly struct IntegerArrayCodec<T> : IByteCodec<T[]> where T : unmanage
         }
         var items = new T[count];
         return reader.ReadBytes(MemoryMarshal.AsBytes(items.AsSpan())) ? items : [];
+    }
+}
+
+// 키-값 컨테이너(C++ map: uint16 개수 + (키, 값) 쌍). 순서는 Dictionary 가 돌려주는 순서(추가한 순서).
+// C++ std::map 은 키 순으로 쓰므로, 같은 바이트가 필요하면 키 순으로 넣거나 SortedDictionary 를 쓴다.
+// 읽을 때 같은 키가 또 오면 먼저 온 값을 유지한다(C++ map 읽기와 같다).
+public readonly struct DictionaryCodec<TKey, TValue, TKeyCodec, TValueCodec> : IByteCodec<Dictionary<TKey, TValue>>
+    where TKey : notnull
+    where TKeyCodec : IByteCodec<TKey>
+    where TValueCodec : IByteCodec<TValue>
+{
+    public static void Write(ref ByteWriter writer, Dictionary<TKey, TValue> value)
+    {
+        if (value is null)
+        {
+            writer.Fail();
+            return;
+        }
+        if (!writer.WriteCount(value.Count))
+        {
+            return;
+        }
+        foreach (var (key, item) in value)
+        {
+            TKeyCodec.Write(ref writer, key);
+            TValueCodec.Write(ref writer, item);
+        }
+    }
+
+    public static Dictionary<TKey, TValue> Read(ref ByteReader reader)
+    {
+        // 키·값은 각각 최소 1바이트라 쌍은 최소 2바이트
+        var count = reader.ReadCount(minElementSize: 2);
+        var items = new Dictionary<TKey, TValue>(count);
+        for (var i = 0; i < count && reader.IsValid; i++)
+        {
+            var key = TKeyCodec.Read(ref reader);
+            var item = TValueCodec.Read(ref reader);
+            if (reader.IsValid)
+            {
+                items.TryAdd(key, item);
+            }
+        }
+        return reader.IsValid ? items : [];
     }
 }

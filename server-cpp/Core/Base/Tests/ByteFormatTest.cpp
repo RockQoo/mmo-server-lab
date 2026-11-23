@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -20,6 +21,34 @@ namespace
         Red = 1,
         Green = 2,
         Blue = 3,
+    };
+
+    // classes.hex 용. C# 테스트의 Item / Player(코덱 struct)와 필드 순서가 같다.
+    enum class Job : std::uint8_t
+    {
+        Warrior = 1,
+        Archer = 2,
+    };
+
+    struct Item
+    {
+        std::int32_t id{};
+        std::string name{};
+
+        SERIALIZE_FIELDS(id, name)
+        bool operator==(const Item&) const = default;
+    };
+
+    struct Player
+    {
+        std::int32_t level{};
+        Job job{};
+        std::string name{};
+        std::vector<Item> items{};
+        std::map<std::string, std::int32_t> stats{};
+
+        SERIALIZE_FIELDS(level, job, name, items, stats)
+        bool operator==(const Player&) const = default;
     };
 
     // "fe ff # 주석" 형식의 줄을 바이트로 바꾼다.
@@ -117,4 +146,29 @@ TEST(ByteFormat, ContainersMatchGoldenFile)
     EXPECT_EQ(x, "x");
     EXPECT_EQ(shorts, (std::vector<std::optional<std::int16_t>>{5, std::nullopt}));
     EXPECT_EQ(nested, (std::vector<Bytes>{{1, 2}, {}}));
+}
+
+TEST(ByteFormat, ClassesMatchGoldenFile)
+{
+    const auto expected = LoadHex("classes.hex");
+    ASSERT_FALSE(expected.empty());
+
+    const auto player = Player{
+        .level = 10,
+        .job = Job::Archer,
+        .name = "쿠",
+        .items = {Item{.id = 1, .name = "검"}},
+        .stats = {{"hp", 100}, {"mp", 50}},
+    };
+    Base::ByteWriter writer;
+    writer << player;
+    ASSERT_TRUE(writer.IsValid());
+    EXPECT_TRUE(std::ranges::equal(writer.Data(), expected));
+
+    auto read = Player{};
+    Base::ByteReader reader(expected);
+    reader >> read;
+    EXPECT_TRUE(reader.IsValid());
+    EXPECT_EQ(reader.ReadPos(), expected.size());
+    EXPECT_EQ(read, player);
 }

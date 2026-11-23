@@ -76,7 +76,8 @@ public ref struct ByteWriter
     public void Write(string value)
     {
         // UTF-16 한 글자는 UTF-8로 최소 1바이트라 글자 수가 이미 넘으면 볼 필요가 없다.
-        if (!_valid || value.Length > MaxCount)
+        // null 은 예외 대신 실패로 본다(nullable 주석을 무시하고 들어온 null, C++ 의 null C 문자열과 같은 처리).
+        if (!_valid || value is null || value.Length > MaxCount)
         {
             _valid = false;
             return;
@@ -109,6 +110,12 @@ public ref struct ByteWriter
     public void Write<T, TCodec>(T value) where TCodec : IByteCodec<T>
     {
         TCodec.Write(ref this, value);
+    }
+
+    // 실패 표시만 남긴다. 코덱이 쓸 수 없는 값(null 클래스·배열 등)을 만났을 때 쓴다. 이후 쓰기는 모두 무시된다.
+    public void Fail()
+    {
+        _valid = false;
     }
 
     // 컨테이너 개수(uint16). 상한(MaxCount)을 넘거나 음수면 실패 표시 후 false. 코덱과 CodeGen 이 쓴다.

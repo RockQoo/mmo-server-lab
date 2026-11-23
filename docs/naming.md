@@ -17,7 +17,7 @@
 
 | namespace | 이름 | C++ | C# | 메모 |
 |---|---|---|---|---|
-| Base | `ByteWriter` / `ByteReader` | 있음(`<<`, `>>`, 버퍼 소유) | 있음(정수·enum·bool·실수·string, 코덱으로 배열·List·nullable) | C#은 `IBufferWriter<byte>`에 쓰는 ref struct 커서(버퍼는 .NET이 소유: `ArrayBufferWriter`, 나중에 `PipeWriter`). 같은 바이트는 `testdata/bytes/*.hex`로 양쪽 테스트가 확인. .NET `System.IO.BinaryWriter`와 겹쳐 C++ 이름을 Binary→Byte로 바꿈 |
+| Base | `ByteWriter` / `ByteReader` | 있음(`<<`, `>>`, 버퍼 소유) | 있음(정수·enum·bool·실수·string, 코덱으로 배열·List·nullable·Dictionary·클래스) | C#은 `IBufferWriter<byte>`에 쓰는 ref struct 커서(버퍼는 .NET이 소유: `ArrayBufferWriter`, 나중에 `PipeWriter`). 같은 바이트는 `testdata/bytes/*.hex`로 양쪽 테스트가 확인. .NET `System.IO.BinaryWriter`와 겹쳐 C++ 이름을 Binary→Byte로 바꿈 |
 | Base | `BuildInfo` | 있음(함수 `BuildInfo()`) | 있음(`BuildInfo.Describe()`) | C#은 자유 함수가 없어 정적 클래스. C++은 컴파일러·`__cplusplus`, C#은 런타임·GC 모드(Server/Workstation)를 남긴다 |
 | Base | `ASSERT` / `DEBUG_ASSERT` | 있음(매크로) | 예정 | C#은 매크로가 없어 메서드로. 실패 처리 방식(덤프로 이어지는 크래시)은 같게 |
 | Base | `RwLocked<T>` | 예정 | **없음** | 아래 참고 |
@@ -45,3 +45,5 @@ C++ 은 `operator<<` 하나 안의 `if constexpr` 로 타입을 가른다. C# �
 | 정수, enum, bool, float/double, string | `IntegerCodec<T>`, `EnumCodec<T>`, `BoolCodec`, `SingleCodec`, `DoubleCodec`, `StringCodec` |
 | `std::optional<T>` | `NullableCodec<T, C>`(값 형식 `int?`), `NullableRefCodec<T, C>`(참조 형식 `string?`) |
 | `std::vector<T>` | `ArrayCodec<T, C>`(`T[]`), `ListCodec<T, C>`(`List<T>`), 정수 배열은 `IntegerArrayCodec<T>`(통째 복사) |
+| `std::map<K, V>` | `DictionaryCodec<K, V, KC, VC>`(`Dictionary<K, V>`). 쓰는 순서는 Dictionary 순서(C++ map 은 키 순). 읽을 때 같은 키는 먼저 온 값 유지 |
+| 클래스 `SERIALIZE_FIELDS(a, b)` | 클래스 + 코덱 struct 쌍(`Player` + `PlayerCodec`). 코덱을 struct 로 따로 두는 이유는 성능(참조 형식 코덱은 JIT 가 공유 코드로 만들어 인라인 안 됨). CodeGen 이 이 모양을 만든다 |
