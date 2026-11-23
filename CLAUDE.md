@@ -78,7 +78,7 @@ powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 �
 - VS 개발자 환경을 켜고 Ninja 프리셋(`server-cpp/CMakePresets.json`)으로 빌드한다. 결과는 `server-cpp/build/<config>/`.
 - 외부 라이브러리는 `server-cpp/vcpkg.json`(manifest, VS 포함 vcpkg)에 추가한다.
 - `build.ps1`은 UTF-8 **BOM**으로 저장한다(Windows PowerShell 5.1이 BOM 없는 한글을 깨뜨림).
-- **Visual Studio**: 루트의 `OpenVS.bat`(= `build.ps1 -Sln`)이 `server-cpp/build/vs/mmo_server_lab.slnx`를 만들고 연다. 솔루션 폴더는 Core / Servers / Tests(CMake 기본 대상은 `_CMake`), 시작 프로젝트는 ZoneServer. 대상마다 `FOLDER` 속성을 주고 헤더도 소스 목록에 적는다. 명령줄 빌드와 QA는 Ninja 프리셋 그대로.
+- **Visual Studio**: 루트의 `OpenVS.bat`(= `build.ps1 -Sln`)이 `server-cpp/build/vs/mmo_server_lab.slnx`를 만들고 연다. 솔루션 폴더는 Core / Servers / Tests(CMake 기본 대상은 `_CMake`), 시작 프로젝트는 ZoneServer. 대상마다 `FOLDER` 속성을 주고 헤더도 소스 목록에 적는다. 명령줄 빌드와 QA는 Ninja 프리셋 그대로. VS 솔루션을 한 번 만든 뒤에는 `build.ps1`이 빌드할 때마다 같이 갱신한다(바뀐 파일만 다시 써서 VS 다시 로드 창도 그때만 뜬다).
 - **C#**: `powershell -File server-cs/build.ps1 -Config debug|release [-Test]` (`dotnet build/test`, 솔루션 `server-cs/mmo_server_lab.slnx`, VS에서 바로 열린다). 공통 설정은 `server-cs/Directory.Build.props`(net10.0, nullable 경고는 에러). 테스트는 xUnit v3 + Microsoft.Testing.Platform(`global.json`). 출력 언어는 영어로 고정(qa.json 정규식).
 - **경고는 가장 높게, 경고 = 빌드 에러(2026-11-24).** 끄는 것은 해당 없는 규칙만, 가장 좁은 범위로, 이유를 적어서.
   - C++: `/Wall` + `/analyze`(정적 분석) + 컴파일·링크 `/WX`(`CMAKE_COMPILE/LINK_WARNING_AS_ERROR`). 꺼진 것: 안내성 경고 C4514·C4710·C4711·C4820·C5045, 테스트만 C6326(gtest 매크로 오탐). `<...>` 헤더(표준, vcpkg)는 `/external:W0`. 에디터 clangd 는 `.clangd`에서 `/Wall` 대신 clang 기준 경고.

@@ -35,6 +35,12 @@ try {
 
     cmake --preset $Config
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    # VS 솔루션을 한 번이라도 만들었으면(OpenVS.bat) 같이 갱신한다. 안 하면 CMakeLists.txt에 추가한 라이브러리가
+    # VS에 보이지 않는다(2026-11-24 Messaging). CMake는 내용이 바뀐 파일만 다시 써서, VS 다시 로드 창도 그때만 뜬다.
+    if (Test-Path build/vs/CMakeCache.txt) {
+        cmake --preset vs | Out-Null
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    }
     cmake --build --preset $Config
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     if ($Test) {
