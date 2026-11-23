@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Unicode;
 
 namespace Base;
@@ -81,10 +82,20 @@ public ref struct ByteWriter
             return;
         }
 
-        // 최대 크기(글자당 3바이트)로 빌려 한 번에 바꾸고, 실제 쓴 만큼만 확정한다. 중간 배열 할당이 없다.
-        var span = _output.GetSpan(sizeof(ushort) + value.Length * 3);
-        var status = Utf8.FromUtf16(value, span[sizeof(ushort)..], out _, out var length, replaceInvalidSequences: false);
-        if (status != OperationStatus.Done || length > MaxCount)
+        // 1) 바이트 수를 먼저 센다(SIMD로 빠르다). 잘못된 UTF-16은 대체 문자 크기로 세지므로 올바른 문자열이면 정확하다.
+        //    최대 크기(글자당 3바이트)로 빌리면 긴 ASCII 문자열에서 버퍼를 3배로 키우게 된다.
+        var count = Encoding.UTF8.GetByteCount(value);
+        if (count > MaxCount)
+        {
+            _valid = false;
+            return;
+        }
+
+        // 2) 딱 그만큼 빌려 바꾼다. 짝 없는 서로게이트는 여기서 InvalidData로 걸린다. 중간 배열 할당이 없다.
+        var span = _output.GetSpan(sizeof(ushort) + count);
+        var status = Utf8.FromUtf16(value, span.Slice(sizeof(ushort), count), out _, out var length,
+                                    replaceInvalidSequences: false);
+        if (status != OperationStatus.Done)
         {
             _valid = false;
             return;

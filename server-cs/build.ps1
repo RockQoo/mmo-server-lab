@@ -15,9 +15,17 @@ $env:DOTNET_CLI_UI_LANGUAGE = 'en'
 $configuration = (Get-Culture).TextInfo.ToTitleCase($Config)
 $solution = Join-Path $PSScriptRoot 'mmo_server_lab.slnx'
 
-dotnet build $solution -c $configuration --nologo
-if ($LASTEXITCODE) { exit $LASTEXITCODE }
-if ($Test) {
-    dotnet test --solution $solution -c $configuration --no-build
+# dotnet은 현재 폴더에서 위로 global.json을 찾는다(SDK 버전, 테스트 실행 방식).
+# 저장소 루트에서 불려도 server-cs/global.json을 읽도록 이 폴더에서 실행한다.
+Push-Location $PSScriptRoot
+try {
+    dotnet build $solution -c $configuration --nologo
+    if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    if ($Test) {
+        dotnet test --solution $solution -c $configuration --no-build
+    }
+    exit $LASTEXITCODE
 }
-exit $LASTEXITCODE
+finally {
+    Pop-Location
+}

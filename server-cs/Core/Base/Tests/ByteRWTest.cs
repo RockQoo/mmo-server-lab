@@ -39,6 +39,18 @@ public class ByteRWTest
         Assert.False(writer.IsValid);
     }
 
+    // 문자열은 실제 UTF-8 바이트 수만큼만 버퍼를 요청한다(글자당 3바이트로 잡으면 긴 ASCII에서 버퍼가 3배로 커진다).
+    [Fact]
+    public void StringRequestsExactSize()
+    {
+        var output = new SizeHintRecorder();
+        var writer = new ByteWriter(output);
+        writer.Write(new string('a', 30_000));
+
+        Assert.True(writer.IsValid);
+        Assert.Equal(2 + 30_000, output.MaxSizeHint);
+    }
+
     // 짝이 없는 서로게이트는 U+FFFD로 바꿔 쓰지 않고 실패로 본다.
     [Fact]
     public void LoneSurrogateFails()
@@ -86,5 +98,27 @@ public class ByteRWTest
 
         Assert.True(reader.ReadBool());
         Assert.True(reader.IsValid);
+    }
+
+    // GetSpan에 요청한 크기 중 가장 큰 값을 기록하는 버퍼.
+    private sealed class SizeHintRecorder : IBufferWriter<byte>
+    {
+        private readonly ArrayBufferWriter<byte> _inner = new();
+
+        public int MaxSizeHint { get; private set; }
+
+        public void Advance(int count) => _inner.Advance(count);
+
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            MaxSizeHint = Math.Max(MaxSizeHint, sizeHint);
+            return _inner.GetMemory(sizeHint);
+        }
+
+        public Span<byte> GetSpan(int sizeHint = 0)
+        {
+            MaxSizeHint = Math.Max(MaxSizeHint, sizeHint);
+            return _inner.GetSpan(sizeHint);
+        }
     }
 }
