@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Base;
@@ -67,7 +68,16 @@ public readonly struct NullableCodec<T, TCodec> : IByteCodec<T?> where T : struc
         }
     }
 
-    public static T? Read(ref ByteReader reader) => reader.ReadBool() ? TCodec.Read(ref reader) : null;
+    // 안의 값을 읽다 실패하면 값이 아니라 null 을 돌려준다(C++ 처럼 실패한 optional 은 비운다)
+    public static T? Read(ref ByteReader reader)
+    {
+        if (!reader.ReadBool())
+        {
+            return null;
+        }
+        var value = TCodec.Read(ref reader);
+        return reader.IsValid ? value : null;
+    }
 }
 
 // 참조 형식: string?, MyClass?
@@ -82,7 +92,16 @@ public readonly struct NullableRefCodec<T, TCodec> : IByteCodec<T?> where T : cl
         }
     }
 
-    public static T? Read(ref ByteReader reader) => reader.ReadBool() ? TCodec.Read(ref reader) : null;
+    // 안의 값을 읽다 실패하면 값이 아니라 null 을 돌려준다(C++ 처럼 실패한 optional 은 비운다)
+    public static T? Read(ref ByteReader reader)
+    {
+        if (!reader.ReadBool())
+        {
+            return null;
+        }
+        var value = TCodec.Read(ref reader);
+        return reader.IsValid ? value : null;
+    }
 }
 
 // ---- 컨테이너 (C++ vector 등: uint16 개수 + 원소) ----
@@ -147,7 +166,12 @@ public readonly struct IntegerArrayCodec<T> : IByteCodec<T[]> where T : unmanage
 
     public static T[] Read(ref ByteReader reader)
     {
-        var count = reader.ReadCount();
+        // 원소 크기까지 계산해 배열을 만들기 전에 거짓 개수를 막는다(long 65535개 = 512KB 할당을 데이터 없이 시키지 못하게)
+        var count = reader.ReadCount(Unsafe.SizeOf<T>());
+        if (!reader.IsValid)
+        {
+            return [];
+        }
         var items = new T[count];
         return reader.ReadBytes(MemoryMarshal.AsBytes(items.AsSpan())) ? items : [];
     }

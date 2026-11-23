@@ -105,12 +105,12 @@ public ref struct ByteReader
         return true;
     }
 
-    // 길이·개수를 읽는다. 남은 바이트보다 크면 실패 표시 후 0. 코덱과 CodeGen 이 쓴다.
-    // 원소는 최소 1바이트이므로, 거짓 개수로 큰 메모리를 잡게 하는 패킷을 여기서 막는다.
-    public int ReadCount()
+    // 길이·개수를 읽는다. 원소 크기 × 개수가 남은 바이트보다 크면 실패 표시 후 0. 코덱과 CodeGen 이 쓴다.
+    // 거짓 개수로 큰 메모리를 잡게 하는 패킷을 할당 전에 막는다. 원소 크기를 모르면(가변 길이) 최소 1바이트로 본다.
+    public int ReadCount(int minElementSize = 1)
     {
         int count = ReadRaw<ushort>();
-        if (count > Remaining)
+        if ((long)count * minElementSize > Remaining)
         {
             _valid = false;
             return 0;

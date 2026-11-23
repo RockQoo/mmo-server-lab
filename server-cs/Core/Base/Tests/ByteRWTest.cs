@@ -128,6 +128,31 @@ public class ByteRWTest
         Assert.False(each.IsValid);
     }
 
+    // 정수 배열은 원소 크기까지 따져 거짓 개수를 막는다: long 3개(24바이트)라 했는데 데이터는 그보다 적다.
+    // 개수(3) 자체는 남은 바이트(8) 이하라 1바이트 기준 검사로는 통과하던 경우다.
+    [Fact]
+    public void IntegerArrayCountTimesSizeLargerThanDataFails()
+    {
+        var reader = new ByteReader([3, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
+
+        Assert.Empty(reader.Read<long[], IntegerArrayCodec<long>>());
+        Assert.False(reader.IsValid);
+        Assert.Equal(2, reader.ReadPos); // 개수만 읽고 멈춘다(배열을 만들지 않음)
+    }
+
+    // 값이 있다(1)고 해 놓고 값이 없으면, 0 이나 "" 가 아니라 null 이다(C++ 처럼 실패한 optional 은 비운다).
+    [Fact]
+    public void NullableWithMissingValueReadsAsNull()
+    {
+        var value = new ByteReader([1]);
+        Assert.Null(value.Read<int?, NullableCodec<int, IntegerCodec<int>>>());
+        Assert.False(value.IsValid);
+
+        var reference = new ByteReader([1, 5, 0]);
+        Assert.Null(reference.Read<string?, NullableRefCodec<string, StringCodec>>());
+        Assert.False(reference.IsValid);
+    }
+
     // GetSpan에 요청한 크기 중 가장 큰 값을 기록하는 버퍼.
     private sealed class SizeHintRecorder : IBufferWriter<byte>
     {
