@@ -57,7 +57,7 @@ namespace Memory
     {
         struct Slot
         {
-            std::array<std::byte*, BufferPool::CacheCapacity> items{};
+            std::array<std::byte*, BufferPool::MaxCacheCount> items{};
             std::size_t count{};
         };
 
@@ -90,7 +90,8 @@ namespace Memory
     // 반납된 버퍼 안에 FreeNode를 적으므로 가장 작은 버퍼도 그 크기·정렬을 담아야 한다
     // (new std::byte[]는 __STDCPP_DEFAULT_NEW_ALIGNMENT__로 정렬된다).
     static_assert(BufferPool::MinSize >= 3 * sizeof(void*) && __STDCPP_DEFAULT_NEW_ALIGNMENT__ >= alignof(void*));
-    static_assert(BufferPool::BatchSize > 0 && BufferPool::BatchSize <= BufferPool::CacheCapacity);
+    static_assert(BufferPool::BatchCountFor(BufferPool::MaxSize) > 0 &&
+                  BufferPool::CacheCountFor(BufferPool::MinSize) <= BufferPool::MaxCacheCount);
 
     PooledBuffer BufferPool::Rent(const std::size_t minSize)
     {
@@ -131,12 +132,14 @@ namespace Memory
         }
         const auto index = ClassIndex(size);
         auto& slot = t_cache.slots[index];
-        if (slot.count == CacheCapacity)
+        if (slot.count == CacheCountFor(size))
         {
-            // 넘친다: 오래된 쪽(앞) BatchSize개를 한 묶음으로 전역에 보내고 나머지를 앞으로 당긴다.
-            PushBatch(index, slot.items.data(), BatchSize);
-            std::move(slot.items.begin() + BatchSize, slot.items.end(), slot.items.begin());
-            slot.count -= BatchSize;
+            // 넘친다: 오래된 쪽(앞) 묶음 하나를 전역에 보내고 나머지를 앞으로 당긴다.
+            const auto batch = BatchCountFor(size);
+            PushBatch(index, slot.items.data(), batch);
+            std::move(slot.items.begin() + static_cast<std::ptrdiff_t>(batch),
+                      slot.items.begin() + static_cast<std::ptrdiff_t>(slot.count), slot.items.begin());
+            slot.count -= batch;
         }
         slot.items[slot.count++] = data;
     }

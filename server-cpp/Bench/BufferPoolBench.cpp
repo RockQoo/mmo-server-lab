@@ -240,14 +240,14 @@ BENCHMARK(SameThread<PoolRenter>)
     ->ArgsProduct({{1, 2, 4, 8}, {256, 4096}})
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
-// 짝이 맞아야 해서 스레드 2, 4, 8. 크기는 256B 하나(크기보다 스레드 사이 이동이 관심사).
+// 짝이 맞아야 해서 스레드 2, 4, 8. 크기마다 캐시 개수·묶음이 달라(256B·1KB 64·32, 4KB 16·8) 셋 다 잰다.
 BENCHMARK(CrossThread<NewDeleteRenter>)
     ->Name("CrossThread/NewDelete")
-    ->ArgsProduct({{2, 4, 8}, {256}})
+    ->ArgsProduct({{2, 4, 8}, {256, 1024, 4096}})
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
 BENCHMARK(CrossThread<PoolRenter>)
     ->Name("CrossThread/BufferPoolV2")
-    ->ArgsProduct({{2, 4, 8}, {256}})
+    ->ArgsProduct({{2, 4, 8}, {256, 1024, 4096}})
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);

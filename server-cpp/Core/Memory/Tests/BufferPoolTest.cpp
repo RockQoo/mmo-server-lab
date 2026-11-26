@@ -104,7 +104,7 @@ TEST(BufferPool, LargerThanMaxIsNotPooled)
     EXPECT_EQ(Pool().GlobalCachedCount(size), 0u);
 }
 
-// 캐시가 꽉 찬 채로 반납하면 BatchSize개를 한 묶음으로 전역에 보낸다.
+// 캐시가 꽉 찬 채로 반납하면 묶음 하나(BatchCountFor)를 전역에 보낸다.
 // 앞 테스트가 전역에 남긴 묶음을 Rent가 가져올 수 있어서, 반납 직전 개수에서 규칙대로 계산한 값과 비교한다.
 TEST(BufferPool, OverflowSendsBatchToGlobal)
 {
@@ -112,7 +112,9 @@ TEST(BufferPool, OverflowSendsBatchToGlobal)
         []
         {
             std::vector<PooledBuffer> held;
-            for (auto i = std::size_t{0}; i < BufferPool::CacheCapacity + 1; ++i)
+            const auto capacity = BufferPool::CacheCountFor(BufferPool::SizeFor(Small));
+            const auto batch = BufferPool::BatchCountFor(BufferPool::SizeFor(Small));
+            for (auto i = std::size_t{0}; i < capacity + 1; ++i)
             {
                 held.push_back(Pool().Rent(Small));
             }
@@ -121,10 +123,10 @@ TEST(BufferPool, OverflowSendsBatchToGlobal)
             auto overflowed = false;
             while (!held.empty())
             {
-                if (cached == BufferPool::CacheCapacity) // 꽉 찬 채로 반납 → 한 묶음이 전역으로
+                if (cached == capacity) // 꽉 찬 채로 반납 → 한 묶음이 전역으로
                 {
-                    cached -= BufferPool::BatchSize;
-                    global += BufferPool::BatchSize;
+                    cached -= batch;
+                    global += batch;
                     overflowed = true;
                 }
                 ++cached;
@@ -132,7 +134,7 @@ TEST(BufferPool, OverflowSendsBatchToGlobal)
                 ASSERT_EQ(BufferPool::ThreadCachedCount(Small), cached);
                 ASSERT_EQ(Pool().GlobalCachedCount(Small), global);
             }
-            EXPECT_TRUE(overflowed) << "17개를 반납하면 적어도 한 번은 넘친다";
+            EXPECT_TRUE(overflowed) << "캐시보다 하나 많이 반납하면 적어도 한 번은 넘친다";
         });
 }
 
@@ -302,3 +304,16 @@ TEST(BufferPool, DebugCountsRented)
     EXPECT_EQ(Pool().RentedCount(), before);
 }
 #endif
+
+// 캐시 개수는 등급마다 다르다: 들고 있는 바이트를 CacheBytes(256KB)에 맞추고 4~64개로 자른다.
+TEST(BufferPool, CacheCountFollowsByteBudget)
+{
+    static_assert(BufferPool::CacheCountFor(256) == 64);
+    static_assert(BufferPool::CacheCountFor(1024) == 64);
+    static_assert(BufferPool::CacheCountFor(4096) == 64);
+    static_assert(BufferPool::CacheCountFor(std::size_t{16} * 1024) == 16);
+    static_assert(BufferPool::CacheCountFor(std::size_t{64} * 1024) == 4);
+    static_assert(BufferPool::BatchCountFor(256) == 32);
+    static_assert(BufferPool::BatchCountFor(std::size_t{64} * 1024) == 2);
+    SUCCEED();
+}

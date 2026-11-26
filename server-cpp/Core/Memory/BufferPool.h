@@ -60,10 +60,14 @@ namespace Memory
     // 64KB보다 크면 풀에 두지 않고 그때 할당하고 반납할 때 바로 해제한다(드문 큰 패킷이 풀을 차지하지 않게).
     //
     // 구조(그림은 docs/journal/bufferpool.html)
-    //   스레드 캐시  스레드마다 등급별로 반납된 빈 버퍼를 CacheCapacity개까지 들고 있다. 보통의 Rent·Return은 여기서
-    //                끝난다(그 스레드만 만지므로 락·원자 연산이 없다).
-    //   전역 풀      등급마다 mutex 하나 + 묶음 목록(1판 구조). 캐시가 넘치면 BatchSize개를 한 묶음으로 보내고,
-    //                캐시가 비면 한 묶음을 가져온다. mutex는 묶음 하나에 한 번만 잡는다.
+    //   스레드 캐시  스레드마다 등급별로 반납된 빈 버퍼를 CacheCountFor(등급)개까지 들고 있다. 보통의 Rent·Return은
+    //                여기서 끝난다(그 스레드만 만지므로 락·원자 연산이 없다).
+    //   전역 풀      등급마다 mutex 하나 + 묶음 목록(1판 구조). 캐시가 넘치면 BatchCountFor(등급)개를 한 묶음으로
+    //                보내고, 캐시가 비면 한 묶음을 가져온다. mutex는 묶음 하나에 한 번만 잡는다.
+    //   캐시 개수    등급마다 다르다: 들고 있는 바이트를 CacheBytes에 맞추고 MinCacheCount~MaxCacheCount로 자른다
+    //                (256B·1KB·4KB 64개, 16KB 16개, 64KB 4개 = 스레드당 최대 약 848KB). 자주 쓰는 버퍼는 묶음이
+    //                커서(32개) 전역 mutex를 덜 잡고, 큰 버퍼는 메모리를 덜 쓴다. 묶음이 8개면 빌리는 스레드와 반납하는
+    //                스레드가 다를 때 스레드 8개에서 new/delete보다 느렸다(측정은 docs/journal/bufferpool.html).
     //   스레드 종료  캐시에 남은 버퍼를 전역으로 보낸다.
     // 빌린 스레드와 반납하는 스레드가 달라도 된다(Lane이 빌리고 IOCP 스레드가 송신 완료 후 반납). 반납된 버퍼는 반납한
     // 스레드의 캐시로 간다.
@@ -76,8 +80,22 @@ namespace Memory
         static constexpr std::size_t MinSize{256};
         static constexpr std::size_t ClassCount{5}; // 등급마다 4배: 256, 1K, 4K, 16K, 64K
         static constexpr std::size_t MaxSize{MinSize << (2 * (ClassCount - 1))};
-        static constexpr std::size_t CacheCapacity{16};            // 스레드 하나가 등급마다 들고 있는 빈 버퍼 수
-        static constexpr std::size_t BatchSize{CacheCapacity / 2}; // 전역과 한 번에 주고받는 수
+        // 스레드 하나가 등급마다 들고 있을 바이트(목표)
+        static constexpr std::size_t CacheBytes{std::size_t{256} * 1024};
+        static constexpr std::size_t MinCacheCount{4};
+        static constexpr std::size_t MaxCacheCount{64};
+
+        // 스레드 하나가 size 등급에서 들고 있는 빈 버퍼 수(최대). size는 등급 크기.
+        [[nodiscard]] static constexpr std::size_t CacheCountFor(const std::size_t size) noexcept
+        {
+            const auto count = CacheBytes / size;
+            return count < MinCacheCount ? MinCacheCount : (count > MaxCacheCount ? MaxCacheCount : count);
+        }
+        // 전역과 한 번에 주고받는 수(캐시의 절반).
+        [[nodiscard]] static constexpr std::size_t BatchCountFor(const std::size_t size) noexcept
+        {
+            return CacheCountFor(size) / 2;
+        }
 
         // 프로세스에 하나뿐인 풀. 프로그램이 끝날 때까지 산다(스레드 캐시가 끝날 때 돌아올 곳이 늘 있다).
         [[nodiscard]] static BufferPool& Shared() noexcept;
@@ -126,7 +144,7 @@ namespace Memory
 
         // 묶음 하나를 전역에 넣는다/꺼낸다. 묶음은 버퍼 안에 적은 FreeNode로 이어진다(할당 없음).
         void PushBatch(const std::size_t classIndex, std::byte* const* items, const std::size_t count) noexcept;
-        // 꺼낸 묶음을 items에 채우고 개수를 돌려준다(최대 CacheCapacity). 전역이 비었으면 0.
+        // 꺼낸 묶음을 items에 채우고 개수를 돌려준다(최대 MaxCacheCount). 전역이 비었으면 0.
         std::size_t PopBatch(const std::size_t classIndex, std::byte** items) noexcept;
 
         [[nodiscard]] static std::size_t ClassIndex(const std::size_t size) noexcept;
