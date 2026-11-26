@@ -153,7 +153,7 @@ public class MessageQueueBench
                 ++sent[l];
                 var envelope = Make(kind, flow, source, writer);
                 var ok = useLane
-                    ? laneGroup[l].TryPost(kind == Kind.QueueOnly ? flow.Ack : () => handle(envelope))
+                    ? laneGroup[l].TryPost(kind == Kind.QueueOnly ? flow.Ack : ToJob(handle, envelope))
                     : channels[l].Writer.TryWrite(envelope);
                 if (!ok)
                 {
@@ -175,6 +175,10 @@ public class MessageQueueBench
             }
         }
     }
+
+    // Lane 에 넣을 일(클로저). 따로 뺀 이유: 반복 안에서 envelope 를 캡처하는 람다를 쓰면 컴파일러가 분기와 상관없이
+    // 반복마다 캡처 객체를 만들어 Channel 경로에도 할당이 생긴다(Codex 리뷰 R1). 여기서는 Lane 경로에서만 만든다.
+    private static Action ToJob(Action<Envelope> handle, Envelope envelope) => () => handle(envelope);
 
     private static Envelope Make<T>(Kind kind, Flow flow, T source, ArrayBufferWriter<byte> output)
         where T : class, IBenchMessage<T>
