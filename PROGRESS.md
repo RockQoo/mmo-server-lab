@@ -42,7 +42,7 @@
 | - | CrashDump | Base (2026-11-26) | 크래시 때 미니덤프 저장 | 일부러 크래시 내서 덤프 확인 | ⬜ | ⬜ |
 | - | Config | Base (2026-11-26) | 설정 파일 읽기 (레인 수, 포트). JSON(주석 허용): C++ nlohmann/json(그때 설치), C# `System.Text.Json` (2026-11-26) | 재빌드 없이 벤치마크 조건 변경 | ⬜ | ⬜ |
 
-나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector, UTF-8 검사(단순 구현 vs simdutf vs 끔. 즉석 측정 2026-11-19: 한글 1KB 채팅 읽기의 약 65%가 검사, 이름은 약 15~20%), C++ vs C# 틱 지연 p99·처리량·GC 멈춤, Lane 큐(mutex + 두 버퍼 교체 vs lock-free MPSC vs moodycamel::ConcurrentQueue, C#은 `Channel<T>` 설정별. 생산자 수·일 크기별 처리량과 지연. 처음엔 mutex + 두 버퍼로 만든다, 2026-11-24).
+나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector, UTF-8 검사(단순 구현 vs simdutf vs 끔. 즉석 측정 2026-11-19: 한글 1KB 채팅 읽기의 약 65%가 검사, 이름은 약 15~20%), C++ vs C# 틱 지연 p99·처리량·GC 멈춤, Lane 큐(mutex + 두 버퍼 교체 vs lock-free MPSC vs moodycamel::ConcurrentQueue, C#은 `Channel<T>` 설정별. 생산자 수·일 크기별 처리량과 지연. 처음엔 mutex + 두 버퍼로 만든다, 2026-11-24), Lane 스레드 코어 고정(끔 vs 하드 고정 `SetThreadAffinityMask` vs 힌트 `SetThreadIdealProcessor`, 틱 지연 p99로 비교. 기본은 끔, 2026-11-26).
 
 ## 도구
 
