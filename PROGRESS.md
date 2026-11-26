@@ -59,7 +59,7 @@
 | 2 | ZoneServer ×2, handoff(존 이동) | ⬜ | ⬜ |
 | 3 | Coordinator | ⬜ | ⬜ |
 | 4 | DbWriter + 데이터별 저장 기준표 | ⬜ | ⬜ |
-| 5 | ServiceServer (길드·파티) | ⬜ | ⬜ |
+| 5 | ServiceServer (길드·파티). C++은 직접 만든 방식(Lane), **C#은 Microsoft Orleans(가상 액터)**로 만들어 비교한다(2026-11-26 결정, NuGet 설치는 그때 확인) | ⬜ | ⬜ |
 | 6 | 서버 간 전쟁 (재접속 → Gateway 경로 변경) | ⬜ | ⬜ |
 | - | UE5 클라이언트 (뷰어) | ⬜ | ➖ |
 | - | BotServer (Behavior Tree) | ⬜ | ➖ |
