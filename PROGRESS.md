@@ -49,7 +49,7 @@
 | 항목 | 내용 | 상태 |
 |---|---|---|
 | CodeGen | `tools/CodeGen`(C# 콘솔). proto → `server-cpp`, `server-cs`, `client-ue5` 코드 생성 | ⬜ |
-| 기본 QA | C++·C# 빌드와 테스트, CodeGen 재생성 결과가 커밋본과 같은지 | 🔨 (C++만) |
+| 기본 QA | C++·C# 빌드·테스트·lint(`qa.json`), CodeGen 재생성 결과가 커밋본과 같은지 | 🔨 (두 언어 빌드·테스트·lint 완료, CodeGen 비교는 CodeGen 만들 때) |
 
 ## 그 다음 (Core를 쓰는 쪽, `docs/decisions/001-서버-구조.md` 단계)
 
