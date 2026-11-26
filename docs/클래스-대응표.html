@@ -95,10 +95,10 @@ ul{padding-left:20px;margin:6px 0}
 <td><code>ObjectPool&lt;T&gt;</code><br><span class="b warn">제안</span></td><td>객체 재사용</td>
 <td><span class="b impl">직접 만듦</span>free list, 스레드별 캐시 비교</td>
 <td><span class="b cs">MS·대중 라이브러리</span><code>Microsoft.Extensions.ObjectPool</code>(같은 이름, 만들지 않음)</td><td class="st">⬜ ⬜</td></tr>
-<tr><td><code>BufferPool</code><br><span class="b warn">제안</span></td><td>송수신 버퍼 재사용</td>
-<td><span class="b impl">직접 만듦</span>고정 크기 청크</td><td><span class="b bcl">BCL·표준</span><code>ArrayPool&lt;byte&gt;.Shared</code></td><td class="st">⬜ ⬜</td></tr>
-<tr><td><code>RefCounted</code><br><span class="b warn">제안</span></td><td>참조 수로 수명 관리(세션 등)</td>
-<td><span class="b impl">직접 만듦</span>침투형 참조 카운트 vs <code>std::shared_ptr</code> 비교</td>
+<tr><td><code>BufferPool</code><br><code>PooledBuffer</code></td><td>송수신 버퍼 재사용, 빌린 버퍼 자동 반납 핸들</td>
+<td><span class="b impl">직접 만듦</span>크기 등급 5개(256B~64KB), 등급마다 mutex + free list(1판), RAII 핸들</td><td><span class="b bcl">BCL·표준</span><code>ArrayPool&lt;byte&gt;.Shared</code>(만들지 않음, 핸들도 없음)</td><td class="st">✅ ➖</td></tr>
+<tr><td><code>RefCounted</code><br><span class="b warn">보류</span></td><td>참조 수로 수명 관리(세션, 방송 버퍼)</td>
+<td><span class="b impl">보류</span>Network에서 <code>std::shared_ptr</code>와 비교한 뒤 필요하면 만든다</td>
 <td><span class="b no">없음</span>GC</td><td class="st">⬜ ➖</td></tr>
 
 <!-- Log -->

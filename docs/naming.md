@@ -29,6 +29,7 @@
 | Base | `RuidGenerator` | 있음(`std::atomic` CAS, `Clock` 함수 주입, `alignas`) | 있음(`Interlocked.CompareExchange`, BCL `TimeProvider`, 패딩 구조체) | 같은 역할: (시각, 순번)을 원자 변수 하나에 담아 CAS, 단조 시계, 512개 소진 시 다음 ms까지 양보, `InitializeGlobal`/`Global` |
 | Base | `StrongId<Tag>` | 있음(템플릿, `std::hash`·`std::formatter`·ByteWriter 지원) | **없음**(ID마다 `record struct`) | 아래 참고 |
 | Base | `RwLocked<T>` | 예정 | **없음** | 아래 참고 |
+| Memory | `BufferPool` / `PooledBuffer` | 있음(크기 등급 5개 256B~64KB, 등급마다 mutex + free list, RAII 반납 핸들) | **없음**(BCL `ArrayPool<byte>.Shared`) | 아래 참고 |
 
 ## 한쪽에만 있는 것
 
@@ -47,6 +48,16 @@ C#에 만들지 않는 이유:
 - C# 서버는 공유 상태를 존마다 `Channel<T>` 하나와 소비자 하나로 처리해 락이 필요 없게 설계한다.
 - `lock`, `ReaderWriterLockSlim`은 스레드에 묶여 있어 `await`를 사이에 두고 쥘 수 없다(`await` 뒤 다른 스레드에서 이어질 수 있다).
 - 재진입·승급 검사는 `ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion)`이 이미 제공한다. 꼭 필요한 동기 락은 `System.Threading.Lock`, 비동기 구간은 `SemaphoreSlim`.
+
+### `BufferPool` / `PooledBuffer` (C++만)
+
+송수신·직렬화 버퍼를 다시 쓰는 풀과, 빌린 버퍼를 소멸할 때 자동으로 돌려주는 핸들(이동만, 복사 금지). 핸들은 반납 빠뜨림, 두 번 반납, 크기 틀린 반납을 막는다.
+
+C#에 만들지 않는 이유(2026-11-26 결정):
+
+- 풀은 BCL `ArrayPool<byte>.Shared`(스레드별 캐시 포함)가 이미 있다. 쓰는 법은 `Rent` + `try/finally Return`.
+- 핸들이 실수를 막는 힘은 소멸자와 "이동만"에서 나오는데 C#에는 둘 다 없다. `struct`로 감싸면 대입이 복사라 두 번 반납이 그대로 남고, `class`로 감싸면 빌릴 때마다 할당이 생긴다.
+- 실수의 결과도 가볍다(C++은 정의되지 않은 동작, C#은 GC 덕에 메모리는 안전). 네트워크 버퍼는 나중에 `System.IO.Pipelines`가 풀링한다.
 
 ## C# 에만 있는 것
 

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>007 Memory BufferPool</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>007 · Memory: BufferPool</h1>
+<p class="sub">C++ · C# · 2026-11-26 · 커밋 <code>ae9706c</code>, <code>5029024</code>(VS 솔루션 구조)</p>
+
+<div class="card">
+<p><strong>무엇을 했나.</strong> 송수신·직렬화 버퍼를 다시 쓰는 <code>BufferPool</code>과, 빌린 버퍼를 자동으로 돌려주는 핸들 <code>PooledBuffer</code>를 C++로 만들었다. C#은 BCL <code>ArrayPool&lt;byte&gt;.Shared</code>를 그대로 쓰고 클래스를 만들지 않는다.</p>
+<p>패킷마다 <code>new</code>/<code>delete</code>를 하면 할당 비용과 힙 잠금이 패킷 경로에 들어간다. 다음 단계인 Network(IOCP 송수신)와 "객체 큐 vs 직렬화 큐" 비교가 이 풀 위에서 돈다(풀 없이 비교하면 할당 비용 비교가 되어 버린다).</p>
+</div>
+
+<h2>쓰는 모양</h2>
+<pre><code>BufferPool pool;
+auto buf = pool.Rent(1000);          // 1KB 등급 하나. buf.Data(), buf.Size() == 1024
+ByteWriter w(buf.Data(), buf.Size());
+sendOp-&gt;buffer = std::move(buf);     // 범위를 넘어가면 소유권을 옮긴다(IOCP 송신 등)
+// 핸들이 소멸하거나 Reset() 하면 풀로 반납</code></pre>
+
+<h2>정한 것</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>선택</th><th>이유</th></tr>
+<tr><td>크기</td><td>등급 5개: 256B, 1KB, 4KB, 16KB, 64KB(4배씩). 요청 이상인 가장 작은 등급</td><td>이동 패킷은 작고 스냅샷·인벤토리는 커서 등급 하나면 낭비가 크다. <code>ArrayPool</code>과 같은 방식</td></tr>
+<tr><td>64KB 초과</td><td>풀에 두지 않음. 그때 할당, 반납 즉시 해제</td><td>드문 큰 패킷이 풀 메모리를 계속 차지하지 않게</td></tr>
+<tr><td>스레드</td><td>1판: 등급마다 mutex 하나</td><td>이해하기 쉬운 판을 먼저 만들고, 스레드별 캐시 2판과 벤치마크로 비교해 근거를 남긴다</td></tr>
+<tr><td>반납</td><td>RAII 핸들 <code>PooledBuffer</code>(이동만, 복사 금지)</td><td>아래</td></tr>
+<tr><td>수명</td><td>빌린 버퍼가 남은 채 풀이 사라지면 ASSERT</td><td>해제된 풀에 반납하는 정의되지 않은 동작을 크래시로 바꾼다</td></tr>
+</table></div>
+
+<h2>왜 핸들로 한 번 더 감싸나 (C++만)</h2>
+<div class="card">
+<p><code>Rent</code>/<code>Return</code> 날 포인터로도 동작한다. 핸들은 기능이 아니라 <strong>실수를 막는 장치</strong>다.</p>
+<div class="table-wrap"><table>
+<tr><th>실수</th><th>날 포인터</th><th><code>PooledBuffer</code></th></tr>
+<tr><td>반납 빠뜨림(중간 return)</td><td>풀에서 버퍼가 계속 빠져나감</td><td>소멸자가 반납</td></tr>
+<tr><td>두 번 반납</td><td>두 곳이 같은 버퍼를 빌려 데이터가 섞임</td><td>복사 금지라 주인이 하나</td></tr>
+<tr><td>크기를 틀리게 반납</td><td>엉뚱한 등급에 들어감</td><td>크기를 핸들이 기억</td></tr>
+<tr><td>반납 뒤 사용</td><td>다른 패킷 데이터를 덮어씀</td><td>옮긴 뒤·Reset 뒤에는 빈 핸들</td></tr>
+</table></div>
+<p>비용은 포인터 세 개(24바이트)이고 호출은 인라인된다.</p>
+<p><strong>C#에 만들지 않는 이유</strong>: 막는 힘이 소멸자와 "이동만"에서 나오는데 C#에는 둘 다 없다. <code>struct</code>로 감싸면 대입이 복사라 두 번 반납이 그대로 남고, <code>class</code>로 감싸면 빌릴 때마다 할당이 생겨 풀을 쓰는 의미가 줄어든다. 실수의 결과도 다르다(C++은 정의되지 않은 동작, C#은 GC 덕에 메모리는 안전). 그래서 C#은 관례대로 <code>ArrayPool&lt;byte&gt;.Shared.Rent</code> + <code>try/finally Return</code>. 네트워크는 나중에 <code>System.IO.Pipelines</code>가 버퍼 풀링을 맡는다.</p>
+</div>
+
+<h2>반납 목록: vector에서 free list로 (lint에서 찾은 것)</h2>
+<div class="card">
+<p>처음에는 반납된 버퍼를 <code>std::vector</code>에 쌓았다. clang-tidy가 <code>bugprone-exception-escape</code>를 냈다. 반납은 소멸자에서 불려 <code>noexcept</code>인데 <code>push_back</code>은 할당하다 던질 수 있다(던지면 <code>std::terminate</code>).</p>
+<p>고친 뒤: 반납된 버퍼 <strong>맨 앞에 다음 반납 버퍼의 주소를 적어</strong> 잇는다(침투형 free list). 가장 작은 버퍼도 256바이트라 포인터 하나를 담을 수 있다(<code>static_assert</code>로 크기·정렬 확인). 반납할 때 할당이 아예 없어 <code>noexcept</code>가 지켜지고 비용도 줄었다.</p>
+</div>
+
+<h2>같은 역할, 다른 방법</h2>
+<div class="table-wrap"><table>
+<tr><th>역할</th><th>C++ (<code>Memory::BufferPool</code>)</th><th>C# (BCL)</th></tr>
+<tr><td>빌리기</td><td class="cpp"><code>pool.Rent(n)</code> → <code>PooledBuffer</code></td><td class="cs"><code>ArrayPool&lt;byte&gt;.Shared.Rent(n)</code> → <code>byte[]</code>(n 이상)</td></tr>
+<tr><td>반납</td><td class="cpp">핸들 소멸 / <code>Reset()</code></td><td class="cs"><code>Return(array)</code>, <code>try/finally</code></td></tr>
+<tr><td>크기 등급</td><td class="cpp">256B ~ 64KB, 5개</td><td class="cs">16B ~ 1GB, 2배씩</td></tr>
+<tr><td>스레드</td><td class="cpp">등급마다 mutex(1판)</td><td class="cs">스레드별 캐시 + 코어별 공유 묶음</td></tr>
+<tr><td>풀 인스턴스</td><td class="cpp">만든 쪽이 소유(서버가 하나 만들어 공유)</td><td class="cs">프로세스 전역 <code>Shared</code></td></tr>
+</table></div>
+
+<h2>VS 솔루션: 폴더 = 디스크 폴더</h2>
+<div class="card">
+<p>같이 바꿨다(<code>5029024</code>). 솔루션 폴더를 <code>Core/Base</code>, <code>Core/Base/Tests</code>, <code>Gateway</code>처럼 디스크 경로와 같게 맞추고(C++ CMake <code>FOLDER</code>, C# <code>.slnx</code>), 보기를 나누는 솔루션 필터 세 개를 둔다.</p>
+<div class="table-wrap"><table>
+<tr><th>필터</th><th>보이는 것</th></tr>
+<tr><td><code>Core.slnf</code></td><td>Core 라이브러리(테스트 제외)</td></tr>
+<tr><td><code>Servers.slnf</code></td><td>Core + 서버</td></tr>
+<tr><td><code>Tests.slnf</code></td><td>모든 테스트 + Core + 테스트가 시험하는 폴더(나중에 <code>ZoneServer/Tests</code>가 생기면 ZoneServer도)</td></tr>
+</table></div>
+<p><code>tools/Make-SolutionFilters.ps1</code>이 폴더 이름만 보고 만들어서 프로젝트를 추가해도 손댈 곳이 없다. sln을 여러 개 두지 않은 이유: 같은 프로젝트를 sln마다 관리해야 하고, CMake는 sln을 하나만 만든다.</p>
+</div>
+
+<h2>테스트</h2>
+<div class="table-wrap"><table>
+<tr><th>확인하는 것</th><th>C++ gtest</th></tr>
+<tr><td>요청 크기를 등급으로 올림(0, 1, 256, 257, 4096, 64KB)</td><td>RentRoundsUpToSizeClass</td></tr>
+<tr><td>반납한 버퍼를 다시 줌(같은 주소)</td><td>ReturnedBufferIsReused</td></tr>
+<tr><td>등급끼리 섞이지 않음</td><td>SizeClassesAreSeparate</td></tr>
+<tr><td>범위를 벗어나면 자동 반납</td><td>DestructorReturns</td></tr>
+<tr><td>이동하면 소유권이 넘어가고 반납되지 않음</td><td>MoveTransfersOwnership</td></tr>
+<tr><td>이동 대입은 들고 있던 버퍼를 먼저 반납</td><td>MoveAssignReturnsHeldBuffer</td></tr>
+<tr><td>64KB 초과는 풀에 두지 않음</td><td>LargerThanMaxIsNotPooled</td></tr>
+<tr><td>8스레드 × 5000회: 같은 버퍼를 두 곳이 쥐지 않음(채운 값이 그대로인지)</td><td>ConcurrentRentNeverShares</td></tr>
+<tr><td>빌린 버퍼가 남은 채 풀 소멸 → 크래시</td><td>BufferPoolDeathTest</td></tr>
+</table></div>
+<p class="muted">C#은 BCL을 그대로 써서 새 테스트가 없다.</p>
+
+<h2>결과</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> Debug·Release 경고 0, lint 0, gtest <strong>96개</strong> 통과(Base 69 + Messaging 18 + Memory 9)</div>
+  <div class="card cs"><span class="tag cs">C#</span> 코드 변경 없음(솔루션 구조만). xUnit <strong>56개</strong> 통과, <code>Core.slnf</code> 빌드 확인</div>
+</div>
+<p class="muted">빌드 중 고친 것: <code>SizeClass</code>가 <code>std::mutex</code>를 들고 있어 복사·이동이 암묵적으로 삭제된다는 경고(C4625·C5026 등)가 나서 명시적으로 <code>= delete</code>.</p>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap"><table>
+<tr><th>차수</th><th>범위</th><th>결과</th></tr>
+<tr><td>1차</td><td><code>9eab41e..5029024</code>(파일 13개: C++ BufferPool, CMake·build.ps1, C# .slnx·필터, 필터 스크립트)</td><td>BufferPool 코드 0건. 1건(low): 필터 스크립트가 경로에 역슬래시를 두 개 넣는다 → <strong>반대(사실과 다름)</strong>: 코드는 한 개이고, 실행 결과 길이 21, 다시 만들어도 커밋본과 같다(로컬 <code>code-review/2026-11-26.html</code>)</td></tr>
+</table></div>
+
+<h2>나중에</h2>
+<ul>
+  <li><strong>2판: 스레드별 캐시</strong>를 더하고 1판(등급마다 mutex)과 Lane 수별로 벤치마크해 <code>docs/decisions/</code>에 남긴다</li>
+  <li>반납 버퍼 상한: 1판은 풀이 사라질 때까지 들고 있다. 순간 몰림 뒤 메모리를 돌려줄지는 실측 후</li>
+  <li><code>Release()</code>(핸들에서 날 포인터 꺼내기): Network에서 정말 필요해지면</li>
+  <li><code>RefCounted</code>: 보류. 세션·방송 버퍼 수명은 Network에서 <code>std::shared_ptr</code>와 비교한 뒤 정한다</li>
+</ul>
+
+<h2>다음</h2>
+<p>Memory의 <code>ObjectPool&lt;T&gt;</code>. C#은 MS 공식 NuGet <code>Microsoft.Extensions.ObjectPool</code>이라 설치 전에 확인받는다. 그다음 Messaging의 객체 큐 vs 직렬화 큐 비교.</p>
+</main>
+</body>
+</html>
