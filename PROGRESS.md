@@ -44,6 +44,23 @@
 
 나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector, UTF-8 검사(단순 구현 vs simdutf vs 끔. 즉석 측정 2026-11-19: 한글 1KB 채팅 읽기의 약 65%가 검사, 이름은 약 15~20%), C++ vs C# 틱 지연 p99·처리량·GC 멈춤, Lane 큐(mutex + 두 버퍼 교체 vs lock-free MPSC vs moodycamel::ConcurrentQueue, C#은 `Channel<T>` 설정별. 생산자 수·일 크기별 처리량과 지연. 처음엔 mutex + 두 버퍼로 만든다, 2026-11-24), Lane 스레드 코어 고정(끔 vs 하드 고정 `SetThreadAffinityMask` vs 힌트 `SetThreadIdealProcessor`, 틱 지연 p99로 비교. 기본은 끔, 2026-11-26), BufferPool 3판(Lane 자체 풀 + 원격 반납함): Network 단위에서 실제 송신 흐름(Lane이 빌리고 IOCP가 반납)으로 2판과 벤치마크해 조금이라도 좋으면 넣는다(2026-11-26 결정, docs/journal/bufferpool.html).
 
+## 나중에 개선·고민할 것 (후순위)
+
+지금 단위를 마무리한 뒤, 관련 단위에서 다시 꺼내 본다. 위 "나중에 비교 실험할 것"과 겹치는 것은 여기에 자세히 적는다. 하나씩 바꾸며 재고(벤치마크), 좋아지면 넣는다.
+
+| 대상 | 무엇 | 왜 | 언제 |
+|---|---|---|---|
+| BufferPool | **2판 최적화**: ① 빠른 길(내 캐시 꺼내기·넣기)을 헤더 `inline`으로, 느린 길(전역 묶음·새 할당)은 `.cpp`에 ② 스레드 캐시를 소멸자 없는 구조로(MSVC `thread_local` 초기화 검사 제거) ③ 등급 계산을 `std::bit_width`로(반복문 → CPU 명령 한 번). 하나씩 바꾸며 잰다 | C# `ArrayPool`과 스레드 1개 속도가 비슷하다(약 3.5~5ns). C++이면 확실히 빨라야 한다. 함수 호출이 인라인되지 않는 것이 가장 클 것으로 추정 | Memory 다음 단위 전, 또는 Network 전 |
+| BufferPool | **C#과 같은 조건으로 비교**: 같은 총 횟수, C# `ArrayPool`에도 "빌리기 ≠ 반납" 추가 | 지금은 C#과 C++ 측정 조건이 달라(C# 8만 회, C++ 840만 회) 여러 스레드 값을 직접 비교하기 어렵다 | 2판 최적화와 같이 |
+| BufferPool | **3판**(Lane 자체 풀 + 원격 반납함) | 전역 mutex가 아예 없다. 실제 송신 흐름(Lane이 빌리고 IOCP가 반납)으로 2판과 재서 조금이라도 좋으면 넣는다(2026-11-26 결정) | Network |
+| BufferPool | 16KB·64KB 등급 묶음 크기 | 지금 8·2개라 빌리기 ≠ 반납이 많으면 무너질 수 있다. 큰 패킷은 드물어 메모리를 아꼈다 | 큰 패킷이 잦아지면 |
+| BufferPool | 반납 버퍼 상한(OS에 돌려주기) | 지금은 풀이 끝까지 들고 있다. 순간 몰림 뒤 메모리를 계속 차지한다 | 실측 메모리가 문제 되면 |
+| BufferPool | `PooledBuffer::Release()`(날 포인터 꺼내기) | IOCP에서 핸들 대신 직접 관리가 필요할 수 있다 | Network에서 필요해지면 |
+| Memory | `RefCounted`(침투형 참조 카운트) vs `std::shared_ptr` | 세션·방송 버퍼 수명 | Network |
+| Messaging | Lane 큐 비교(mutex + 두 버퍼 vs lock-free MPSC 등), Lane 코어 고정 | 위 "나중에 비교 실험할 것" | 벤치마크 때 |
+
+자세한 고민 과정: `docs/journal/bufferpool.html`, 측정 주의: `docs/journal/benchmark.html`.
+
 ## 도구
 
 | 항목 | 내용 | 상태 |
