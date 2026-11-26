@@ -20,9 +20,12 @@
 // C# Bench/ArrayPoolBench(Parallel.For 로 전체 횟수를 나눔)와 같은 방법이다.
 //
 // 결과 해석: items_per_second = 모든 스레드를 합친 초당 (빌리기 + 반납) 횟수. 크면 좋다. 스레드 시작 비용은
-// TotalOps 가 커서 전체의 몇 % 안 된다. Noop(아무 일도 하지 않는 반복)은 측정 환경의 한계를 보는 기준이다:
-// Noop 이 스레드 수만큼 늘지 않으면 그 환경에서는 여러 스레드 결과를 믿지 않는다(2026-11-26 측정 환경이 그랬다.
-// docs/journal/bufferpool.html).
+// TotalOps 가 커서 전체의 몇 % 안 된다. Noop(아무 일도 하지 않는 반복)은 측정 틀의 기준이다: Noop 이 스레드 수만큼
+// 늘지 않으면 측정 틀에 공유 자원이 있다는 뜻이라 여러 스레드 결과를 믿지 않는다.
+//
+// DoNotOptimize: 스레드 안 반복에서는 benchmark::DoNotOptimize 를 쓰지 않는다. MSVC 용 구현은 값을 전역 변수 하나에
+// 쓰므로, 모든 스레드가 매 반복 같은 캐시 라인에 써서 서로 느려진다(2026-11-26: Noop 이 8스레드에서 1스레드와 같았다.
+// 표준 C++만으로 재면 8배로 늘었다). 대신 스레드마다 자기 volatile 변수에 쓴다(docs/journal/bufferpool.html).
 //
 // 비교 대상
 //   NewDelete     풀 없이 매번 new[]/delete[](기준)
@@ -102,9 +105,10 @@ namespace
             RunOnThreads(threads,
                          [](int, const std::int64_t ops)
                          {
+                             volatile std::int64_t sink{}; // 스레드마다 자기 변수(아래 주석 "DoNotOptimize")
                              for (auto i = std::int64_t{0}; i < ops; ++i)
                              {
-                                 benchmark::DoNotOptimize(i);
+                                 sink = i;
                              }
                          });
         }
@@ -123,11 +127,12 @@ namespace
             RunOnThreads(threads,
                          [size](int, const std::int64_t ops)
                          {
+                             std::byte* volatile sink{}; // 스레드마다 자기 변수(아래 주석 "DoNotOptimize")
                              for (auto i = std::int64_t{0}; i < ops; ++i)
                              {
                                  auto buffer = Renter::Rent(size);
-                                 buffer.Data()[0] = std::byte{1}; // 쓰지 않으면 컴파일러가 할당을 지울 수 있다
-                                 benchmark::DoNotOptimize(buffer.Data());
+                                 buffer.Data()[0] = std::byte{1};
+                                 sink = buffer.Data(); // 주소를 밖으로 내보내 컴파일러가 할당을 지우지 못하게 한다
                              }
                          });
         }
