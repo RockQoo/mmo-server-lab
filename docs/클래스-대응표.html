@@ -27,7 +27,7 @@ ul{padding-left:20px;margin:6px 0}
 <body>
 <main>
 <h1>mmo-server-lab · C++ / C# Core 대응표</h1>
-<div class="sub">2026-11-26 · 커밋 24f5157(보고서 004)까지 반영 · 확정 이름의 원본은 <code>docs/naming.md</code>, 순서는 <code>PROGRESS.md</code> · <b>"제안" 이름은 만들 때 다시 후보를 보여 드리고 정한다</b></div>
+<div class="sub">2026-11-26 · 보고서 005(Ruid)까지 반영 · 확정 이름의 원본은 <code>docs/naming.md</code>, 순서는 <code>PROGRESS.md</code> · <b>"제안" 이름은 만들 때 다시 후보를 보여 드리고 정한다</b></div>
 
 <h2>원칙</h2>
 <div class="card"><ul>
@@ -49,7 +49,7 @@ ul{padding-left:20px;margin:6px 0}
 <tr><th>모듈</th><th>클래스 (공통 이름)</th><th>하는 일</th><th>C++ (<code>server-cpp/Core</code>)</th><th>C# (<code>server-cs/Core</code>)</th><th>상태</th></tr>
 
 <!-- Base -->
-<tr><td class="mod" rowspan="8">Base</td>
+<tr><td class="mod" rowspan="11">Base</td>
 <td><code>ByteWriter</code> / <code>ByteReader</code><br><span class="b bcl">확정</span></td><td>값을 바이트로 쓰고 읽기</td>
 <td><span class="b impl">직접 만듦</span><code>&lt;&lt;</code> <code>&gt;&gt;</code>, 쓰기는 vector 소유, 읽기는 span. 타입 판별 <code>ByteTraits.h</code></td>
 <td><span class="b impl">직접 만듦</span><code>IBufferWriter&lt;byte&gt;</code> 위 ref struct 커서</td><td class="st">✅ ✅</td></tr>
@@ -62,6 +62,15 @@ ul{padding-left:20px;margin:6px 0}
 <td><span class="b impl">직접 만듦</span>매크로 + RaiseException</td><td><span class="b bcl">BCL·표준</span><code>Trace.Assert</code> / <code>Debug.Assert</code></td><td class="st">✅ ✅</td></tr>
 <tr><td>Utf8<br><span class="b bcl">확정</span></td><td>UTF-8 변환·검사</td>
 <td><span class="b impl">직접 만듦</span><code>Utf8.h</code></td><td><span class="b bcl">BCL·표준</span><code>Encoding.UTF8</code></td><td class="st">✅ ➖</td></tr>
+<tr><td><code>StrongId&lt;Tag&gt;</code><br><span class="b bcl">확정</span></td><td>종류가 다른 ID끼리 섞이지 않는 정수 ID 타입</td>
+<td><span class="b impl">직접 만듦</span>템플릿 + <code>std::hash</code>·<code>std::formatter</code>·ByteWriter 지원</td>
+<td><span class="b no">없음</span>ID마다 <code>readonly record struct</code>(별칭은 진짜 타입이 아님)</td><td class="st">✅ ➖</td></tr>
+<tr><td><code>Ruid</code><br><span class="b bcl">확정</span></td><td>모든 서버에서 유일한 64비트 ID(시각 41 · 렐름 7 · 노드 6 · 순번 9)</td>
+<td><span class="b impl">직접 만듦</span><code>class Ruid : StrongId&lt;RuidTag&gt;</code>(상속), <code>Ruid::Create()</code>, 칸은 <code>id.Realm()</code></td>
+<td><span class="b impl">직접 만듦</span><code>record struct Ruid</code>, <code>Ruid.Create()</code>, 칸은 <code>id.Realm</code></td><td class="st">✅ ✅</td></tr>
+<tr><td><code>RuidGenerator</code><br><span class="b bcl">확정</span></td><td>Ruid 발급(CAS, 단조 시계)</td>
+<td><span class="b impl">직접 만듦</span><code>std::atomic</code> CAS, <code>Clock</code> 주입, <code>alignas</code></td>
+<td><span class="b impl">직접 만듦</span><code>Interlocked.CompareExchange</code>, BCL <code>TimeProvider</code></td><td class="st">✅ ✅</td></tr>
 <tr><td><code>RwLocked&lt;T&gt;</code><br><span class="b bcl">확정</span></td><td>데이터 + 읽기/쓰기 락을 묶음</td>
 <td><span class="b impl">직접 만듦</span><code>std::shared_mutex</code>, <code>Read()</code>/<code>Write()</code></td>
 <td><span class="b no">없음</span>Channel + 소비자 하나로 설계, 필요하면 <code>Lock</code>/<code>SemaphoreSlim</code></td><td class="st">⬜ ➖</td></tr>

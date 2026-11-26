@@ -24,9 +24,18 @@
 | Base | `BuildInfo` | 있음(함수 `BuildInfo()`) | 있음(`BuildInfo.Describe()`) | C#은 자유 함수가 없어 정적 클래스. C++은 컴파일러·`__cplusplus`, C#은 런타임·GC 모드(Server/Workstation)를 남긴다 |
 | Base | `ASSERT` / `DEBUG_ASSERT` | 있음(매크로, 직접 만듦) | BCL `Trace.Assert` / `Debug.Assert`(만들지 않음) | 같은 역할: 항상 검사 / Debug만 검사, 실패하면 기록 → 디버거면 멈춤 → 잡을 수 없는 종료. C++은 RaiseException(0xE000A55E), C#은 FailFast(0x80131623). 덤프는 C# 은 런타임 설정(`DOTNET_DbgEnableMiniDump=1`), C++ 은 나중에 CrashDump |
 | Messaging | `Lane` | 있음(mutex + 두 버퍼 교체 큐, 전용 `std::jthread`, `Post`→bool, `Stop`) | 있음(BCL `Channel<Action>` + 스레드 풀 async 루프, `TryPost`→bool, `DisposeAsync`) | 같은 역할: 넣은 순서대로 한 번에 하나씩, 멈출 때 남은 일 처리, 멈춘 뒤 넣기 거부, 일이 던지면 프로세스 종료(C++ terminate / C# FailFast). C#은 스레드가 고정되지 않는다(쉬는 동안 스레드를 잡지 않음). bool 반환이라 C#은 관례대로 Try 접두사 |
+| Base | `Ruid` | 있음(`class Ruid : public StrongId<RuidTag>`, `Ruid::Init`/`Ruid::Create`, 칸은 멤버 `id.Realm()`) | 있음(`readonly record struct Ruid`, `Ruid.Init`/`Ruid.Create`, 칸은 멤버 `id.Realm`, `RuidCodec`) | 모든 서버에서 유일한 64비트 ID: Sign 0, Timestamp 41(2026-01-01 기준 ms), Realm 7, Node 6, Sequence 9. 같은 칸이면 두 언어가 같은 정수. 0 = 없음(Realm 0 예약) |
+| Base | `RuidGenerator` | 있음(`std::atomic` CAS, `Clock` 함수 주입, `alignas`) | 있음(`Interlocked.CompareExchange`, BCL `TimeProvider`, 패딩 구조체) | 같은 역할: (시각, 순번)을 원자 변수 하나에 담아 CAS, 단조 시계, 512개 소진 시 다음 ms까지 양보, `InitializeGlobal`/`Global` |
+| Base | `StrongId<Tag>` | 있음(템플릿, `std::hash`·`std::formatter`·ByteWriter 지원) | **없음**(ID마다 `record struct`) | 아래 참고 |
 | Base | `RwLocked<T>` | 예정 | **없음** | 아래 참고 |
 
 ## 한쪽에만 있는 것
+
+### `StrongId<Tag>` (C++만)
+
+종류가 다른 ID끼리 섞이지 않게 하는 정수 ID 템플릿(`using PlayerId = StrongId<struct PlayerTag>`). 생성자는 explicit, 같은 Tag끼리만 비교한다. 비용은 정수와 같다.
+
+C#에 만들지 않는 이유: C#의 `using` 별칭은 진짜 타입이 아니라 프로젝트 안의 약칭이라 디버거·에러·로그에 `StrongId<RuidTag>`로 보이고, ID 전용 멤버(`id.Realm`)를 둘 수 없다. 그래서 C#은 ID마다 `readonly record struct`(같음 비교·해시가 박싱 없이 자동)를 두고, 콘텐츠 ID는 CodeGen이 같은 모양으로 만든다(2026-11-26 결정).
 
 ### `RwLocked<T>` (C++만)
 
