@@ -14,9 +14,9 @@ namespace Base;
 //   bit 8..0    Sequence   9비트. 같은 프로세스, 같은 ms 안의 순번. 0~511
 //
 // C++ 과 다른 점(C#다운 방식):
-//   C++ 은 StrongId<Tag> 템플릿 하나에 별칭(using Ruid = ...)을 붙인다. C# 별칭은 진짜 타입이 아니라 프로젝트 안의
+//   C++ 은 StrongId<Tag> 템플릿을 상속한 class Ruid 다. C# 에서 제네릭에 별칭을 붙이면 진짜 타입이 아니라 프로젝트 안의
 //   약칭이라 디버거·에러·로그에 이름이 안 보인다. 그래서 C# 은 ID 마다 readonly record struct 를 둔다
-//   (콘텐츠 ID 는 나중에 CodeGen 이 같은 모양으로 만든다). 칸 꺼내기도 자유 함수 대신 멤버(id.Realm)다.
+//   (콘텐츠 ID 는 나중에 CodeGen 이 같은 모양으로 만든다). 사용법(Ruid.Init / Ruid.Create / id.Realm)은 C++ 과 같다.
 //   record struct 라 같음 비교·해시를 직접 구현해 박싱이 없고, 크기는 long 과 같다.
 //
 // 주의사항 (C++ Ruid.h 와 같다)
@@ -62,6 +62,13 @@ public readonly record struct Ruid : IComparable<Ruid>
 
     // 만든 시각(유닉스 ms)
     public long UnixMs => Timestamp + EpochUnixMs;
+
+    // 프로세스 전역 발급기를 만든다. 서버 시작에 한 번만(두 번이면 Trace.Assert). C++ Ruid::Init 과 같다.
+    public static void Init(int realm, int node) => RuidGenerator.InitializeGlobal(realm, node);
+
+    // 새 ID. 어느 스레드에서 불러도 겹치지 않는다. Init 전에 부르면 Trace.Assert. C++ Ruid::Create 와 같다.
+    // 가짜 시계·여러 노드가 필요한 테스트는 RuidGenerator 를 직접 만든다.
+    public static Ruid Create() => RuidGenerator.Global.Next();
 
     // 칸 네 개로 ID 를 만든다. 범위를 벗어나면 Trace.Assert 로 끝낸다(잘못된 ID 는 DB 에 영원히 남아 고칠 수 없다).
     // timestamp 는 기준 시각부터 지난 ms 다(유닉스 ms 가 아니다).

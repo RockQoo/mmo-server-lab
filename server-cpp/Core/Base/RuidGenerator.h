@@ -17,7 +17,7 @@
 // 시계: 시작할 때 실제 시각을 한 번 읽고, 그 뒤로는 뒤로 가지 않는 steady_clock으로 흐른 시간만 더한다(SteadyClock).
 // 그래서 실행 중에 시스템 시계가 뒤로 가도(시간 동기화, VM 복원) ID가 겹치지 않는다.
 //
-// 쓰는 법: 서버 main에서 InitializeGlobal(realm, node)를 한 번 부르고, 어디서든 Global().Next().
+// 쓰는 법: 보통은 Ruid::Init(realm, node) / Ruid::Create()를 쓴다(안에서 아래 전역 발급기를 부른다).
 // 인스턴스를 직접 만드는 것은 테스트(가짜 시계, 여러 노드 흉내)용이다.
 //
 // 주의사항 (Ruid.h 주의사항과 함께 본다)
@@ -37,7 +37,7 @@ namespace Base
     class RuidGenerator
     {
     public:
-        // 기준 시각(RuidEpochUnixMs)부터 지난 ms를 돌려주는 시계. 테스트는 가짜 시계를 넣는다.
+        // 기준 시각(Ruid::EpochUnixMs)부터 지난 ms를 돌려주는 시계. 테스트는 가짜 시계를 넣는다.
         using Clock = std::function<std::int64_t()>;
 
         // 범위를 벗어난 realm(1~127), node(0~63)는 ASSERT로 멈춘다.

@@ -11,7 +11,7 @@ namespace Base
 {
     namespace
     {
-        constexpr std::int64_t SequenceMask{RuidMaxSequence};
+        constexpr std::int64_t SequenceMask{Ruid::MaxSequence};
 
         // 프로세스 전역 발급기 자리. InitializeGlobal이 한 번 채우고, Global이 꺼낸다.
         struct GlobalSlot
@@ -42,8 +42,8 @@ namespace Base
     RuidGenerator::RuidGenerator(const std::int32_t realm, const std::int32_t node, Clock clock)
         : _clock{std::move(clock)}, _realm{realm}, _node{node}
     {
-        ASSERT(realm >= RuidMinRealm && realm <= RuidMaxRealm, "RuidGenerator realm out of range");
-        ASSERT(node >= 0 && node <= RuidMaxNode, "RuidGenerator node out of range");
+        ASSERT(realm >= Ruid::MinRealm && realm <= Ruid::MaxRealm, "RuidGenerator realm out of range");
+        ASSERT(node >= 0 && node <= Ruid::MaxNode, "RuidGenerator node out of range");
         ASSERT(_clock != nullptr, "RuidGenerator clock is empty");
     }
 
@@ -56,9 +56,9 @@ namespace Base
         for (;;)
         {
             const auto now = _clock();
-            ASSERT(now >= 0 && now <= RuidMaxTimestamp, "Ruid clock out of range");
+            ASSERT(now >= 0 && now <= Ruid::MaxTimestamp, "Ruid clock out of range");
 
-            const auto lastTime = last >> RuidSequenceBits; // -1이면 산술 시프트로 -1
+            const auto lastTime = last >> Ruid::SequenceBits; // -1이면 산술 시프트로 -1
             const auto lastSequence = last & SequenceMask;
 
             auto time = now;
@@ -83,11 +83,11 @@ namespace Base
                 sequence = lastSequence + 1;
             }
 
-            const auto next = (time << RuidSequenceBits) | sequence;
+            const auto next = (time << Ruid::SequenceBits) | sequence;
             // 실패하면 last에 지금 값이 들어온다. 그 값으로 다시 계산한다.
             if (_last.compare_exchange_weak(last, next, std::memory_order_relaxed))
             {
-                return MakeRuid(time, _realm, _node, static_cast<std::int32_t>(sequence));
+                return Ruid::Make(time, _realm, _node, static_cast<std::int32_t>(sequence));
             }
         }
     }
@@ -111,7 +111,7 @@ namespace Base
     {
         using namespace std::chrono;
         const auto startUnixMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-        const auto startElapsedMs = startUnixMs - RuidEpochUnixMs;
+        const auto startElapsedMs = startUnixMs - Ruid::EpochUnixMs;
         const auto startSteady = steady_clock::now();
         return [startElapsedMs, startSteady]
         { return startElapsedMs + duration_cast<milliseconds>(steady_clock::now() - startSteady).count(); };
@@ -122,7 +122,7 @@ namespace Base
         auto& slot = Slot();
         const auto alreadyClaimed = slot.claimed.exchange(true);
         // 두 번째 호출을 허용하면 다른 번호로 바뀌거나, 순번이 처음부터 다시 나가 이미 낸 ID와 겹친다.
-        ASSERT(!alreadyClaimed, "RuidGenerator::InitializeGlobal called twice");
+        ASSERT(!alreadyClaimed, "Ruid::Init (RuidGenerator::InitializeGlobal) called twice");
         slot.generator.emplace(realm, node);
         slot.published.store(&*slot.generator, std::memory_order_release);
     }
@@ -130,7 +130,17 @@ namespace Base
     RuidGenerator& RuidGenerator::Global()
     {
         auto* const generator = Slot().published.load(std::memory_order_acquire);
-        ASSERT(generator != nullptr, "RuidGenerator::Global used before InitializeGlobal");
+        ASSERT(generator != nullptr, "Ruid::Init (RuidGenerator::InitializeGlobal) not called");
         return *generator;
+    }
+
+    void Ruid::Init(const std::int32_t realm, const std::int32_t node)
+    {
+        RuidGenerator::InitializeGlobal(realm, node);
+    }
+
+    Ruid Ruid::Create()
+    {
+        return RuidGenerator::Global().Next();
     }
 } // namespace Base

@@ -173,12 +173,12 @@ public class RuidGeneratorTest
         Assert.Equal(processA.Next(), processB.Next());
     }
 
-    // 전역 발급기는 프로세스에 한 번만 만든다. 테스트 프로세스 안에서 이 테스트만 부른다.
+    // 보통 쓰는 입구: Ruid.Init / Ruid.Create. 전역 발급기는 프로세스에 한 번만 만든다. 테스트 프로세스 안에서 이 테스트만 부른다.
     [Fact]
-    public void GlobalAfterInitialize()
+    public void RuidInitThenCreate()
     {
-        RuidGenerator.InitializeGlobal(2, 4);
-        var id = RuidGenerator.Global.Next();
+        Ruid.Init(2, 4);
+        var id = Ruid.Create();
         Assert.Equal(2, id.Realm);
         Assert.Equal(4, id.Node);
     }

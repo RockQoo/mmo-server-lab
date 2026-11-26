@@ -9,7 +9,7 @@
 
 // 종류가 다른 ID끼리 섞이지 않게 하는 정수 ID 타입. Tag마다 다른 타입이 된다.
 //
-//     using Ruid     = StrongId<struct RuidTag>;      // Base/Ruid.h
+//     class Ruid : public StrongId<RuidTag> { ... };  // Base/Ruid.h. Ruid만의 멤버가 필요해 상속한다
 //     using PlayerId = StrongId<struct PlayerTag>;    // 콘텐츠 ID(나중에 CodeGen이 만든다)
 //     using GuildId  = StrongId<struct GuildTag>;
 //

@@ -1,12 +1,20 @@
 #pragma once
 
 #include <cstdint>
+#include <format>
+#include <functional>
+#include <type_traits>
 
 #include "Base/Assert.h"
 #include "Base/StrongId.h"
 
 // Ruid(RockQoo Unique ID): 모든 서버에서 유일한 64비트 ID. 플레이어, 길드, 우편, 아이템 등 콘텐츠 ID의 원본이다.
-// 발급은 RuidGenerator가 한다. 이 파일은 타입과 비트 배치만 정한다.
+//
+// 쓰는 법
+//   Base::Ruid::Init(realm, node);          // 서버 시작에 한 번(두 번이면 ASSERT)
+//   const auto id = Base::Ruid::Create();   // 어디서든. Init 전에 부르면 ASSERT
+//   id.Realm(), id.Timestamp() ...          // 칸 꺼내기
+// 발급 본체는 RuidGenerator다. 가짜 시계·여러 노드가 필요한 테스트만 RuidGenerator를 직접 만든다.
 //
 // 비트 배치 (위부터)
 //   bit 63      Sign       늘 0. SQL Server BIGINT(부호 있음)와 C# long에 그대로 들어간다
@@ -32,69 +40,99 @@
 //   7. ID만 보고 만든 시각, 렐름, 노드를 알 수 있다. 클라이언트에 보이는 ID라면 이 점을 감안한다.
 namespace Base
 {
-    // 다른 ID와 섞이지 않는 정수 ID(StrongId.h). 값을 꺼낼 때(DB 바인딩, 로그)는 id.Value().
+    struct RuidTag;
+
+    // StrongId를 상속한다: 섞이지 않는 ID 성질(explicit 생성, 같은 타입끼리만 비교, 정수와 같은 직렬화)은 그대로 받고,
+    // Ruid만의 멤버(Init, Create, 칸 꺼내기, 상수)를 붙인다. 별칭(using)으로는 멤버를 붙일 수 없다.
+    // 가상 함수도 멤버 변수 추가도 없어서 크기·비용은 int64와 같다(아래 static_assert).
     // Ruid{}(0)는 "아직 없음"이다. Realm 0을 예약해서 실제로 발급된 ID는 0이 될 수 없다.
-    using Ruid = StrongId<struct RuidTag>;
-
-    inline constexpr int RuidTimestampBits{41};
-    inline constexpr int RuidRealmBits{7};
-    inline constexpr int RuidNodeBits{6};
-    inline constexpr int RuidSequenceBits{9};
-    static_assert(RuidTimestampBits + RuidRealmBits + RuidNodeBits + RuidSequenceBits == 63,
-                  "부호 비트 하나는 비워 둔다(음수가 나오지 않게)");
-
-    inline constexpr int RuidNodeShift{RuidSequenceBits};
-    inline constexpr int RuidRealmShift{RuidNodeShift + RuidNodeBits};
-    inline constexpr int RuidTimestampShift{RuidRealmShift + RuidRealmBits};
-
-    inline constexpr std::int64_t RuidMaxTimestamp{(std::int64_t{1} << RuidTimestampBits) - 1};
-    inline constexpr std::int32_t RuidMinRealm{1}; // 0은 예약(Ruid{} = 없음, Init을 빼먹은 프로세스 잡기)
-    inline constexpr std::int32_t RuidMaxRealm{(1 << RuidRealmBits) - 1};
-    inline constexpr std::int32_t RuidMaxNode{(1 << RuidNodeBits) - 1};
-    inline constexpr std::int32_t RuidMaxSequence{(1 << RuidSequenceBits) - 1};
-
-    // 기준 시각 2026-01-01T00:00:00Z의 유닉스 ms. 바꾸지 않는다(주의사항 1).
-    // 1970년을 그대로 쓰면 41비트 중 56년을 이미 쓴 채로 시작한다.
-    inline constexpr std::int64_t RuidEpochUnixMs{1'767'225'600'000};
-
-    // 칸 네 개로 ID를 만든다. 범위를 벗어나면 ASSERT로 멈춘다(잘못된 ID는 DB에 영원히 남아 고칠 수 없다).
-    // timestamp는 기준 시각부터 지난 ms다(유닉스 ms가 아니다).
-    constexpr Ruid MakeRuid(const std::int64_t timestamp, const std::int32_t realm, const std::int32_t node,
-                            const std::int32_t sequence) noexcept
+    class Ruid : public StrongId<RuidTag>
     {
-        ASSERT(timestamp >= 0 && timestamp <= RuidMaxTimestamp, "Ruid timestamp out of range");
-        ASSERT(realm >= RuidMinRealm && realm <= RuidMaxRealm, "Ruid realm out of range");
-        ASSERT(node >= 0 && node <= RuidMaxNode, "Ruid node out of range");
-        ASSERT(sequence >= 0 && sequence <= RuidMaxSequence, "Ruid sequence out of range");
+    public:
+        using StrongId::StrongId;
 
-        return Ruid{(timestamp << RuidTimestampShift) | (std::int64_t{realm} << RuidRealmShift) |
-                    (std::int64_t{node} << RuidNodeShift) | std::int64_t{sequence}};
-    }
+        static constexpr int TimestampBits{41};
+        static constexpr int RealmBits{7};
+        static constexpr int NodeBits{6};
+        static constexpr int SequenceBits{9};
+        static_assert(TimestampBits + RealmBits + NodeBits + SequenceBits == 63,
+                      "부호 비트 하나는 비워 둔다(음수가 나오지 않게)");
 
-    // ID에서 칸을 꺼낸다. 로그에 남은 ID를 "언제, 어느 렐름의 어느 노드가 만들었나"로 되짚을 때 쓴다.
-    constexpr std::int64_t RuidTimestamp(const Ruid id) noexcept
-    {
-        return (id.Value() >> RuidTimestampShift) & RuidMaxTimestamp;
-    }
+        static constexpr int NodeShift{SequenceBits};
+        static constexpr int RealmShift{NodeShift + NodeBits};
+        static constexpr int TimestampShift{RealmShift + RealmBits};
 
-    constexpr std::int32_t RuidRealm(const Ruid id) noexcept
-    {
-        return static_cast<std::int32_t>((id.Value() >> RuidRealmShift) & RuidMaxRealm);
-    }
+        static constexpr std::int64_t MaxTimestamp{(std::int64_t{1} << TimestampBits) - 1};
+        static constexpr std::int32_t MinRealm{1}; // 0은 예약(Ruid{} = 없음, Init을 빼먹은 프로세스 잡기)
+        static constexpr std::int32_t MaxRealm{(1 << RealmBits) - 1};
+        static constexpr std::int32_t MaxNode{(1 << NodeBits) - 1};
+        static constexpr std::int32_t MaxSequence{(1 << SequenceBits) - 1};
 
-    constexpr std::int32_t RuidNode(const Ruid id) noexcept
-    {
-        return static_cast<std::int32_t>((id.Value() >> RuidNodeShift) & RuidMaxNode);
-    }
+        // 기준 시각 2026-01-01T00:00:00Z의 유닉스 ms. 바꾸지 않는다(주의사항 1).
+        // 1970년을 그대로 쓰면 41비트 중 56년을 이미 쓴 채로 시작한다.
+        static constexpr std::int64_t EpochUnixMs{1'767'225'600'000};
 
-    constexpr std::int32_t RuidSequence(const Ruid id) noexcept
-    {
-        return static_cast<std::int32_t>(id.Value() & RuidMaxSequence);
-    }
+        // 프로세스 전역 발급기를 만든다. 서버 시작에 한 번만(두 번이면 ASSERT). 몸통은 RuidGenerator.cpp.
+        static void Init(const std::int32_t realm, const std::int32_t node);
 
-    // 만든 시각(유닉스 ms)
-    constexpr std::int64_t RuidUnixMs(const Ruid id) noexcept
-    {
-        return RuidTimestamp(id) + RuidEpochUnixMs;
-    }
+        // 새 ID. 어느 스레드에서 불러도 겹치지 않는다. Init 전에 부르면 ASSERT. 몸통은 RuidGenerator.cpp.
+        static Ruid Create();
+
+        // 칸 네 개로 ID를 만든다. 범위를 벗어나면 ASSERT로 멈춘다(잘못된 ID는 DB에 영원히 남아 고칠 수 없다).
+        // timestamp는 기준 시각부터 지난 ms다(유닉스 ms가 아니다). 발급기와 테스트가 쓴다.
+        static constexpr Ruid Make(const std::int64_t timestamp, const std::int32_t realm, const std::int32_t node,
+                                   const std::int32_t sequence) noexcept
+        {
+            ASSERT(timestamp >= 0 && timestamp <= MaxTimestamp, "Ruid timestamp out of range");
+            ASSERT(realm >= MinRealm && realm <= MaxRealm, "Ruid realm out of range");
+            ASSERT(node >= 0 && node <= MaxNode, "Ruid node out of range");
+            ASSERT(sequence >= 0 && sequence <= MaxSequence, "Ruid sequence out of range");
+
+            return Ruid{(timestamp << TimestampShift) | (std::int64_t{realm} << RealmShift) |
+                        (std::int64_t{node} << NodeShift) | std::int64_t{sequence}};
+        }
+
+        // 칸 꺼내기. 로그에 남은 ID를 "언제, 어느 렐름의 어느 노드가 만들었나"로 되짚을 때 쓴다.
+        constexpr std::int64_t Timestamp() const noexcept
+        {
+            return (Value() >> TimestampShift) & MaxTimestamp;
+        }
+
+        constexpr std::int32_t Realm() const noexcept
+        {
+            return static_cast<std::int32_t>((Value() >> RealmShift) & MaxRealm);
+        }
+
+        constexpr std::int32_t Node() const noexcept
+        {
+            return static_cast<std::int32_t>((Value() >> NodeShift) & MaxNode);
+        }
+
+        constexpr std::int32_t Sequence() const noexcept
+        {
+            return static_cast<std::int32_t>(Value() & MaxSequence);
+        }
+
+        // 만든 시각(유닉스 ms)
+        constexpr std::int64_t UnixMs() const noexcept
+        {
+            return Timestamp() + EpochUnixMs;
+        }
+    };
+
+    static_assert(sizeof(Ruid) == sizeof(std::int64_t), "상속해도 크기는 int64와 같아야 한다");
+    static_assert(std::is_trivially_copyable_v<Ruid>, "복사가 정수처럼 단순해야 한다(레지스터로 전달)");
 } // namespace Base
+
+// 표준은 부모(StrongId)의 hash·formatter 특수화를 자식에 자동으로 쓰지 않는다. 부모 것을 그대로 물려받는다.
+// (std 특수화가 clang-tidy에 std 수정으로 잡히는 이유는 StrongId.h 참고)
+template <>
+struct std::hash<Base::Ruid> : std::hash<Base::StrongId<Base::RuidTag>> // NOLINT(bugprone-std-namespace-modification)
+{
+};
+
+template <>
+struct std::formatter<Base::Ruid>
+    : std::formatter<Base::StrongId<Base::RuidTag>> // NOLINT(bugprone-std-namespace-modification)
+{
+};

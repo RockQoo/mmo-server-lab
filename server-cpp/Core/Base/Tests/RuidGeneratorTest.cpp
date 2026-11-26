@@ -39,10 +39,10 @@ TEST(RuidGenerator, IdCarriesRealmNodeAndTime)
     RuidGenerator generator(3, 7, clock.Get());
 
     const auto id = generator.Next();
-    EXPECT_EQ(Base::RuidTimestamp(id), 1000);
-    EXPECT_EQ(Base::RuidRealm(id), 3);
-    EXPECT_EQ(Base::RuidNode(id), 7);
-    EXPECT_EQ(Base::RuidSequence(id), 0);
+    EXPECT_EQ(id.Timestamp(), 1000);
+    EXPECT_EQ(id.Realm(), 3);
+    EXPECT_EQ(id.Node(), 7);
+    EXPECT_EQ(id.Sequence(), 0);
 }
 
 // 같은 ms 안에서는 순번이 오르고, ms가 바뀌면 0부터 다시 센다.
@@ -51,14 +51,14 @@ TEST(RuidGenerator, SequenceCountsWithinSameMs)
     const FakeClock clock;
     RuidGenerator generator(1, 0, clock.Get());
 
-    EXPECT_EQ(Base::RuidSequence(generator.Next()), 0);
-    EXPECT_EQ(Base::RuidSequence(generator.Next()), 1);
-    EXPECT_EQ(Base::RuidSequence(generator.Next()), 2);
+    EXPECT_EQ(generator.Next().Sequence(), 0);
+    EXPECT_EQ(generator.Next().Sequence(), 1);
+    EXPECT_EQ(generator.Next().Sequence(), 2);
 
     clock.Set(1001);
     const auto id = generator.Next();
-    EXPECT_EQ(Base::RuidTimestamp(id), 1001);
-    EXPECT_EQ(Base::RuidSequence(id), 0);
+    EXPECT_EQ(id.Timestamp(), 1001);
+    EXPECT_EQ(id.Sequence(), 0);
 }
 
 // 같은 ms에 512개를 다 쓰면 기다렸다가 다음 ms의 순번 0을 낸다(겹치거나 넘치지 않는다).
@@ -68,15 +68,15 @@ TEST(RuidGenerator, WaitsForNextMsAfter512)
     auto calls = std::make_shared<std::atomic<int>>(0);
     RuidGenerator generator(1, 0, [calls] { return calls->fetch_add(1) < 513 ? 1000 : 1001; });
 
-    for (auto i = 0; i <= Base::RuidMaxSequence; ++i)
+    for (auto i = 0; i <= Ruid::MaxSequence; ++i)
     {
         const auto id = generator.Next();
-        ASSERT_EQ(Base::RuidTimestamp(id), 1000);
-        ASSERT_EQ(Base::RuidSequence(id), i);
+        ASSERT_EQ(id.Timestamp(), 1000);
+        ASSERT_EQ(id.Sequence(), i);
     }
     const auto next = generator.Next();
-    EXPECT_EQ(Base::RuidTimestamp(next), 1001);
-    EXPECT_EQ(Base::RuidSequence(next), 0);
+    EXPECT_EQ(next.Timestamp(), 1001);
+    EXPECT_EQ(next.Sequence(), 0);
     EXPECT_EQ(generator.SequenceWaitCount(), 1); // 기다린 호출은 513번째 하나뿐
 }
 
@@ -90,8 +90,8 @@ TEST(RuidGenerator, ClockGoingBackStillIncreases)
     clock.Set(990);
     const auto after = generator.Next();
     EXPECT_LT(before, after);
-    EXPECT_EQ(Base::RuidTimestamp(after), 1000);
-    EXPECT_EQ(Base::RuidSequence(after), 1);
+    EXPECT_EQ(after.Timestamp(), 1000);
+    EXPECT_EQ(after.Sequence(), 1);
 }
 
 // 실제 시계: 한 스레드에서 연속으로 만들면 늘 앞의 것보다 크다.
@@ -153,8 +153,8 @@ TEST(RuidGenerator, ManyThreadsNeverDuplicate)
 
     for (const auto id : all)
     {
-        ASSERT_EQ(Base::RuidRealm(id), 5);
-        ASSERT_EQ(Base::RuidNode(id), 9);
+        ASSERT_EQ(id.Realm(), 5);
+        ASSERT_EQ(id.Node(), 9);
     }
 }
 
@@ -182,21 +182,22 @@ TEST(RuidGenerator, SameNodeCollidesWhichIsWhyNodesMustDiffer)
     EXPECT_EQ(processA.Next(), processB.Next());
 }
 
-TEST(RuidGenerator, GlobalAfterInitialize)
+// 보통 쓰는 입구: Ruid::Init / Ruid::Create (안에서 전역 발급기를 쓴다).
+TEST(RuidGenerator, RuidInitThenCreate)
 {
-    RuidGenerator::InitializeGlobal(2, 4);
-    const auto id = RuidGenerator::Global().Next();
-    EXPECT_EQ(Base::RuidRealm(id), 2);
-    EXPECT_EQ(Base::RuidNode(id), 4);
+    Ruid::Init(2, 4);
+    const auto id = Ruid::Create();
+    EXPECT_EQ(id.Realm(), 2);
+    EXPECT_EQ(id.Node(), 4);
 }
 
 // 죽는 테스트는 자식 프로세스에서 돈다. 그래서 전역 발급기도 매번 새로 시작한다.
 TEST(RuidGeneratorDeathTest, RejectsBadConfiguration)
 {
     EXPECT_DEATH(RuidGenerator(0, 0), "realm");
-    EXPECT_DEATH(RuidGenerator(Base::RuidMaxRealm + 1, 0), "realm");
+    EXPECT_DEATH(RuidGenerator(Ruid::MaxRealm + 1, 0), "realm");
     EXPECT_DEATH(RuidGenerator(1, -1), "node");
-    EXPECT_DEATH(RuidGenerator(1, Base::RuidMaxNode + 1), "node");
+    EXPECT_DEATH(RuidGenerator(1, Ruid::MaxNode + 1), "node");
 }
 
 TEST(RuidGeneratorDeathTest, RejectsClockOutOfRange)
@@ -205,17 +206,17 @@ TEST(RuidGeneratorDeathTest, RejectsClockOutOfRange)
     EXPECT_DEATH(static_cast<void>(generator.Next()), "clock out of range");
 }
 
-TEST(RuidGeneratorDeathTest, GlobalBeforeInitializeCrashes)
+TEST(RuidGeneratorDeathTest, CreateBeforeInitCrashes)
 {
-    EXPECT_DEATH(static_cast<void>(RuidGenerator::Global()), "before InitializeGlobal");
+    EXPECT_DEATH(static_cast<void>(Ruid::Create()), "not called");
 }
 
-TEST(RuidGeneratorDeathTest, InitializeGlobalTwiceCrashes)
+TEST(RuidGeneratorDeathTest, InitTwiceCrashes)
 {
     EXPECT_DEATH(
         {
-            RuidGenerator::InitializeGlobal(1, 0);
-            RuidGenerator::InitializeGlobal(1, 1);
+            Ruid::Init(1, 0);
+            Ruid::Init(1, 1);
         },
         "called twice");
 }

@@ -13,7 +13,8 @@ namespace Base;
 // 기본은 Stopwatch)로 흐른 시간만 더한다. 그래서 실행 중에 시스템 시계가 뒤로 가도 ID 가 겹치지 않는다.
 // 테스트는 TimeProvider 를 상속한 가짜 시계를 넣는다(C++ 은 Clock 함수를 넣는다).
 //
-// 쓰는 법: 서버 Main 에서 InitializeGlobal(realm, node) 를 한 번 부르고, 어디서든 RuidGenerator.Global.Next().
+// 쓰는 법: 보통은 Ruid.Init(realm, node) / Ruid.Create() 를 쓴다(안에서 아래 전역 발급기를 부른다).
+// 인스턴스를 직접 만드는 것은 테스트(가짜 시계, 여러 노드 흉내)용이다.
 //
 // 주의사항 (C++ RuidGenerator.h 와 같다)
 //   1. 같은 렐름에서 동시에 떠 있는 프로세스끼리 node 가 달라야 한다. CAS 는 프로세스 안의 스레드끼리만 막아 준다.
@@ -60,7 +61,7 @@ public sealed class RuidGenerator
         get
         {
             var generator = Volatile.Read(ref s_global);
-            Trace.Assert(generator is not null, "RuidGenerator.Global used before InitializeGlobal");
+            Trace.Assert(generator is not null, "Ruid.Init (RuidGenerator.InitializeGlobal) not called");
             return generator!;
         }
     }
@@ -69,7 +70,7 @@ public sealed class RuidGenerator
     public static void InitializeGlobal(int realm, int node)
     {
         var alreadyClaimed = Interlocked.Exchange(ref s_globalClaimed, 1) != 0;
-        Trace.Assert(!alreadyClaimed, "RuidGenerator.InitializeGlobal called twice");
+        Trace.Assert(!alreadyClaimed, "Ruid.Init (RuidGenerator.InitializeGlobal) called twice");
         Volatile.Write(ref s_global, new RuidGenerator(realm, node));
     }
 
