@@ -11,7 +11,7 @@ namespace Base
 {
     namespace
     {
-        constexpr std::int64_t SequenceMask{Ruid::MaxSequence};
+        constexpr int64_t SequenceMask{Ruid::MaxSequence};
 
         // 프로세스 전역 발급기 자리. InitializeGlobal이 한 번 채우고, Global이 꺼낸다.
         struct GlobalSlot
@@ -34,12 +34,11 @@ namespace Base
         }
     } // namespace
 
-    RuidGenerator::RuidGenerator(const std::int32_t realm, const std::int32_t node)
-        : RuidGenerator(realm, node, SteadyClock())
+    RuidGenerator::RuidGenerator(const int32_t realm, const int32_t node) : RuidGenerator(realm, node, SteadyClock())
     {
     }
 
-    RuidGenerator::RuidGenerator(const std::int32_t realm, const std::int32_t node, Clock clock)
+    RuidGenerator::RuidGenerator(const int32_t realm, const int32_t node, Clock clock)
         : _clock{std::move(clock)}, _realm{realm}, _node{node}
     {
         ASSERT(realm >= Ruid::MinRealm && realm <= Ruid::MaxRealm, "RuidGenerator realm out of range");
@@ -62,7 +61,7 @@ namespace Base
             const auto lastSequence = last & SequenceMask;
 
             auto time = now;
-            auto sequence = std::int64_t{0};
+            auto sequence = int64_t{0};
             if (now <= lastTime)
             {
                 // 같은 ms. (now < lastTime은 기본 시계에선 없고, 가짜 시계가 뒤로 갈 때만 생긴다.
@@ -87,22 +86,22 @@ namespace Base
             // 실패하면 last에 지금 값이 들어온다. 그 값으로 다시 계산한다.
             if (_last.compare_exchange_weak(last, next, std::memory_order_relaxed))
             {
-                return Ruid::Make(time, _realm, _node, static_cast<std::int32_t>(sequence));
+                return Ruid::Make(time, _realm, _node, static_cast<int32_t>(sequence));
             }
         }
     }
 
-    std::int32_t RuidGenerator::Realm() const noexcept
+    int32_t RuidGenerator::Realm() const noexcept
     {
         return _realm;
     }
 
-    std::int32_t RuidGenerator::Node() const noexcept
+    int32_t RuidGenerator::Node() const noexcept
     {
         return _node;
     }
 
-    std::int64_t RuidGenerator::SequenceWaitCount() const noexcept
+    int64_t RuidGenerator::SequenceWaitCount() const noexcept
     {
         return _sequenceWaits.load(std::memory_order_relaxed);
     }
@@ -117,7 +116,7 @@ namespace Base
         { return startElapsedMs + duration_cast<milliseconds>(steady_clock::now() - startSteady).count(); };
     }
 
-    void RuidGenerator::InitializeGlobal(const std::int32_t realm, const std::int32_t node)
+    void RuidGenerator::InitializeGlobal(const int32_t realm, const int32_t node)
     {
         auto& slot = Slot();
         const auto alreadyClaimed = slot.claimed.exchange(true);
@@ -134,7 +133,7 @@ namespace Base
         return *generator;
     }
 
-    void Ruid::Init(const std::int32_t realm, const std::int32_t node)
+    void Ruid::Init(const int32_t realm, const int32_t node)
     {
         RuidGenerator::InitializeGlobal(realm, node);
     }

@@ -62,65 +62,65 @@ namespace Base
         static constexpr int RealmShift{NodeShift + NodeBits};
         static constexpr int TimestampShift{RealmShift + RealmBits};
 
-        static constexpr std::int64_t MaxTimestamp{(std::int64_t{1} << TimestampBits) - 1};
-        static constexpr std::int32_t MinRealm{1}; // 0은 예약(Ruid{} = 없음, Init을 빼먹은 프로세스 잡기)
-        static constexpr std::int32_t MaxRealm{(1 << RealmBits) - 1};
-        static constexpr std::int32_t MaxNode{(1 << NodeBits) - 1};
-        static constexpr std::int32_t MaxSequence{(1 << SequenceBits) - 1};
+        static constexpr int64_t MaxTimestamp{(int64_t{1} << TimestampBits) - 1};
+        static constexpr int32_t MinRealm{1}; // 0은 예약(Ruid{} = 없음, Init을 빼먹은 프로세스 잡기)
+        static constexpr int32_t MaxRealm{(1 << RealmBits) - 1};
+        static constexpr int32_t MaxNode{(1 << NodeBits) - 1};
+        static constexpr int32_t MaxSequence{(1 << SequenceBits) - 1};
 
         // 기준 시각 2026-01-01T00:00:00Z의 유닉스 ms. 바꾸지 않는다(주의사항 1).
         // 1970년을 그대로 쓰면 41비트 중 56년을 이미 쓴 채로 시작한다.
-        static constexpr std::int64_t EpochUnixMs{1'767'225'600'000};
+        static constexpr int64_t EpochUnixMs{1'767'225'600'000};
 
         // 프로세스 전역 발급기를 만든다. 서버 시작에 한 번만(두 번이면 ASSERT). 몸통은 RuidGenerator.cpp.
-        static void Init(const std::int32_t realm, const std::int32_t node);
+        static void Init(const int32_t realm, const int32_t node);
 
         // 새 ID. 어느 스레드에서 불러도 겹치지 않는다. Init 전에 부르면 ASSERT. 몸통은 RuidGenerator.cpp.
         static Ruid Create();
 
         // 칸 네 개로 ID를 만든다. 범위를 벗어나면 ASSERT로 멈춘다(잘못된 ID는 DB에 영원히 남아 고칠 수 없다).
         // timestamp는 기준 시각부터 지난 ms다(유닉스 ms가 아니다). 발급기와 테스트가 쓴다.
-        static constexpr Ruid Make(const std::int64_t timestamp, const std::int32_t realm, const std::int32_t node,
-                                   const std::int32_t sequence) noexcept
+        static constexpr Ruid Make(const int64_t timestamp, const int32_t realm, const int32_t node,
+                                   const int32_t sequence) noexcept
         {
             ASSERT(timestamp >= 0 && timestamp <= MaxTimestamp, "Ruid timestamp out of range");
             ASSERT(realm >= MinRealm && realm <= MaxRealm, "Ruid realm out of range");
             ASSERT(node >= 0 && node <= MaxNode, "Ruid node out of range");
             ASSERT(sequence >= 0 && sequence <= MaxSequence, "Ruid sequence out of range");
 
-            return Ruid{(timestamp << TimestampShift) | (std::int64_t{realm} << RealmShift) |
-                        (std::int64_t{node} << NodeShift) | std::int64_t{sequence}};
+            return Ruid{(timestamp << TimestampShift) | (int64_t{realm} << RealmShift) | (int64_t{node} << NodeShift) |
+                        int64_t{sequence}};
         }
 
         // 칸 꺼내기. 로그에 남은 ID를 "언제, 어느 렐름의 어느 노드가 만들었나"로 되짚을 때 쓴다.
-        constexpr std::int64_t Timestamp() const noexcept
+        constexpr int64_t Timestamp() const noexcept
         {
             return (Value() >> TimestampShift) & MaxTimestamp;
         }
 
-        constexpr std::int32_t Realm() const noexcept
+        constexpr int32_t Realm() const noexcept
         {
-            return static_cast<std::int32_t>((Value() >> RealmShift) & MaxRealm);
+            return static_cast<int32_t>((Value() >> RealmShift) & MaxRealm);
         }
 
-        constexpr std::int32_t Node() const noexcept
+        constexpr int32_t Node() const noexcept
         {
-            return static_cast<std::int32_t>((Value() >> NodeShift) & MaxNode);
+            return static_cast<int32_t>((Value() >> NodeShift) & MaxNode);
         }
 
-        constexpr std::int32_t Sequence() const noexcept
+        constexpr int32_t Sequence() const noexcept
         {
-            return static_cast<std::int32_t>(Value() & MaxSequence);
+            return static_cast<int32_t>(Value() & MaxSequence);
         }
 
         // 만든 시각(유닉스 ms)
-        constexpr std::int64_t UnixMs() const noexcept
+        constexpr int64_t UnixMs() const noexcept
         {
             return Timestamp() + EpochUnixMs;
         }
     };
 
-    static_assert(sizeof(Ruid) == sizeof(std::int64_t), "상속해도 크기는 int64와 같아야 한다");
+    static_assert(sizeof(Ruid) == sizeof(int64_t), "상속해도 크기는 int64와 같아야 한다");
     static_assert(std::is_trivially_copyable_v<Ruid>, "복사가 정수처럼 단순해야 한다(레지스터로 전달)");
 } // namespace Base
 

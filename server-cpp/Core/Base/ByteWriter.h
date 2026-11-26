@@ -33,7 +33,7 @@ namespace Base
         {
             if constexpr (std::is_same_v<T, bool>)
             {
-                *this << static_cast<std::uint8_t>(value ? 1 : 0);
+                *this << static_cast<uint8_t>(value ? 1 : 0);
             }
             else if constexpr (Primitive<T>)
             {
@@ -159,14 +159,14 @@ namespace Base
         template <typename V>
         void WriteVariant(const V& value)
         {
-            static_assert(std::variant_size_v<V> <= std::numeric_limits<std::uint8_t>::max(),
+            static_assert(std::variant_size_v<V> <= std::numeric_limits<uint8_t>::max(),
                           "variant 대안은 255개까지(인덱스를 uint8로 쓴다)");
             if (value.valueless_by_exception())
             {
                 _valid = false;
                 return;
             }
-            *this << static_cast<std::uint8_t>(value.index());
+            *this << static_cast<uint8_t>(value.index());
             std::visit([this](const auto& alternative) { *this << alternative; }, value);
         }
 

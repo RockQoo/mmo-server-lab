@@ -38,11 +38,11 @@ namespace Base
     {
     public:
         // 기준 시각(Ruid::EpochUnixMs)부터 지난 ms를 돌려주는 시계. 테스트는 가짜 시계를 넣는다.
-        using Clock = std::function<std::int64_t()>;
+        using Clock = std::function<int64_t()>;
 
         // 범위를 벗어난 realm(1~127), node(0~63)는 ASSERT로 멈춘다.
-        RuidGenerator(const std::int32_t realm, const std::int32_t node);
-        RuidGenerator(const std::int32_t realm, const std::int32_t node, Clock clock);
+        RuidGenerator(const int32_t realm, const int32_t node);
+        RuidGenerator(const int32_t realm, const int32_t node, Clock clock);
 
         // 원자 변수를 들고 있고, 복사하면 두 발급기가 같은 ID를 낸다.
         RuidGenerator(const RuidGenerator&) = delete;
@@ -54,32 +54,32 @@ namespace Base
         // 시계가 범위(기준 시각 ~ 69.7년)를 벗어나면 ASSERT로 멈춘다(잘못된 ID는 DB에 남아 고칠 수 없다).
         Ruid Next();
 
-        std::int32_t Realm() const noexcept;
-        std::int32_t Node() const noexcept;
+        int32_t Realm() const noexcept;
+        int32_t Node() const noexcept;
 
         // 같은 ms의 순번 512개를 다 써서 기다린 Next() 호출 수(한 호출이 여러 번 돌아도 1).
         // 0이 아니면 대량 발급을 나눌지 본다.
-        std::int64_t SequenceWaitCount() const noexcept;
+        int64_t SequenceWaitCount() const noexcept;
 
         // 기본 시계. 부른 순간 실제 시각을 한 번 읽고, 이후는 steady_clock으로 흐른 시간만 더한다.
         static Clock SteadyClock();
 
         // 프로세스 전역 발급기. main에서 한 번만 부른다(두 번이면 ASSERT).
-        static void InitializeGlobal(const std::int32_t realm, const std::int32_t node);
+        static void InitializeGlobal(const int32_t realm, const int32_t node);
         // InitializeGlobal 전에 부르면 ASSERT(Init을 빼먹은 프로세스가 아무 번호로 발급하지 않게).
         static RuidGenerator& Global();
 
     private:
         // 자주 읽기만 하는 값. _last와 다른 캐시 라인에 둔다.
         Clock _clock{};
-        std::int32_t _realm{};
-        std::int32_t _node{};
-        std::atomic<std::int64_t> _sequenceWaits{};
+        int32_t _realm{};
+        int32_t _node{};
+        std::atomic<int64_t> _sequenceWaits{};
 
         // 마지막으로 낸 (시각 << 9 | 순번). 두 값을 한 변수에 담아야 CAS 한 번으로 같이 바뀐다
         // (따로 두면 둘 사이에 다른 스레드가 끼어든다). -1은 "아직 안 냄"(시각 -1, 그래서 시각 0부터 낼 수 있다).
         // 모든 스레드가 CAS로 쓰는 변수라 캐시 라인에 혼자 둔다(거짓 공유 방지). 그래서 맨 뒤에 둔다.
-        alignas(std::hardware_destructive_interference_size) std::atomic<std::int64_t> _last{-1};
+        alignas(std::hardware_destructive_interference_size) std::atomic<int64_t> _last{-1};
     };
 #pragma warning(pop)
 } // namespace Base

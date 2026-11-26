@@ -37,7 +37,7 @@ namespace Base
 
     std::size_t ByteReader::ReadCount()
     {
-        auto count = std::uint16_t{};
+        auto count = uint16_t{};
         *this >> count;
         if (count > _data.size() - _readPos)
         {

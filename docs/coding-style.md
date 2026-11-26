@@ -122,10 +122,16 @@ switch (state)
 
 ### 초기화 (2026-11-18)
 
-- 기본은 **중괄호 초기화**: `bool _valid{true};`, `std::size_t _readPos{};`(값 초기화 = 0). 축소 변환(`int a{3.7}`, `std::uint8_t b{300}`)을 컴파일 에러로 막는다.
+- 기본은 **중괄호 초기화**: `bool _valid{true};`, `std::size_t _readPos{};`(값 초기화 = 0). 축소 변환(`int a{3.7}`, `uint8_t b{300}`)을 컴파일 에러로 막는다.
 - `= 값` 형식(`bool _valid = true;`)은 대입이 아니라 복사 초기화다. 성능은 같지만 축소 변환을 막지 못하므로 쓰지 않는다.
 - 멤버 변수는 **모두** 초기화를 붙인다: `std::vector<std::byte> _buffer{};`
 - 예외: `std::initializer_list` 생성자가 있는 타입(컨테이너)에 크기나 개수를 줄 때는 `()`를 쓴다. `std::vector<int> v(3)`은 원소 3개, `v{3}`은 원소 1개(3)다.
+
+### 정수 타입 (2026-11-26)
+
+- 크기가 정해져야 하는 정수(직렬화, 비트 배치, C#과 같은 값, ID)는 **고정 폭 정수**를 쓴다: `int8_t`~`int64_t`, `uint8_t`~`uint64_t`. `long`은 Windows 32비트, Linux 64비트라 쓰지 않는다.
+- 고정 폭 정수는 **`std::` 없이** 쓴다: `int32_t`(`std::int32_t` 아님). 표준은 `<cstdint>`가 전역 이름을 넣는다고 보장하지 않지만 MSVC·GCC·Clang 모두 넣는다. 짧게 쓰려는 결정이다.
+- 다른 표준 타입은 그대로 `std::`를 붙인다: `std::size_t`, `std::byte`, `std::ptrdiff_t`.
 
 ### auto (2026-11-18)
 
@@ -133,7 +139,7 @@ switch (state)
 
 ```cpp
 const auto size = _buffer.size();   // 타입 추론
-auto raw = std::uint8_t{};          // 타입이 중요하면 오른쪽에 적는다
+auto raw = uint8_t{};          // 타입이 중요하면 오른쪽에 적는다
 auto count = std::size_t{0};        // auto count = 0; 은 int가 된다
 ```
 

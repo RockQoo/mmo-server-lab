@@ -45,7 +45,7 @@ namespace Base
             _valid = false;
             return false;
         }
-        *this << static_cast<std::uint16_t>(count);
+        *this << static_cast<uint16_t>(count);
         return _valid;
     }
 

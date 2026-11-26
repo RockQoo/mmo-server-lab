@@ -35,7 +35,7 @@ namespace Base
     static_assert(std::endian::native == std::endian::little, "ByteWriter/Reader는 리틀 엔디안 CPU만 지원한다");
 
     // string 길이, 컨테이너 개수의 상한(uint16)
-    inline constexpr std::size_t ByteMaxCount{std::numeric_limits<std::uint16_t>::max()};
+    inline constexpr std::size_t ByteMaxCount{std::numeric_limits<uint16_t>::max()};
 
     // ---- 기본형: 메모리를 그대로 복사해도 되는 정수, 실수, enum(std::byte 포함). bool은 그보다 먼저 따로 잡는다.
     template <typename T>
@@ -147,7 +147,7 @@ namespace Base
 //
 //     struct Item
 //     {
-//         std::int32_t id{};
+//         int32_t id{};
 //         std::string name{};
 //         SERIALIZE_FIELDS(id, name)
 //     };

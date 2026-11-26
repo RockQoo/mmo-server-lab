@@ -14,17 +14,17 @@ namespace
 {
     using PlayerId = Base::StrongId<struct PlayerTag>;
     using GuildId = Base::StrongId<struct GuildTag>;
-    using ItemDataId = Base::StrongId<struct ItemDataTag, std::int32_t>; // 정수 폭을 바꿀 수 있다
+    using ItemDataId = Base::StrongId<struct ItemDataTag, int32_t>; // 정수 폭을 바꿀 수 있다
 
     // 막아야 하는 실수는 컴파일 자체가 안 된다.
-    static_assert(!std::is_convertible_v<std::int64_t, PlayerId>, "정수가 ID로 몰래 바뀌면 안 된다");
-    static_assert(!std::is_convertible_v<PlayerId, std::int64_t>, "ID가 정수로 몰래 바뀌면 안 된다");
+    static_assert(!std::is_convertible_v<int64_t, PlayerId>, "정수가 ID로 몰래 바뀌면 안 된다");
+    static_assert(!std::is_convertible_v<PlayerId, int64_t>, "ID가 정수로 몰래 바뀌면 안 된다");
     static_assert(!std::is_convertible_v<GuildId, PlayerId>, "다른 종류의 ID를 넣을 수 없다");
     static_assert(!std::equality_comparable_with<PlayerId, GuildId>, "다른 종류의 ID끼리 비교할 수 없다");
 
     // 비용은 정수와 같다: 크기가 같고, 복사가 memcpy와 같다(레지스터로 전달).
-    static_assert(sizeof(PlayerId) == sizeof(std::int64_t));
-    static_assert(sizeof(ItemDataId) == sizeof(std::int32_t));
+    static_assert(sizeof(PlayerId) == sizeof(int64_t));
+    static_assert(sizeof(ItemDataId) == sizeof(int32_t));
     static_assert(std::is_trivially_copyable_v<PlayerId>);
 } // namespace
 
@@ -59,7 +59,7 @@ TEST(StrongId, SerializesAsPlainInteger)
     Base::ByteWriter idWriter;
     idWriter << PlayerId{0x0102'0304'0506'0708};
     Base::ByteWriter intWriter;
-    intWriter << std::int64_t{0x0102'0304'0506'0708};
+    intWriter << int64_t{0x0102'0304'0506'0708};
     ASSERT_TRUE(idWriter.IsValid());
     EXPECT_TRUE(std::ranges::equal(idWriter.Data(), intWriter.Data()));
 

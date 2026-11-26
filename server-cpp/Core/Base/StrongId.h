@@ -24,7 +24,7 @@
 // 0은 "없음"이다(기본 생성 값). 발급하는 쪽은 0을 내지 않는다(Ruid는 Realm 0을 예약해서 보장한다).
 namespace Base
 {
-    template <typename Tag, std::integral T = std::int64_t>
+    template <typename Tag, std::integral T = int64_t>
     class StrongId
     {
     public:

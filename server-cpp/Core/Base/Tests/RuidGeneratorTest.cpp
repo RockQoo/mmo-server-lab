@@ -20,13 +20,13 @@ namespace
     // 테스트가 직접 움직이는 가짜 시계(기준 시각부터 지난 ms)
     struct FakeClock
     {
-        std::shared_ptr<std::atomic<std::int64_t>> now{std::make_shared<std::atomic<std::int64_t>>(1000)};
+        std::shared_ptr<std::atomic<int64_t>> now{std::make_shared<std::atomic<int64_t>>(1000)};
 
         RuidGenerator::Clock Get() const
         {
             return [now = now] { return now->load(); };
         }
-        void Set(const std::int64_t ms) const
+        void Set(const int64_t ms) const
         {
             now->store(ms);
         }
@@ -202,7 +202,7 @@ TEST(RuidGeneratorDeathTest, RejectsBadConfiguration)
 
 TEST(RuidGeneratorDeathTest, RejectsClockOutOfRange)
 {
-    RuidGenerator generator(1, 0, [] { return std::int64_t{-1}; });
+    RuidGenerator generator(1, 0, [] { return int64_t{-1}; });
     EXPECT_DEATH(static_cast<void>(generator.Next()), "clock out of range");
 }
 

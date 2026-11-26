@@ -24,7 +24,7 @@
 
 namespace
 {
-    enum class Job : std::uint8_t
+    enum class Job : uint8_t
     {
         None = 0, // enum 은 0 값을 둔다({} 로 만든 값이 유효하게)
         Warrior = 1,
@@ -33,7 +33,7 @@ namespace
 
     struct Item
     {
-        std::int32_t id{};
+        int32_t id{};
         std::string name{};
 
         SERIALIZE_FIELDS(id, name)
@@ -43,11 +43,11 @@ namespace
     // 클래스 안에 기본형, enum, string, vector<클래스>, map을 모두 넣는다.
     struct Player
     {
-        std::int32_t level{};
+        int32_t level{};
         Job job{};
         std::string name{};
         std::vector<Item> items{};
-        std::map<std::string, std::int32_t> stats{};
+        std::map<std::string, int32_t> stats{};
 
         SERIALIZE_FIELDS(level, job, name, items, stats)
         bool operator==(const Player&) const = default;
@@ -58,13 +58,13 @@ namespace
 TEST(ByteRW, PrimitivesRoundTrip)
 {
     Base::ByteWriter writer;
-    writer << std::int8_t{-1} << std::uint16_t{65535} << std::int32_t{-123456} << std::uint64_t{1ull << 40};
+    writer << int8_t{-1} << uint16_t{65535} << int32_t{-123456} << uint64_t{1ull << 40};
     writer << 3.5f << -0.25 << true << false << Job::Archer;
 
-    auto i8 = std::int8_t{};
-    auto u16 = std::uint16_t{};
-    auto i32 = std::int32_t{};
-    auto u64 = std::uint64_t{};
+    auto i8 = int8_t{};
+    auto u16 = uint16_t{};
+    auto i32 = int32_t{};
+    auto u64 = uint64_t{};
     auto f = float{};
     auto d = double{};
     auto t = false;
@@ -90,7 +90,7 @@ TEST(ByteRW, PrimitivesRoundTrip)
 TEST(ByteRW, LittleEndianLayout)
 {
     Base::ByteWriter writer;
-    writer << std::uint32_t{0x12345678} << true << Job::Archer;
+    writer << uint32_t{0x12345678} << true << Job::Archer;
 
     const auto data = writer.Data();
     ASSERT_EQ(data.size(), 4u + 1u + 1u); // enum은 기반 타입(uint8_t) 크기
@@ -121,12 +121,12 @@ TEST(ByteRW, StringLayout)
 // int, string, vector, map, 클래스(안에 vector<클래스>, map)를 한 번에 쓰고 같은 순서로 읽는다.
 TEST(ByteRW, EverythingRoundTrip)
 {
-    const auto number = std::int32_t{42};
+    const auto number = int32_t{42};
     const auto text = std::string{"안녕하세요"};
-    const auto numbers = std::vector<std::int32_t>{1, 2, 3};
+    const auto numbers = std::vector<int32_t>{1, 2, 3};
     const auto names = std::vector<std::string>{"a", "", "다"};
-    const auto table = std::map<std::int32_t, std::string>{{1, "one"}, {2, "two"}};
-    const auto lookup = std::unordered_map<std::string, std::int32_t>{{"x", 10}, {"y", 20}};
+    const auto table = std::map<int32_t, std::string>{{1, "one"}, {2, "two"}};
+    const auto lookup = std::unordered_map<std::string, int32_t>{{"x", 10}, {"y", 20}};
     const Player player{
         .level = 10,
         .job = Job::Archer,
@@ -138,12 +138,12 @@ TEST(ByteRW, EverythingRoundTrip)
     Base::ByteWriter writer;
     writer << number << text << numbers << names << table << lookup << player;
 
-    auto readNumber = std::int32_t{};
+    auto readNumber = int32_t{};
     auto readText = std::string{};
-    auto readNumbers = std::vector<std::int32_t>{};
+    auto readNumbers = std::vector<int32_t>{};
     auto readNames = std::vector<std::string>{};
-    auto readTable = std::map<std::int32_t, std::string>{};
-    auto readLookup = std::unordered_map<std::string, std::int32_t>{};
+    auto readTable = std::map<int32_t, std::string>{};
+    auto readLookup = std::unordered_map<std::string, int32_t>{};
     auto readPlayer = Player{};
     Base::ByteReader reader(writer.Data());
     reader >> readNumber >> readText >> readNumbers >> readNames >> readTable >> readLookup >> readPlayer;
@@ -165,7 +165,7 @@ TEST(ByteRW, ReadFromReceivedBytes)
     const std::byte received[] = {std::byte{0x2A}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
     Base::ByteReader reader(received);
 
-    auto value = std::int32_t{};
+    auto value = int32_t{};
     reader >> value;
 
     EXPECT_TRUE(reader.IsValid());
@@ -188,10 +188,10 @@ TEST(ByteRW, BoolFromAnyNonZeroByte)
 TEST(ByteRW, ReadPastEndFails)
 {
     Base::ByteWriter writer;
-    writer << std::uint16_t{7};
+    writer << uint16_t{7};
 
-    auto tooBig = std::uint32_t{99};
-    auto after = std::uint8_t{99};
+    auto tooBig = uint32_t{99};
+    auto after = uint8_t{99};
     Base::ByteReader reader(writer.Data());
     reader >> tooBig >> after;
 
@@ -207,7 +207,7 @@ TEST(ByteRW, CountLargerThanRemainingFails)
     const std::byte received[] = {std::byte{0xFF}, std::byte{0xFF}, std::byte{1}}; // 개수 65535, 실제 원소 1바이트
     Base::ByteReader reader(received);
 
-    auto values = std::vector<std::uint8_t>{9};
+    auto values = std::vector<uint8_t>{9};
     reader >> values;
 
     EXPECT_FALSE(reader.IsValid());
@@ -232,7 +232,7 @@ TEST(ByteRW, TruncatedObjectFails)
 TEST(ByteRW, TooLongStringFailsWrite)
 {
     Base::ByteWriter writer;
-    writer << std::string(Base::ByteWriter::MaxCount + 1, 'a') << std::int32_t{1};
+    writer << std::string(Base::ByteWriter::MaxCount + 1, 'a') << int32_t{1};
 
     EXPECT_FALSE(writer.IsValid());
     EXPECT_EQ(writer.Size(), 0u);
@@ -244,13 +244,13 @@ TEST(ByteRW, ClearKeepsCapacityForReuse)
     Base::ByteWriter writer;
     for (auto i = 0; i < 100; ++i)
     {
-        writer << std::numeric_limits<std::uint64_t>::max();
+        writer << std::numeric_limits<uint64_t>::max();
     }
     writer << std::string(Base::ByteWriter::MaxCount + 1, 'a'); // 실패 상태 만들기
     ASSERT_FALSE(writer.IsValid());
 
     const auto capacityBefore = writer.Capacity();
-    ASSERT_GE(capacityBefore, 100u * sizeof(std::uint64_t));
+    ASSERT_GE(capacityBefore, 100u * sizeof(uint64_t));
 
     writer.Clear();
 
@@ -262,12 +262,12 @@ TEST(ByteRW, ClearKeepsCapacityForReuse)
 // 중복 키 컨테이너(multimap)도 왕복된다. (Codex 리뷰 R1)
 TEST(ByteRW, MultimapRoundTrip)
 {
-    const auto drops = std::multimap<std::int32_t, std::string>{{1, "검"}, {1, "방패"}, {2, "활"}};
+    const auto drops = std::multimap<int32_t, std::string>{{1, "검"}, {1, "방패"}, {2, "활"}};
 
     Base::ByteWriter writer;
     writer << drops;
 
-    auto readDrops = std::multimap<std::int32_t, std::string>{};
+    auto readDrops = std::multimap<int32_t, std::string>{};
     Base::ByteReader reader(writer.Data());
     reader >> readDrops;
 
@@ -368,24 +368,24 @@ TEST(ByteRW, BrokenUtf8FailsWideRead)
 // 크기를 아는 range는 모두 같은 형식(개수 + 원소)이라 서로 바꿔 읽을 수 있다.
 TEST(ByteRW, SequenceContainersRoundTrip)
 {
-    const auto list = std::list<std::int32_t>{3, 1, 2};
+    const auto list = std::list<int32_t>{3, 1, 2};
     const auto deque = std::deque<std::string>{"a", "b"};
-    const auto set = std::set<std::int32_t>{5, 1, 3};
-    const auto multiset = std::multiset<std::int32_t>{1, 1, 2};
+    const auto set = std::set<int32_t>{5, 1, 3};
+    const auto multiset = std::multiset<int32_t>{1, 1, 2};
     const auto unorderedSet = std::unordered_set<std::string>{"x", "y"};
     const auto flags = std::vector<bool>{true, false, true};
-    const std::int32_t raw[] = {7, 8, 9};
+    const int32_t raw[] = {7, 8, 9};
 
     Base::ByteWriter writer;
     writer << list << deque << set << multiset << unorderedSet << flags << std::span{raw};
 
-    auto readList = std::list<std::int32_t>{};
+    auto readList = std::list<int32_t>{};
     auto readDeque = std::deque<std::string>{};
-    auto readSet = std::set<std::int32_t>{};
-    auto readMultiset = std::multiset<std::int32_t>{};
+    auto readSet = std::set<int32_t>{};
+    auto readMultiset = std::multiset<int32_t>{};
     auto readUnorderedSet = std::unordered_set<std::string>{};
     auto readFlags = std::vector<bool>{};
-    auto fromSpan = std::vector<std::int32_t>{}; // span으로 쓴 것을 vector로 읽는다
+    auto fromSpan = std::vector<int32_t>{}; // span으로 쓴 것을 vector로 읽는다
     Base::ByteReader reader(writer.Data());
     reader >> readList >> readDeque >> readSet >> readMultiset >> readUnorderedSet >> readFlags >> fromSpan;
 
@@ -396,20 +396,20 @@ TEST(ByteRW, SequenceContainersRoundTrip)
     EXPECT_EQ(readMultiset, multiset);
     EXPECT_EQ(readUnorderedSet, unorderedSet);
     EXPECT_EQ(readFlags, flags);
-    EXPECT_EQ(fromSpan, (std::vector<std::int32_t>{7, 8, 9}));
+    EXPECT_EQ(fromSpan, (std::vector<int32_t>{7, 8, 9}));
 }
 
 // 고정 배열도 개수를 쓰고(안전), 읽을 때 크기가 다르면 실패한다.
 TEST(ByteRW, FixedArraysRoundTripAndCheckCount)
 {
-    const auto stats = std::array<std::int16_t, 3>{{10, 20, 30}};
-    const std::uint8_t slots[2] = {4, 5};
+    const auto stats = std::array<int16_t, 3>{{10, 20, 30}};
+    const uint8_t slots[2] = {4, 5};
 
     Base::ByteWriter writer;
     writer << stats << slots;
 
-    auto readStats = std::array<std::int16_t, 3>{};
-    std::uint8_t readSlots[2] = {};
+    auto readStats = std::array<int16_t, 3>{};
+    uint8_t readSlots[2] = {};
     Base::ByteReader reader(writer.Data());
     reader >> readStats >> readSlots;
 
@@ -418,24 +418,24 @@ TEST(ByteRW, FixedArraysRoundTripAndCheckCount)
     EXPECT_EQ(readSlots[0], 4);
     EXPECT_EQ(readSlots[1], 5);
 
-    auto wrongSize = std::array<std::int16_t, 4>{{1, 1, 1, 1}};
+    auto wrongSize = std::array<int16_t, 4>{{1, 1, 1, 1}};
     Base::ByteReader mismatch(writer.Data());
     mismatch >> wrongSize;
 
     EXPECT_FALSE(mismatch.IsValid());
-    EXPECT_EQ(wrongSize, (std::array<std::int16_t, 4>{}));
+    EXPECT_EQ(wrongSize, (std::array<int16_t, 4>{}));
 }
 
 TEST(ByteRW, PairAndTupleRoundTrip)
 {
     const auto position = std::pair<float, float>{1.5f, -2.0f};
-    const auto record = std::tuple<std::int32_t, std::string, bool>{7, "기록", true};
+    const auto record = std::tuple<int32_t, std::string, bool>{7, "기록", true};
 
     Base::ByteWriter writer;
     writer << position << record;
 
     auto readPosition = std::pair<float, float>{};
-    auto readRecord = std::tuple<std::int32_t, std::string, bool>{};
+    auto readRecord = std::tuple<int32_t, std::string, bool>{};
     Base::ByteReader reader(writer.Data());
     reader >> readPosition >> readRecord;
 
@@ -449,13 +449,13 @@ TEST(ByteRW, PairAndTupleRoundTrip)
 TEST(ByteRW, OptionalRoundTrip)
 {
     const auto some = std::optional<std::string>{"있음"};
-    const auto none = std::optional<std::int32_t>{};
+    const auto none = std::optional<int32_t>{};
 
     Base::ByteWriter writer;
     writer << some << none;
 
     auto readSome = std::optional<std::string>{};
-    auto readNone = std::optional<std::int32_t>{99};
+    auto readNone = std::optional<int32_t>{99};
     Base::ByteReader reader(writer.Data());
     reader >> readSome >> readNone;
 
@@ -467,7 +467,7 @@ TEST(ByteRW, OptionalRoundTrip)
 
 TEST(ByteRW, VariantRoundTrip)
 {
-    using Reward = std::variant<std::monostate, std::int32_t, std::string>;
+    using Reward = std::variant<std::monostate, int32_t, std::string>;
     const auto values = std::vector<Reward>{Reward{}, Reward{100}, Reward{"전설 검"}};
 
     Base::ByteWriter writer;
@@ -487,7 +487,7 @@ TEST(ByteRW, VariantBadIndexFails)
     const std::byte received[] = {std::byte{5}, std::byte{0}, std::byte{0}, std::byte{0}, std::byte{0}};
     Base::ByteReader reader(received);
 
-    auto value = std::variant<std::int32_t, float>{3};
+    auto value = std::variant<int32_t, float>{3};
     reader >> value;
 
     EXPECT_FALSE(reader.IsValid());
@@ -519,7 +519,7 @@ TEST(ByteRW, ChronoRoundTrip)
 TEST(ByteRW, DeeplyNestedRoundTrip)
 {
     using Bag = std::map<std::string, std::vector<std::optional<Item>>>;
-    using Places = std::unordered_map<std::int32_t, std::tuple<std::wstring, std::array<float, 2>>>;
+    using Places = std::unordered_map<int32_t, std::tuple<std::wstring, std::array<float, 2>>>;
     const auto bag = Bag{
         {"무기", {Item{1, "검"}, std::nullopt, Item{2, "활"}}},
         {"빈칸", {}},
@@ -556,11 +556,11 @@ TEST(ByteRW, TooLongWideStringFailsBeforeConvert)
 // R3: 다차원 C 배열도 읽히고, 실패하면 모든 원소가 0이 된다.
 TEST(ByteRW, MultiDimensionalArrayRoundTrip)
 {
-    const std::int32_t grid[2][2] = {{1, 2}, {3, 4}};
+    const int32_t grid[2][2] = {{1, 2}, {3, 4}};
     Base::ByteWriter writer;
     writer << grid;
 
-    std::int32_t readGrid[2][2] = {};
+    int32_t readGrid[2][2] = {};
     Base::ByteReader reader(writer.Data());
     reader >> readGrid;
 
@@ -568,7 +568,7 @@ TEST(ByteRW, MultiDimensionalArrayRoundTrip)
     EXPECT_EQ(readGrid[1][0], 3);
 
     const auto data = writer.Data();
-    std::int32_t cutGrid[2][2] = {{9, 9}, {9, 9}};
+    int32_t cutGrid[2][2] = {{9, 9}, {9, 9}};
     Base::ByteReader cut(data.first(data.size() - 1));
     cut >> cutGrid;
 
@@ -602,9 +602,9 @@ TEST(ByteRW, PmrStringsRoundTrip)
 namespace
 {
     // 길이(uint16) + 바이트로 된 패킷 하나를 만든다.
-    std::vector<std::byte> MakeStringPacket(const std::vector<std::uint8_t>& bytes)
+    std::vector<std::byte> MakeStringPacket(const std::vector<uint8_t>& bytes)
     {
-        auto packet = std::vector<std::byte>{std::byte{static_cast<std::uint8_t>(bytes.size())}, std::byte{0}};
+        auto packet = std::vector<std::byte>{std::byte{static_cast<uint8_t>(bytes.size())}, std::byte{0}};
         for (const auto b : bytes)
         {
             packet.push_back(std::byte{b});
@@ -616,7 +616,7 @@ namespace
 // 잘못된 UTF-8은 std::string으로 읽을 때 실패한다.
 TEST(ByteRW, BrokenUtf8FailsStringRead)
 {
-    const auto broken = std::vector<std::vector<std::uint8_t>>{
+    const auto broken = std::vector<std::vector<uint8_t>>{
         {0xC0, 0xAF},             // overlong 슬래시 (필터 우회 공격에 쓰임)
         {0x80},                   // 앞 바이트 없이 이어지는 바이트만
         {0xEA, 0xB0},             // 3바이트 문자가 잘림
@@ -669,10 +669,10 @@ TEST(ByteRW, BinaryBlobUsesByteVector)
 TEST(ByteRW, UnicodeLiteralsWriteAsStrings)
 {
     Base::ByteWriter fromLiterals;
-    fromLiterals << u8"가" << L"가" << u"가" << U"가" << std::int8_t{7};
+    fromLiterals << u8"가" << L"가" << u"가" << U"가" << int8_t{7};
 
     Base::ByteWriter fromStrings;
-    fromStrings << std::string{"가"} << std::string{"가"} << std::string{"가"} << std::string{"가"} << std::int8_t{7};
+    fromStrings << std::string{"가"} << std::string{"가"} << std::string{"가"} << std::string{"가"} << int8_t{7};
 
     ASSERT_TRUE(fromLiterals.IsValid());
     EXPECT_TRUE(std::ranges::equal(fromLiterals.Data(), fromStrings.Data()));

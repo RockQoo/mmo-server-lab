@@ -16,7 +16,7 @@
 // 한쪽 언어의 형식이 바뀌면 양쪽 테스트가 같이 깨진다. MMO_TESTDATA_DIR은 CMakeLists.txt가 넣는다.
 namespace
 {
-    enum class Color : std::uint8_t
+    enum class Color : uint8_t
     {
         None = 0, // enum 은 0 값을 둔다({} 로 만든 값이 유효하게)
         Red = 1,
@@ -25,7 +25,7 @@ namespace
     };
 
     // classes.hex 용. C# 테스트의 Item / Player(코덱 struct)와 필드 순서가 같다.
-    enum class Job : std::uint8_t
+    enum class Job : uint8_t
     {
         None = 0, // enum 은 0 값을 둔다({} 로 만든 값이 유효하게)
         Warrior = 1,
@@ -34,7 +34,7 @@ namespace
 
     struct Item
     {
-        std::int32_t id{};
+        int32_t id{};
         std::string name{};
 
         SERIALIZE_FIELDS(id, name)
@@ -43,11 +43,11 @@ namespace
 
     struct Player
     {
-        std::int32_t level{};
+        int32_t level{};
         Job job{};
         std::string name{};
         std::vector<Item> items{};
-        std::map<std::string, std::int32_t> stats{};
+        std::map<std::string, int32_t> stats{};
 
         SERIALIZE_FIELDS(level, job, name, items, stats)
         bool operator==(const Player&) const = default;
@@ -80,20 +80,20 @@ TEST(ByteFormat, BasicMatchesGoldenFile)
     ASSERT_FALSE(expected.empty());
 
     Base::ByteWriter writer;
-    writer << std::int32_t{-2} << std::uint16_t{0x1234} << true << false << 1.5f << -2.25 << Color::Blue
-           << std::int64_t{0x0102030405060708} << std::string{"가a"} << std::string{};
+    writer << int32_t{-2} << uint16_t{0x1234} << true << false << 1.5f << -2.25 << Color::Blue
+           << int64_t{0x0102030405060708} << std::string{"가a"} << std::string{};
     ASSERT_TRUE(writer.IsValid());
     EXPECT_TRUE(std::ranges::equal(writer.Data(), expected));
 
     // 정답 바이트를 읽으면 같은 값이 나와야 한다.
-    auto i32 = std::int32_t{};
-    auto u16 = std::uint16_t{};
+    auto i32 = int32_t{};
+    auto u16 = uint16_t{};
     auto yes = false;
     auto no = true;
     auto f = float{};
     auto d = double{};
     auto color = Color::Red;
-    auto i64 = std::int64_t{};
+    auto i64 = int64_t{};
     auto text = std::string{};
     auto empty = std::string{"x"};
     Base::ByteReader reader(expected);
@@ -118,34 +118,34 @@ TEST(ByteFormat, ContainersMatchGoldenFile)
     const auto expected = LoadHex("containers.hex");
     ASSERT_FALSE(expected.empty());
 
-    using Bytes = std::vector<std::uint8_t>;
+    using Bytes = std::vector<uint8_t>;
     Base::ByteWriter writer;
-    writer << std::vector<std::int32_t>{1, 2, 3} << std::vector<std::int32_t>{} << std::vector<std::string>{"a", "가"}
-           << std::optional<std::int32_t>{7} << std::optional<std::int32_t>{} << std::optional<std::string>{"x"}
-           << std::vector<std::optional<std::int16_t>>{std::int16_t{5}, std::nullopt} << std::vector<Bytes>{{1, 2}, {}};
+    writer << std::vector<int32_t>{1, 2, 3} << std::vector<int32_t>{} << std::vector<std::string>{"a", "가"}
+           << std::optional<int32_t>{7} << std::optional<int32_t>{} << std::optional<std::string>{"x"}
+           << std::vector<std::optional<int16_t>>{int16_t{5}, std::nullopt} << std::vector<Bytes>{{1, 2}, {}};
     ASSERT_TRUE(writer.IsValid());
     EXPECT_TRUE(std::ranges::equal(writer.Data(), expected));
 
-    auto ints = std::vector<std::int32_t>{};
-    auto none = std::vector<std::int32_t>{9};
+    auto ints = std::vector<int32_t>{};
+    auto none = std::vector<int32_t>{9};
     auto strings = std::vector<std::string>{};
-    auto seven = std::optional<std::int32_t>{};
-    auto missing = std::optional<std::int32_t>{1};
+    auto seven = std::optional<int32_t>{};
+    auto missing = std::optional<int32_t>{1};
     auto x = std::optional<std::string>{};
-    auto shorts = std::vector<std::optional<std::int16_t>>{};
+    auto shorts = std::vector<std::optional<int16_t>>{};
     auto nested = std::vector<Bytes>{};
     Base::ByteReader reader(expected);
     reader >> ints >> none >> strings >> seven >> missing >> x >> shorts >> nested;
 
     EXPECT_TRUE(reader.IsValid());
     EXPECT_EQ(reader.ReadPos(), expected.size());
-    EXPECT_EQ(ints, (std::vector<std::int32_t>{1, 2, 3}));
+    EXPECT_EQ(ints, (std::vector<int32_t>{1, 2, 3}));
     EXPECT_TRUE(none.empty());
     EXPECT_EQ(strings, (std::vector<std::string>{"a", "가"}));
     EXPECT_EQ(seven, 7);
     EXPECT_FALSE(missing.has_value());
     EXPECT_EQ(x, "x");
-    EXPECT_EQ(shorts, (std::vector<std::optional<std::int16_t>>{std::int16_t{5}, std::nullopt}));
+    EXPECT_EQ(shorts, (std::vector<std::optional<int16_t>>{int16_t{5}, std::nullopt}));
     EXPECT_EQ(nested, (std::vector<Bytes>{{1, 2}, {}}));
 }
 

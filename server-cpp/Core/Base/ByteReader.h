@@ -39,7 +39,7 @@ namespace Base
             if constexpr (std::is_same_v<T, bool>)
             {
                 // 0/1이 아닌 바이트를 bool에 그대로 복사하면 미정의 동작이라 uint8_t로 읽어 바꾼다.
-                auto raw = std::uint8_t{};
+                auto raw = uint8_t{};
                 *this >> raw;
                 value = (raw != 0);
             }
@@ -196,7 +196,7 @@ namespace Base
         template <typename V>
         void ReadVariant(V& value)
         {
-            auto index = std::uint8_t{};
+            auto index = uint8_t{};
             *this >> index;
             if (_valid && index >= std::variant_size_v<V>)
             {

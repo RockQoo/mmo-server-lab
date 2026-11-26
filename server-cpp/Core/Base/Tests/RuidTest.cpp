@@ -9,7 +9,7 @@ static_assert(Ruid::Make(5, 3, 2, 1).Realm() == 3);
 
 TEST(Ruid, LayoutLimits)
 {
-    EXPECT_EQ(Ruid::MaxTimestamp, (std::int64_t{1} << 41) - 1);
+    EXPECT_EQ(Ruid::MaxTimestamp, (int64_t{1} << 41) - 1);
     EXPECT_EQ(Ruid::MaxRealm, 127);
     EXPECT_EQ(Ruid::MaxNode, 63);
     EXPECT_EQ(Ruid::MaxSequence, 511);
