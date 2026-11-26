@@ -4,7 +4,7 @@ using Microsoft.Extensions.ObjectPool;
 namespace Bench;
 
 // 객체 하나를 빌려 값을 쓰고 바로 돌려주는 비용(C++ Bench/ObjectPoolBench.cpp 의 SameThread 와 같은 일).
-// 스레드 1·2·4·8개가 전체 TotalOps 를 나눠 한다. Mean = 전체 걸린 시간 / TotalOps(모든 스레드를 합친 한 번의 시간).
+// 전용 스레드 1·2·4·8개가 전체 TotalOps 를 나눠 한다(BenchThreads, C++ 과 같은 틀·횟수). Mean = 전체 걸린 시간 / TotalOps(모든 스레드를 합친 한 번의 시간).
 //
 // 객체 두 가지(C++ 과 같다)
 //   Plain     값만 있다. 풀 자체의 비용을 본다
@@ -17,7 +17,7 @@ namespace Bench;
 [MemoryDiagnoser]
 public class ObjectPoolBench
 {
-    private const int TotalOps = 80_000; // 1, 2, 4, 8 로 나누어떨어진다
+    private const int TotalOps = 1 << 23; // C++ 과 같은 횟수(1, 2, 4, 8 로 나누어떨어진다)
 
     private static readonly ObjectPool<Plain> s_plainPool = new DefaultObjectPool<Plain>(new PlainPolicy());
     private static readonly ObjectPool<WithList> s_listPool = new DefaultObjectPool<WithList>(new WithListPolicy());
@@ -73,17 +73,7 @@ public class ObjectPoolBench
         }
     });
 
-    private void RunOnThreads(Action<long> op)
-    {
-        var perThread = TotalOps / Threads;
-        Parallel.For(0, Threads, new ParallelOptions { MaxDegreeOfParallelism = Threads }, _ =>
-        {
-            for (var i = 0; i < perThread; ++i)
-            {
-                op(i);
-            }
-        });
-    }
+    private void RunOnThreads(Action<int> op) => BenchThreads.Run(Threads, TotalOps / Threads, op);
 
     private sealed class Plain
     {

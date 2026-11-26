@@ -359,17 +359,29 @@ TEST(ObjectPool, KeepsAlignment)
 }
 
 // 생성자가 던지면 Rent도 던지고, 풀은 그 뒤에도 정상이다.
+// 반복 실행(--gtest_repeat)에서는 앞 실행이 반납한 객체가 풀에 남아 Rent가 생성자를 부르지 않는다. 그래서 남은 객체를
+// 먼저 모두 빌려 두어 다음 Rent가 반드시 새로 생성하게 한다(Codex 리뷰 R2).
 TEST(ObjectPool, ConstructorThrowPropagates)
 {
     RunOnNewThread(
         []
         {
+            auto& pool = ObjectPool<Throwing>::Shared();
+            std::vector<PooledPtr<Throwing>> drained;
+            while (ObjectPool<Throwing>::ThreadCachedCount() > 0 || pool.GlobalCachedCount() > 0)
+            {
+                drained.push_back(pool.Rent());
+            }
+#ifndef NDEBUG
+            const auto rentedBefore = pool.RentedCount();
+#endif
             Throwing::s_throwNext = true;
-            EXPECT_THROW((void)ObjectPool<Throwing>::Shared().Rent(), std::runtime_error);
-            const auto item = ObjectPool<Throwing>::Shared().Rent();
+            EXPECT_THROW((void)pool.Rent(), std::runtime_error);
+            EXPECT_FALSE(Throwing::s_throwNext) << "생성자가 불렸다(새로 생성하는 길)";
+            const auto item = pool.Rent();
             EXPECT_NE(item, nullptr);
 #ifndef NDEBUG
-            EXPECT_EQ(ObjectPool<Throwing>::Shared().RentedCount(), 1) << "실패한 Rent는 세지 않는다";
+            EXPECT_EQ(pool.RentedCount(), rentedBefore + 1) << "실패한 Rent는 세지 않는다";
 #endif
         });
 }

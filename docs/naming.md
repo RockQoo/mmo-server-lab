@@ -67,7 +67,7 @@ C#에 만들지 않는 이유(2026-11-26 결정):
 C#에 만들지 않는 이유(2026-11-26):
 
 - MS 공식 `Microsoft.Extensions.ObjectPool`(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>.Return`이 C++ `Reset()` 자리)이 같은 역할이다. 쓰는 법은 `Get` + `try/finally Return`.
-- 다만 측정해 보니 `DefaultObjectPool`은 스레드 캐시가 없어(공유 배열 + Interlocked) 스레드가 늘수록 느려지고, 작은 객체는 그냥 `new`(GC 할당)가 더 빠르다(스레드 1개: 풀 약 10ns, `new` 약 1.6ns, 8개에서는 풀이 약 130배 느림). 그래서 C#은 **만들기 비싼 객체(큰 버퍼, StringBuilder 등)만 풀에 넣고, 작은 객체는 `new`** 한다. 측정은 `docs/journal/objectpool.html`.
+- 다만 측정해 보니 `DefaultObjectPool`은 스레드 캐시가 없어(공유 배열 + Interlocked) 스레드가 늘수록 느려지고, 작은 객체는 그냥 `new`(GC 할당)가 더 빠르다(스레드 1개: 풀 약 9ns, `new` 약 1.4ns, 8개에서는 풀이 약 120배 느림). 그래서 C#은 **만들기 비싼 객체(큰 버퍼, StringBuilder 등)만 풀에 넣고, 작은 객체는 `new`** 한다. 측정은 `docs/journal/objectpool.html`.
 
 ## C# 에만 있는 것
 
