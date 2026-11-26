@@ -369,6 +369,39 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <tr><td>닮은 것</td><td>C# <code>ArrayPool.Shared</code></td><td>고성능 할당자의 "원격 반납 목록"(mimalloc 등). Lane이 자기 데이터를 소유하는 스레드 어피니티와 같은 결</td></tr>
 </table></div>
 <p><strong>진행</strong>: 2판을 먼저 만들고, "Lane이 빌리고 IOCP가 반납" 측정에서 2판의 전역 mutex 비용이 크게 나오면 3판을 만들어 비교한다. 측정 없이 미리 3판을 만들지 않는다.</p>
+
+<h2>2026-11-26 · 2판 측정 (커밋 <code>818dad9</code>)</h2>
+<p>정한 것: 전역 하나 <code>BufferPool::Shared()</code>, 캐시 등급마다 16개·묶음 8개, 빌려 간 수는 Debug에서만, 1판 코드 삭제. 값은 모든 스레드를 합친 초당 (빌리기 + 반납) 횟수, 256B, 3회 중앙값.</p>
+<h3>스레드 1개 (믿을 수 있는 값)</h3>
+<div class="table-wrap"><table>
+<tr><th>방식</th><th>처리량</th><th>한 번에</th><th style="width:40%"></th></tr>
+<tr><td>C++ <code>new</code>/<code>delete</code></td><td class="num">48M/s</td><td class="num">약 20ns</td><td><span class="bar muted" style="width:18%"></span></td></tr>
+<tr><td>C++ 1판</td><td class="num">33M/s</td><td class="num">약 30ns</td><td><span class="bar warn" style="width:12%"></span></td></tr>
+<tr><td><strong>C++ 2판</strong></td><td class="num"><strong>223M/s</strong></td><td class="num">약 4.5ns</td><td><span class="bar" style="width:83%"></span></td></tr>
+<tr><td>C# <code>ArrayPool</code></td><td class="num">268M/s</td><td class="num">약 3.7ns</td><td><span class="bar cs" style="width:100%"></span></td></tr>
+</table></div>
+<p>2판은 <code>new</code>/<code>delete</code>보다 약 4.6배, 1판보다 약 6.8배 빠르다. C# <code>ArrayPool</code>과 같은 급이다.</p>
+
+<h3>여러 스레드: 이 측정 환경에서는 믿기 어렵다</h3>
+<p>아무 일도 하지 않는 반복(Noop)이 스레드 1개 627M/s → 2개 990M/s → 4개 779M/s → 8개 735M/s로 <strong>늘지 않았다</strong>. 이상적이면 8개에서 약 5G/s여야 한다. Google Benchmark의 다중 스레드 모드와, 스레드를 직접 띄우는 방식(C#과 같은 방법) 둘 다 같았다. 측정 프로세스가 실제로는 코어를 2개 남짓만 쓴 것으로 보인다.</p>
+<ul>
+  <li>확인한 것: 프로세스 코어 제한(affinity) 없음, 작업 개체(Job)의 CPU 사용률 제한 없음, 다른 프로그램의 CPU 사용 10~15%.</li>
+  <li>의심: 전원 구성표 "균형 조정"의 코어 파킹, 또는 측정을 띄운 환경(에이전트) 쪽 스케줄링. 아직 원인을 확정하지 못했다.</li>
+  <li>그래서 아래 표는 <strong>같은 조건끼리의 비교</strong>로만 본다.</li>
+</ul>
+<div class="table-wrap"><table>
+<tr><th>스레드</th><th>Noop(기준)</th><th><code>new</code>/<code>delete</code></th><th>1판</th><th>2판</th></tr>
+<tr><td>같은 스레드 2</td><td class="num">990M</td><td class="num">54M</td><td class="num">25M</td><td class="num">286M</td></tr>
+<tr><td>같은 스레드 8</td><td class="num">735M</td><td class="num">106M</td><td class="num">8.7M</td><td class="num">232M</td></tr>
+<tr><td>빌리기 ≠ 반납 2</td><td class="num">-</td><td class="num">21M</td><td class="num">16.4M</td><td class="num">66.7M</td></tr>
+<tr><td>빌리기 ≠ 반납 4</td><td class="num">-</td><td class="num">36M</td><td class="num">12.8M</td><td class="num">47.0M</td></tr>
+<tr><td>빌리기 ≠ 반납 8</td><td class="num">-</td><td class="num">66M</td><td class="num">8.6M</td><td class="num">36.5M</td></tr>
+</table></div>
+<ul>
+  <li>같은 스레드: 2판은 스레드가 늘어도 무너지지 않는다(1판은 8개에서 1/4로 무너짐).</li>
+  <li>빌리기 ≠ 반납: 2개에서는 2판이 <code>new</code>/<code>delete</code>의 3배지만, 스레드가 늘수록 줄어 8개에서는 <code>new</code>/<code>delete</code>보다 낮다. 전역 풀의 등급 mutex 하나를 빌리는 스레드 4개와 반납하는 스레드 4개가 묶음마다 잡기 때문일 수 있다(3판 후보가 노리는 곳). 다만 측정 환경이 코어를 2개 남짓만 주면, 짝을 기다리며 양보(yield)하는 비용이 커져 이 값도 왜곡된다.</li>
+  <li><strong>다음</strong>: 코어를 제대로 쓰는 환경에서 Noop부터 다시 잰다. Noop이 스레드 수만큼 늘면 그때 "빌리기 ≠ 반납" 결과로 3판 여부를 정한다.</li>
+</ul>
 </main>
 </body>
 </html>
