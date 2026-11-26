@@ -45,6 +45,8 @@ CheckOptions:
   readability-identifier-naming.ClassMemberCase: camelBack
   readability-identifier-naming.StaticVariablePrefix: s_
   readability-identifier-naming.StaticVariableCase: camelBack
+  # 함수 안의 thread_local 도 clang-tidy 는 static 으로 본다. t_ 로 시작하는 이름을 허용한다(2026-11-26)
+  readability-identifier-naming.StaticVariableIgnoredRegexp: '^t_[a-z][a-zA-Z0-9]*$'
   # 전역: g_ + camel. thread_local 은 clang-tidy 가 전역과 구분하지 못해 t_ 로 시작하는 이름을 따로 허용한다
   readability-identifier-naming.GlobalVariablePrefix: g_
   readability-identifier-naming.GlobalVariableCase: camelBack

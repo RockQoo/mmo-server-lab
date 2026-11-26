@@ -52,6 +52,11 @@ namespace Memory
 
     // ---- 스레드 캐시
 
+    // 이 스레드의 ThreadCache가 이미 소멸했는가. 스레드가 끝날 때 thread_local 은 다른 객체(정적 객체, 나중에 채운
+    // thread_local 핸들)보다 먼저 소멸할 수 있다. 그 뒤의 Rent·Return이 소멸한 캐시를 건드리지 않게 표시한다
+    // (Codex 리뷰 R1). 소멸자가 없는 단순 값이라 언제 읽어도 안전하다.
+    thread_local constinit bool t_cacheGone = false;
+
     // 스레드마다 등급별로 반납된 빈 버퍼를 들고 있다. 그 스레드만 만지므로 락이 없다.
     struct ThreadCache
     {
@@ -74,6 +79,7 @@ namespace Memory
                     slot.count = 0;
                 }
             }
+            t_cacheGone = true; // 이후 이 스레드의 Rent·Return은 캐시를 거치지 않는다
         }
         ThreadCache(const ThreadCache&) = delete;
         ThreadCache& operator=(const ThreadCache&) = delete;
@@ -97,7 +103,7 @@ namespace Memory
     {
         const auto size = SizeFor(minSize);
         std::byte* data{};
-        if (size <= MaxSize)
+        if (size <= MaxSize && !t_cacheGone) // 캐시가 이미 소멸했으면 새로 할당(스레드 종료 중의 드문 경우)
         {
             const auto index = ClassIndex(size);
             auto& slot = t_cache.slots[index];
@@ -131,6 +137,11 @@ namespace Memory
             return;
         }
         const auto index = ClassIndex(size);
+        if (t_cacheGone)
+        {
+            PushBatch(index, &data, 1); // 캐시가 이미 소멸했다: 전역으로 바로(스레드 종료 중의 드문 경우)
+            return;
+        }
         auto& slot = t_cache.slots[index];
         if (slot.count == CacheCountFor(size))
         {

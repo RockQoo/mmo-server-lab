@@ -158,6 +158,30 @@ TEST(BufferPool, ThreadExitFlushesCacheToGlobal)
     EXPECT_EQ(Pool().GlobalCachedCount(Small), globalAtExit + cachedAtExit) << "스레드가 끝나며 캐시를 전역으로 보냄";
 }
 
+// 스레드가 끝날 때 thread_local 핸들과 스레드 캐시가 어느 순서로 소멸해도 버퍼 수가 맞는다(Codex 리뷰 R1).
+//   핸들이 먼저 소멸: 반납 → 캐시 → 캐시 소멸 때 전역으로
+//   캐시가 먼저 소멸: 반납 → 캐시가 없으므로 전역으로 바로(R1 수정. 고치기 전에는 소멸한 캐시에 썼다)
+// 표준은 두 번째 순서를 허용한다(메인 스레드의 thread_local 은 정적 객체보다 먼저 소멸). 다만 MSVC는 파일 범위
+// thread_local(스레드 캐시)을 스레드 시작 때 미리 만들어, 이 테스트에서는 첫 번째 순서만 일어난다(수정 전 코드로도
+// 통과함을 확인했다). 그래서 이 테스트는 R1을 재현하지 못하고, 두 순서 모두에서 맞아야 할 결과만 확인한다.
+TEST(BufferPool, ThreadLocalHolderReturnKeepsCount)
+{
+    auto globalAtExit = std::size_t{};
+    auto cachedAtExit = std::size_t{};
+    RunOnNewThread(
+        [&globalAtExit, &cachedAtExit]
+        {
+            thread_local PooledBuffer t_held; // 스레드가 끝날 때 소멸
+            t_held = Pool().Rent(Small);
+            globalAtExit = Pool().GlobalCachedCount(Small);
+            cachedAtExit = BufferPool::ThreadCachedCount(Small);
+        }); // 스레드 끝: 어느 순서든 캐시의 버퍼와 t_held 의 버퍼가 모두 전역으로 간다
+    EXPECT_EQ(Pool().GlobalCachedCount(Small), globalAtExit + cachedAtExit + 1);
+#ifndef NDEBUG
+    EXPECT_EQ(Pool().RentedCount(), 0);
+#endif
+}
+
 // 캐시가 빈 스레드는 전역에서 한 묶음을 가져온다.
 TEST(BufferPool, EmptyCacheTakesBatchFromGlobal)
 {
