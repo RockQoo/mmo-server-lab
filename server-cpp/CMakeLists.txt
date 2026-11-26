@@ -144,6 +144,7 @@ find_package(benchmark CONFIG REQUIRED)
 add_executable(Bench
     Bench/BufferPoolBench.cpp
     Bench/ObjectPoolBench.cpp
+    Bench/ThreadTeam.h
 )
 target_link_libraries(Bench PRIVATE Memory benchmark::benchmark benchmark::benchmark_main)
 set_target_properties(Bench PROPERTIES FOLDER Bench)

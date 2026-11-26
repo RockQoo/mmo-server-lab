@@ -9,9 +9,11 @@
 #include <vector>
 
 #include "Memory/ObjectPool.h"
+#include "ThreadTeam.h"
 
-// 객체 풀 측정. 결과는 docs/journal/objectpool.html 에 정리한다. 측정 틀(스레드 나누기, volatile sink, Noop 기준)은
-// BufferPoolBench.cpp 와 같다(Noop 도 그 파일에 있다).
+// 객체 풀 측정. 결과는 docs/journal/objectpool.html 에 정리한다. 여러 스레드는 ThreadTeam(미리 만든 스레드 N개가 같이
+// 출발, C# Bench/ThreadTeam.cs 와 같음)으로 돌리고, 그 틀의 한계는 TeamNoop 으로 본다. volatile sink 는
+// BufferPoolBench.cpp 주석 "DoNotOptimize" 와 같은 이유다.
 //
 // 1) SameThread: 객체 하나를 빌려 값을 쓰고 바로 반납한다. C# Bench/ObjectPoolBench 와 같은 일이다.
 // 2) CrossThread: 빌리는 스레드와 반납하는 스레드가 다르다(64개씩 묶어 넘김, BufferPoolBench 와 같은 모양).
@@ -29,15 +31,26 @@ namespace
 {
     constexpr std::int64_t TotalOps = std::int64_t{1} << 23;
 
-    template <typename Body>
-    void RunOnThreads(const int count, const Body& body)
+    // ---- 0) 측정 틀의 한계: 아무 일도 하지 않는 반복(ThreadTeam)
+
+    void TeamNoop(benchmark::State& state)
     {
-        std::vector<std::jthread> threads;
-        threads.reserve(static_cast<std::size_t>(count));
-        for (auto t = 0; t < count; ++t)
+        const auto threads = static_cast<int>(state.range(0));
+        const auto ops = TotalOps / threads;
+        Bench::ThreadTeam team(threads);
+        for (auto iteration : state)
         {
-            threads.emplace_back([&body, count] { body(TotalOps / count); });
+            team.Run(
+                [ops](int)
+                {
+                    volatile std::int64_t sink{};
+                    for (auto i = std::int64_t{0}; i < ops; ++i)
+                    {
+                        sink = i;
+                    }
+                });
         }
+        state.SetItemsProcessed(state.iterations() * TotalOps);
     }
 
     struct Plain
@@ -95,19 +108,21 @@ namespace
     void SameThread(benchmark::State& state)
     {
         const auto threads = static_cast<int>(state.range(0));
+        const auto ops = TotalOps / threads;
+        Bench::ThreadTeam team(threads);
         for (auto iteration : state)
         {
-            RunOnThreads(threads,
-                         [](const std::int64_t ops)
-                         {
-                             void* volatile sink{}; // 스레드마다 자기 변수(BufferPoolBench 주석 "DoNotOptimize")
-                             for (auto i = std::int64_t{0}; i < ops; ++i)
-                             {
-                                 auto object = Renter::Rent();
-                                 object->Use(i);
-                                 sink = object.get();
-                             }
-                         });
+            team.Run(
+                [ops](int)
+                {
+                    void* volatile sink{}; // 스레드마다 자기 변수(BufferPoolBench 주석 "DoNotOptimize")
+                    for (auto i = std::int64_t{0}; i < ops; ++i)
+                    {
+                        auto object = Renter::Rent();
+                        object->Use(i);
+                        sink = object.get();
+                    }
+                });
         }
         state.SetItemsProcessed(state.iterations() * TotalOps);
     }
@@ -175,30 +190,31 @@ namespace
     void CrossThread(benchmark::State& state)
     {
         const auto threads = static_cast<int>(state.range(0));
+        const auto ops = TotalOps / threads;
+        Bench::ThreadTeam team(threads);
         for (auto iteration : state)
         {
             const auto pairs = std::make_unique<Pair<Renter>[]>(static_cast<std::size_t>(threads / 2));
-            std::atomic<int> nextIndex{};
-            RunOnThreads(threads,
-                         [&pairs, &nextIndex](const std::int64_t ops)
-                         {
-                             const auto t = nextIndex.fetch_add(1);
-                             auto& pair = pairs[static_cast<std::size_t>(t / 2)];
-                             if (t % 2 == 0)
-                             {
-                                 Producer(pair, ops * 2);
-                             }
-                             else
-                             {
-                                 Consumer(pair, ops * 2);
-                             }
-                         });
+            team.Run(
+                [&pairs, ops](const int t)
+                {
+                    auto& pair = pairs[static_cast<std::size_t>(t / 2)];
+                    if (t % 2 == 0)
+                    {
+                        Producer(pair, ops * 2);
+                    }
+                    else
+                    {
+                        Consumer(pair, ops * 2);
+                    }
+                });
         }
         state.SetItemsProcessed(state.iterations() * TotalOps);
     }
 } // namespace
 
 // 인자: 스레드 수
+BENCHMARK(TeamNoop)->Arg(1)->Arg(2)->Arg(4)->Arg(8)->UseRealTime()->Unit(benchmark::kMillisecond);
 BENCHMARK(SameThread<NewDeleteRenter<Plain>>)
     ->Name("ObjectSameThread/NewDelete/Plain")
     ->Arg(1)

@@ -78,5 +78,7 @@ dotnet_diagnostic.CA2007.severity = none
 
 # 벤치마크. BenchmarkDotNet 은 벤치마크 클래스와 [Benchmark]·[Params] 멤버가 public 이어야 찾는다.
 #   CA1515 앱 안의 타입은 internal 로 하라
+#   CA1001 Dispose 할 필드가 있으면 IDisposable 로 하라: 벤치마크 클래스의 ThreadTeam 은 BenchmarkDotNet 이 [GlobalCleanup] 에서 정리한다
 [Bench/**.cs]
 dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1001.severity = none

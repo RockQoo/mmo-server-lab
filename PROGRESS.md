@@ -57,6 +57,7 @@
 | BufferPool | 반납 버퍼 상한(OS에 돌려주기) | 지금은 풀이 끝까지 들고 있다. 순간 몰림 뒤 메모리를 계속 차지한다 | 실측 메모리가 문제 되면 |
 | BufferPool | `PooledBuffer::Release()`(날 포인터 꺼내기) | IOCP에서 핸들 대신 직접 관리가 필요할 수 있다 | Network에서 필요해지면 |
 | Memory | **BufferPool·ObjectPool 공통 코드 합치기**(스레드 캐시, 묶음 넣기·꺼내기, 스레드 종료 처리) | 구조가 같아 비슷한 코드가 두 벌이다. 연결 방식이 달라(버퍼 안 덮어쓰기 vs 객체 뒤 연결 칸) 합치면 템플릿이 복잡해질 수 있어 따로 만들었다(2026-11-26) | BufferPool 2판 최적화와 같이 |
+| Bench | **측정 틀 확장성**: 미리 만든 스레드(`ThreadTeam`)로도 Noop이 물리 8코어 8스레드에서 약 5배까지만 는다. 64B 정렬은 같고, 코어 고정은 오히려 느렸다. BufferPoolBench·ArrayPoolBench도 `ThreadTeam`으로 옮기기 | 확장성 수치를 믿으려면 Noop이 스레드 수만큼 늘어야 한다(지금은 같은 스레드 수의 언어 간 비교만 결론으로 쓴다, journal/objectpool) | BufferPool 2판 최적화와 같이 |
 | ObjectPool | 타입별 캐시 개수(`ObjectPoolTraits`), 반납 객체 상한 | 지금은 모두 64·32개. 큰 객체·내부 용량이 큰 객체는 메모리를 오래 쥔다 | 실제로 쓰는 타입이 생기면 |
 | Memory | `RefCounted`(침투형 참조 카운트) vs `std::shared_ptr` | 세션·방송 버퍼 수명 | Network |
 | Messaging | Lane 큐 비교(mutex + 두 버퍼 vs lock-free MPSC 등), Lane 코어 고정 | 위 "나중에 비교 실험할 것" | 벤치마크 때 |

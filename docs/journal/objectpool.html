@@ -86,7 +86,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <p class="sub">Memory · 2026-11-26 · 만들기 전의 질문과 결정, C++ <code>ObjectPool</code> vs C# <code>DefaultObjectPool</code> 측정</p>
 
 <div class="card">
-<p><strong>한 줄 요약.</strong> 객체를 소멸시키지 않고 반납할 때 <code>Reset()</code>만 해서 다시 쓴다(내부 <code>vector</code> 용량까지 재사용). 구조는 BufferPool 2판(스레드 캐시 + 전역 묶음)과 같다. C++ 풀은 스레드 1개에서 C# <code>DefaultObjectPool</code>보다 약 6배, 8개에서 약 170배 빠르고, GC 할당(C# <code>new</code>)과 비교해도 비슷하거나 빠르다(값만 있는 객체 1스레드만 C# <code>new</code>가 약 15% 빠르다).</p>
+<p><strong>한 줄 요약.</strong> 객체를 소멸시키지 않고 반납할 때 <code>Reset()</code>만 해서 다시 쓴다(내부 <code>vector</code> 용량까지 재사용). 구조는 BufferPool 2판(스레드 캐시 + 전역 묶음)과 같다. C++ 풀은 스레드 1개에서 C# <code>DefaultObjectPool</code>보다 약 8배, 8개에서 약 200배 빠르고, GC 할당(C# <code>new</code>)보다도 빠르다.</p>
 </div>
 
 <h2>질문 1: BufferPool이 큰 개념이고 ObjectPool이 그 아래인가?</h2>
@@ -148,36 +148,44 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 </div>
 
 <h2>측정: C++이 C#만큼 나오는가</h2>
-<p>객체 하나를 빌려 값을 쓰고 바로 반납(같은 스레드). 모든 스레드를 합친 <strong>초당 횟수</strong>(클수록 좋다). C++은 Google Benchmark 3회 중앙값(전체 840만 회), C#은 BenchmarkDotNet(<code>1 / Mean</code>, 같은 840만 회, 전용 스레드 N개로 C++과 같은 틀). Plain = 값 하나, WithList = <code>vector</code>/<code>List</code>에 하나 넣기.</p>
+<p>객체 하나를 빌려 값을 쓰고 바로 반납(같은 스레드). 모든 스레드를 합친 <strong>초당 횟수</strong>(클수록 좋다). 두 언어 모두 전체 840만 회, <strong>미리 만든 스레드 N개가 같이 출발</strong>하는 같은 틀(<code>ThreadTeam</code>). C++은 Google Benchmark 중앙값, C#은 BenchmarkDotNet(<code>1 / Mean</code>). Plain = 값 하나, WithList = <code>vector</code>/<code>List</code>에 하나 넣기.</p>
 <div class="table-wrap"><table>
 <tr><th>Plain</th><th>스레드 1</th><th>2</th><th>4</th><th>8</th></tr>
-<tr><td class="cpp">C++ <code>ObjectPool</code></td><td class="num"><strong>625M</strong></td><td class="num"><strong>964M</strong></td><td class="num"><strong>1.53G</strong></td><td class="num"><strong>2.66G</strong></td></tr>
-<tr><td class="cpp">C++ <code>new</code>/<code>delete</code></td><td class="num">48M</td><td class="num">70M</td><td class="num">120M</td><td class="num">225M</td></tr>
-<tr><td class="cs">C# <code>DefaultObjectPool</code></td><td class="num">107M</td><td class="num">35M</td><td class="num">19M</td><td class="num">15M</td></tr>
-<tr><td class="cs">C# <code>new</code>(GC)</td><td class="num">724M</td><td class="num">871M</td><td class="num">1.40G</td><td class="num">1.86G</td></tr>
-<tr><td class="muted">Noop C++(측정 틀 한계)</td><td class="num">720M</td><td class="num">1.39G</td><td class="num">2.59G</td><td class="num">2.75G</td></tr>
-<tr><td class="muted">Noop C#(측정 틀 한계)</td><td class="num">827M</td><td class="num">1.18G</td><td class="num">1.80G</td><td class="num">2.85G</td></tr>
+<tr><td class="cpp">C++ <code>ObjectPool</code></td><td class="num"><strong>845M</strong></td><td class="num"><strong>1.23G</strong></td><td class="num"><strong>1.59G</strong></td><td class="num"><strong>3.01G</strong></td></tr>
+<tr><td class="cpp">C++ <code>new</code>/<code>delete</code></td><td class="num">54M</td><td class="num">53M</td><td class="num">115M</td><td class="num">213M</td></tr>
+<tr><td class="cs">C# <code>DefaultObjectPool</code></td><td class="num">102M</td><td class="num">34M</td><td class="num">18M</td><td class="num">15M</td></tr>
+<tr><td class="cs">C# <code>new</code>(GC)</td><td class="num">479M</td><td class="num">597M</td><td class="num">1.07G</td><td class="num">1.96G</td></tr>
 </table></div>
 <div class="table-wrap" style="margin-top:12px"><table>
 <tr><th>WithList</th><th>스레드 1</th><th>2</th><th>4</th><th>8</th></tr>
-<tr><td class="cpp">C++ <code>ObjectPool</code></td><td class="num"><strong>454M</strong></td><td class="num"><strong>634M</strong></td><td class="num"><strong>992M</strong></td><td class="num"><strong>1.84G</strong></td></tr>
-<tr><td class="cpp">C++ <code>new</code>/<code>delete</code></td><td class="num">9.4M</td><td class="num">16M</td><td class="num">30M</td><td class="num">59M</td></tr>
-<tr><td class="cs">C# <code>DefaultObjectPool</code></td><td class="num">90M</td><td class="num">37M</td><td class="num">19M</td><td class="num">15M</td></tr>
-<tr><td class="cs">C# <code>new</code>(GC, 104B 할당)</td><td class="num">146M</td><td class="num">149M</td><td class="num">297M</td><td class="num">515M</td></tr>
+<tr><td class="cpp">C++ <code>ObjectPool</code></td><td class="num"><strong>501M</strong></td><td class="num"><strong>669M</strong></td><td class="num"><strong>1.02G</strong></td><td class="num"><strong>1.88G</strong></td></tr>
+<tr><td class="cpp">C++ <code>new</code>/<code>delete</code></td><td class="num">7.7M</td><td class="num">14M</td><td class="num">24M</td><td class="num">41M</td></tr>
+<tr><td class="cs">C# <code>DefaultObjectPool</code></td><td class="num">98M</td><td class="num">32M</td><td class="num">18M</td><td class="num">15M</td></tr>
+<tr><td class="cs">C# <code>new</code>(GC, 104B 할당)</td><td class="num">138M</td><td class="num">129M</td><td class="num">240M</td><td class="num">481M</td></tr>
 </table></div>
-<p>빌리기 ≠ 반납(C++만, WithList, 64개씩 넘김): 풀 39M / 61M / 75M(스레드 2/4/8), <code>new</code>/<code>delete</code> 7.1M / 12M / 15M. 약 5배.</p>
+<div class="table-wrap" style="margin-top:12px"><table>
+<tr><th>측정 틀 한계(Noop)</th><th>스레드 1</th><th>2</th><th>4</th><th>8</th><th>1→8</th></tr>
+<tr><td class="cpp">C++ <code>TeamNoop</code>(volatile 쓰기)</td><td class="num">5.02G</td><td class="num">9.16G</td><td class="num">13.5G</td><td class="num">23.5G</td><td class="num">4.7배</td></tr>
+<tr><td class="cs">C# <code>Noop.Team</code>(인라인 안 된 호출)</td><td class="num">746M</td><td class="num">1.10G</td><td class="num">1.98G</td><td class="num">3.86G</td><td class="num">5.2배</td></tr>
+</table></div>
+<p>빌리기 ≠ 반납(C++만, WithList, 64개씩 넘김): 풀 139M / 113M / 133M(스레드 2/4/8), <code>new</code>/<code>delete</code> 5.7M / 12M / 27M.</p>
 
 <h3>읽는 법</h3>
 <ul>
-<li><strong>C++ 풀은 C# 풀보다 빠르다</strong>(1스레드 약 6배, 8스레드 약 170배). C# <code>DefaultObjectPool</code>은 스레드 캐시가 없고 모든 스레드가 같은 배열을 Interlocked로 다퉈서(true sharing) 스레드가 늘수록 <strong>더 느려진다</strong>.</li>
-<li><strong>C++ 풀은 C# <code>new</code>와도 비슷하거나 빠르다.</strong> 값만 있는 객체 1스레드는 C# <code>new</code>가 약 15% 빠르고(724M vs 625M), 2스레드 이상이나 내부 리스트가 있으면 C++ 풀이 빠르다(WithList 8스레드 1.84G vs 515M). GC 할당은 포인터를 미는 것뿐이라 매우 싸다. 그래서 C#은 작은 객체를 풀에 넣으면 오히려 손해다. C#은 <strong>만들기 비싼 객체만 풀</strong>에 넣고 작은 객체는 <code>new</code>하는 것이 맞다(docs/naming.md).</li>
-<li>C++은 반대다. <code>new</code>/<code>delete</code>가 비싸서(내부 <code>vector</code>까지 할당하면 약 48배 차이) 풀이 크게 이긴다.</li>
-<li>8스레드 Plain은 Noop과 거의 같다. 측정 틀 한계에 닿았다.</li>
-<li>처음에는 C#을 <code>Parallel.For</code>(8만 회)로 쟀다. Codex 리뷰(R1): <code>MaxDegreeOfParallelism</code>은 상한일 뿐이라 실제로 N개 스레드가 도는지 보장하지 않는다. 전용 스레드 N개 틀(<code>BenchThreads</code>)과 C# Noop을 더해 다시 쟀고, 결론은 같았다(배수만 190배 → 170배).</li>
+<li><strong>C++ 풀은 C# 풀보다 빠르다</strong>(Plain 1스레드 약 8배, 8스레드 약 200배). C# <code>DefaultObjectPool</code>은 스레드 캐시가 없고 모든 스레드가 같은 배열을 Interlocked로 다퉈서(true sharing) 스레드가 늘수록 <strong>더 느려진다</strong>.</li>
+<li><strong>C++ 풀은 C# <code>new</code>보다도 빠르다</strong>(Plain 1스레드 1.8배, WithList 8스레드 약 4배). GC 할당은 포인터를 미는 것뿐이라 매우 싸서, C#은 작은 객체를 풀에 넣으면 오히려 손해다. C#은 <strong>만들기 비싼 객체만 풀</strong>에 넣고 작은 객체는 <code>new</code>하는 것이 맞다(docs/naming.md). C# <code>new</code> Plain 1스레드는 측정마다 1.4~2.1ns로 흔들렸다.</li>
+<li>C++은 반대다. <code>new</code>/<code>delete</code>가 비싸서(내부 <code>vector</code>까지 할당하면 약 65배 차이) 풀이 크게 이긴다.</li>
 </ul>
 
+<h3>측정 틀을 두 번 고쳤다(Codex 리뷰)</h3>
+<ol>
+<li><strong>1차 R1</strong>: 처음 C#은 <code>Parallel.For</code>(8만 회)였다. <code>MaxDegreeOfParallelism</code>은 상한일 뿐이라 N개 스레드가 실제로 동시에 도는지 보장하지 않는다. → 측정마다 전용 스레드 N개를 만들고, 횟수를 C++과 같은 840만 회로.</li>
+<li><strong>2차 R1</strong>: 측정마다 스레드를 만들면 생성 비용과 출발 시차가 섞인다. 실제로 Noop이 8코어 8스레드에서 3.4~3.8배만 늘어 CLAUDE.md 규칙("Noop이 스레드 수만큼 늘지 않으면 믿지 않는다")에 걸렸다. → 두 언어 모두 <code>ThreadTeam</code>(스레드를 미리 만들고 barrier로 같이 출발·같이 끝)으로.</li>
+</ol>
+<p>그래도 Noop은 8스레드에서 약 5배까지만 늘었다(이 PC는 물리 8코어, 논리 16개). 확인한 것: 객체를 64바이트로 정렬해도 같다(false sharing 아님), 스레드를 물리 코어마다 고정하면 오히려 느려졌다(1스레드 845M → 338M). 그래서 <strong>"스레드를 늘리면 몇 배"라는 확장성 수치는 내세우지 않고, 같은 스레드 수·같은 틀에서의 언어 간 비교만 결론으로 쓴다.</strong> 이 비교는 틀의 한계보다 차이가 훨씬 크다(수 배~수백 배). 원인 조사는 후순위(PROGRESS).</p>
+
 <h3>덤으로 알게 된 것: BufferPool이 느린 이유</h3>
-<p>같은 구조인데 <code>ObjectPool</code>(헤더 템플릿, 모두 인라인)은 1스레드 625M/s, <code>BufferPool</code>(<code>.cpp</code>에 있어 호출이 인라인되지 않음)은 200~290M/s다. 후순위 목록의 "BufferPool 2판 최적화 ① 빠른 길을 헤더 inline으로"의 근거가 됐다(PROGRESS).</p>
+<p>같은 구조인데 <code>ObjectPool</code>(헤더 템플릿, 모두 인라인)은 1스레드 625~845M/s, <code>BufferPool</code>(<code>.cpp</code>에 있어 호출이 인라인되지 않음)은 200~290M/s다. 후순위 목록의 "BufferPool 2판 최적화 ① 빠른 길을 헤더 inline으로"의 근거가 됐다(PROGRESS).</p>
 
 </main>
 </body>
