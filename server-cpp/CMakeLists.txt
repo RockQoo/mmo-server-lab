@@ -52,7 +52,7 @@ set(CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Core)
 
 # ======== Core 라이브러리 (정적 라이브러리, 게임을 모른다) ========
 
-# ---- Base: 직렬화(ByteWriter, ByteReader), 빌드 정보
+# ---- Base: 직렬화(ByteWriter, ByteReader), 빌드 정보, ID 타입(StrongId), 고유 ID(Ruid)
 # 헤더도 적어야 VS 프로젝트에 보인다(컴파일은 .cpp만 한다).
 add_library(Base STATIC
     Core/Base/Assert.cpp
@@ -64,6 +64,10 @@ add_library(Base STATIC
     Core/Base/ByteTraits.h
     Core/Base/ByteWriter.cpp
     Core/Base/ByteWriter.h
+    Core/Base/Ruid.h
+    Core/Base/RuidGenerator.cpp
+    Core/Base/RuidGenerator.h
+    Core/Base/StrongId.h
     Core/Base/Utf8.cpp
     Core/Base/Utf8.h
 )
@@ -75,6 +79,9 @@ add_executable(BaseTests
     Core/Base/Tests/BuildInfoTest.cpp
     Core/Base/Tests/ByteFormatTest.cpp
     Core/Base/Tests/ByteRWTest.cpp
+    Core/Base/Tests/RuidGeneratorTest.cpp
+    Core/Base/Tests/RuidTest.cpp
+    Core/Base/Tests/StrongIdTest.cpp
 )
 target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
 # C# 테스트와 같이 쓰는 정답 파일 위치(저장소 최상위 testdata/)

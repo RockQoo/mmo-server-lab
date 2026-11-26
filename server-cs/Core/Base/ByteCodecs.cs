@@ -54,6 +54,14 @@ public readonly struct StringCodec : IByteCodec<string>
     public static string Read(ref ByteReader reader) => reader.ReadString();
 }
 
+// ---- ID (C++ StrongId: 정수 하나와 같은 바이트) ----
+
+public readonly struct RuidCodec : IByteCodec<Ruid>
+{
+    public static void Write(ref ByteWriter writer, Ruid value) => writer.Write(value.Value);
+    public static Ruid Read(ref ByteReader reader) => new(reader.Read<long>());
+}
+
 // ---- 값이 있을 수도 없을 수도 (C++ std::optional: bool(있음) + 값) ----
 
 // 값 형식: int?, MyStruct? (Nullable<T>)
