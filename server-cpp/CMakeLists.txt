@@ -95,15 +95,18 @@ endif()
 # ctest는 테스트마다 프로세스를 따로 띄우므로 하나가 죽어도 나머지는 돈다.
 gtest_discover_tests(BaseTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
-# ---- Messaging: 일을 받아 순서대로 처리하는 스레드(Lane). 스레드를 만들고 돌리는 것은 Base가 아니라 여기에 둔다.
+# ---- Messaging: 일을 받아 순서대로 처리하는 스레드(Lane), 키로 Lane을 고르는 묶음(LaneGroup). 스레드를 만들고 돌리는 것은 Base가 아니라 여기에 둔다.
 add_library(Messaging STATIC
     Core/Messaging/Lane.cpp
     Core/Messaging/Lane.h
+    Core/Messaging/LaneGroup.cpp
+    Core/Messaging/LaneGroup.h
 )
 target_link_libraries(Messaging PUBLIC Base)
 set_target_properties(Messaging PROPERTIES FOLDER Core)
 
 add_executable(MessagingTests
+    Core/Messaging/Tests/LaneGroupTest.cpp
     Core/Messaging/Tests/LaneTest.cpp
 )
 target_link_libraries(MessagingTests PRIVATE Messaging GTest::gtest_main)

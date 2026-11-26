@@ -3,6 +3,8 @@
 #include <condition_variable>
 #include <functional>
 #include <mutex>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -23,6 +25,9 @@ namespace Messaging
         using Job = std::move_only_function<void()>;
 
         Lane();
+        // 스레드 이름을 붙인다(SetThreadDescription). VS 스레드 창, 프로파일러, 크래시 덤프에 이 이름으로 보인다.
+        // 생성할 때 한 번만 정하고 바꾸지 않는다. 빈 이름이면 붙이지 않는다.
+        explicit Lane(const std::string_view name);
         // Stop()과 같다. 이미 넣은 일은 모두 처리한 뒤 스레드를 끝낸다.
         ~Lane();
 
@@ -49,6 +54,7 @@ namespace Messaging
         std::mutex _mutex{};
         std::condition_variable_any _wake{}; // stop_token으로도 깨어나는 condition_variable
         std::vector<Job> _pending{};         // _mutex가 지킨다
+        std::wstring _name{};                // 스레드 이름(Windows API가 UTF-16을 받는다). 스레드 시작 전에 정해진다
         std::jthread _thread{};              // 생성자 본문에서 시작, Stop()에서 join
     };
 } // namespace Messaging
