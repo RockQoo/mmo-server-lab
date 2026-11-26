@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개발일지: BufferPool</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+.d-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+.d-wt { fill: var(--warn); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-ot { fill: var(--ok); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-buf { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.d-hot { stroke: var(--warn); stroke-width: 2; fill: none; marker-end: url(#arrowWarn); }
+.d-cold { stroke: var(--ok); stroke-width: 2; fill: none; stroke-dasharray: 6 4; marker-end: url(#arrowOk); }
+.bar { height: 14px; border-radius: 3px; background: var(--accent); display: inline-block; vertical-align: middle; }
+.bar.warn { background: var(--warn); }
+.bar.cs { background: var(--cs); }
+.bar.muted { background: var(--muted); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+<h1>개발일지 · BufferPool</h1>
+<p class="sub">Memory · 2026-11-26 · 1판 측정 후 2판을 만들기 전의 고민. 주제가 이어지면 아래에 날짜를 달아 덧붙인다</p>
+
+<div class="card">
+<p><strong>한 줄 요약.</strong> 1판은 모든 스레드가 등급마다 <strong>mutex 하나를 함께</strong> 쓴다. 그래서 스레드가 늘수록 줄을 서고, 풀을 안 쓰는 <code>new</code>/<code>delete</code>보다 느려졌다. 2판은 스레드마다 <strong>자기 캐시</strong>를 두고, 대부분의 빌리기·반납을 락 없이 그 안에서 끝낸다. 전역 풀은 캐시가 비거나 넘칠 때만 <strong>묶음으로</strong> 오간다.</p>
+</div>
+
+<h2>용어</h2>
+<div class="table-wrap"><table>
+<tr><th>이름</th><th>뜻</th></tr>
+<tr><td><strong>1판 (v1)</strong></td><td>지금 커밋된 C++ <code>BufferPool</code>(<code>ae9706c</code>). 등급마다 mutex 하나. 벤치마크 이름 <code>BufferPoolV1</code></td></tr>
+<tr><td><strong>2판 (v2)</strong></td><td>만들 예정. 1판 구조 앞에 스레드별 캐시를 더한 것. 클래스 이름은 그대로 <code>BufferPool</code>(벤치마크·문서에서만 판을 나눈다)</td></tr>
+<tr><td>C++ <code>new</code>/<code>delete</code></td><td>풀 없이 매번 <code>new std::byte[size]</code> → <code>delete[]</code>(Windows 기본 힙)</td></tr>
+<tr><td>C# <code>new byte[]</code></td><td>풀 없이 매번 <code>new byte[size]</code>. 해제는 GC가 나중에</td></tr>
+<tr><td>C# <code>ArrayPool</code></td><td>.NET 기본 제공 풀 <code>ArrayPool&lt;byte&gt;.Shared</code>의 <code>Rent</code> → <code>Return</code>(스레드별 캐시 있음)</td></tr>
+<tr><td>등급</td><td>크기 칸. 256B, 1KB, 4KB, 16KB, 64KB(4배씩) 5개. <code>Rent(1000)</code>은 1000 이상인 가장 작은 칸인 1KB를 준다. 크기가 제각각인 버퍼 풀은 보통 이렇게 칸을 나눈다(C# <code>ArrayPool</code>은 2배씩)</td></tr>
+</table></div>
+
+<h2>측정: 1판이 왜 문제인가</h2>
+<p>버퍼 하나를 빌려 한 바이트 쓰고 바로 반납하는 일을 스레드 여러 개가 동시에 반복했다. 값은 <strong>모든 스레드를 합친 초당 횟수</strong>(크면 좋음), 256B. C++은 3회 중앙값.</p>
+<div class="table-wrap"><table>
+<tr><th>스레드</th><th>방식</th><th>처리량</th><th style="width:50%"></th></tr>
+<tr><td rowspan="4">1</td><td>C++ <code>new</code>/<code>delete</code></td><td class="num">52M/s</td><td><span class="bar muted" style="width:6.4%"></span></td></tr>
+<tr><td><strong>C++ 1판</strong></td><td class="num">33M/s</td><td><span class="bar warn" style="width:4.1%"></span></td></tr>
+<tr><td>C# <code>new byte[]</code></td><td class="num">189M/s</td><td><span class="bar muted" style="width:23.2%"></span></td></tr>
+<tr><td>C# <code>ArrayPool</code></td><td class="num">268M/s</td><td><span class="bar cs" style="width:32.9%"></span></td></tr>
+<tr><td rowspan="4">4</td><td>C++ <code>new</code>/<code>delete</code></td><td class="num">102M/s</td><td><span class="bar muted" style="width:12.5%"></span></td></tr>
+<tr><td><strong>C++ 1판</strong></td><td class="num">14M/s</td><td><span class="bar warn" style="width:1.7%"></span></td></tr>
+<tr><td>C# <code>new byte[]</code></td><td class="num">269M/s</td><td><span class="bar muted" style="width:33%"></span></td></tr>
+<tr><td>C# <code>ArrayPool</code></td><td class="num">489M/s</td><td><span class="bar cs" style="width:60%"></span></td></tr>
+<tr><td rowspan="4">8</td><td>C++ <code>new</code>/<code>delete</code></td><td class="num">123M/s</td><td><span class="bar muted" style="width:15.1%"></span></td></tr>
+<tr><td><strong>C++ 1판</strong></td><td class="num">8.7M/s</td><td><span class="bar warn" style="width:1.1%"></span></td></tr>
+<tr><td>C# <code>new byte[]</code></td><td class="num">193M/s</td><td><span class="bar muted" style="width:23.7%"></span></td></tr>
+<tr><td>C# <code>ArrayPool</code></td><td class="num">814M/s</td><td><span class="bar cs" style="width:100%"></span></td></tr>
+</table></div>
+<ul>
+  <li><strong>1판은 스레드 1개에서도 <code>new</code>/<code>delete</code>보다 느리고, 스레드가 늘수록 처리량이 줄어든다</strong>(33M → 8.7M). 이유는 아래 "1판은 왜 느린가".</li>
+  <li>Windows 기본 힙은 이미 스레드별 캐시가 있어 스레드를 늘리면 처리량도 는다. 풀이 이것보다 빨라야 쓸 이유가 있다.</li>
+  <li>C# <code>ArrayPool</code>은 스레드별 캐시라 8개에서 814M/s, 할당 0. 2판의 목표 모양이다. (C# <code>new byte[]</code>는 4KB에서 GC 비용이 커져 8스레드 4KB에서 <code>ArrayPool</code>이 약 140배 빠르다)</li>
+</ul>
+
+<h2>1판: 등급마다 mutex 하나</h2>
+<div class="diagram">
+<svg viewBox="0 0 760 340" role="img" aria-label="1판 구조: 모든 스레드가 하나의 풀에 직접 접근">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+    <marker id="arrowWarn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--warn)"/></marker>
+    <marker id="arrowOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker>
+  </defs>
+  <rect class="d-cpp" x="40" y="16" width="140" height="40" rx="8"/><text class="d-t" x="110" y="41" text-anchor="middle">Lane-0</text>
+  <rect class="d-cpp" x="220" y="16" width="140" height="40" rx="8"/><text class="d-t" x="290" y="41" text-anchor="middle">Lane-1</text>
+  <rect class="d-cpp" x="400" y="16" width="140" height="40" rx="8"/><text class="d-t" x="470" y="41" text-anchor="middle">Lane-2</text>
+  <rect class="d-cpp" x="580" y="16" width="140" height="40" rx="8"/><text class="d-t" x="650" y="41" text-anchor="middle">IOCP-0</text>
+  <path class="d-hot" d="M110,58 L300,116"/><path class="d-hot" d="M290,58 L330,116"/>
+  <path class="d-hot" d="M470,58 L430,116"/><path class="d-hot" d="M650,58 L460,116"/>
+  <text class="d-wt" x="380" y="96" text-anchor="middle">모든 Rent·Return이 매번 여기로</text>
+
+  <rect class="d-box" x="40" y="120" width="680" height="200" rx="10"/>
+  <text class="d-t" x="60" y="144" font-weight="600">BufferPool (인스턴스, 만든 쪽이 소유)</text>
+  <rect class="d-warn" x="60" y="156" width="300" height="30" rx="6"/>
+  <text class="d-t" x="74" y="176">_rented 원자 카운터</text>
+  <text class="d-wt" x="380" y="176">① 모든 스레드가 매번 같은 캐시 라인에 쓴다</text>
+
+  <rect class="d-warn" x="60" y="200" width="80" height="28" rx="6"/><text class="d-t" x="100" y="219" text-anchor="middle">mutex</text>
+  <text class="d-m" x="150" y="219">256B</text>
+  <rect class="d-buf" x="190" y="204" width="20" height="20"/><rect class="d-buf" x="230" y="204" width="20" height="20"/><rect class="d-buf" x="270" y="204" width="20" height="20"/><rect class="d-buf" x="310" y="204" width="20" height="20"/>
+  <path class="d-line" d="M210,214 L228,214"/><path class="d-line" d="M250,214 L268,214"/><path class="d-line" d="M290,214 L308,214"/>
+  <text class="d-wt" x="380" y="219">② 한 번에 한 스레드만. 나머지는 줄을 선다</text>
+
+  <rect class="d-warn" x="60" y="238" width="80" height="28" rx="6"/><text class="d-t" x="100" y="257" text-anchor="middle">mutex</text>
+  <text class="d-m" x="150" y="257">1KB</text>
+  <rect class="d-buf" x="190" y="242" width="20" height="20"/><rect class="d-buf" x="230" y="242" width="20" height="20"/>
+  <path class="d-line" d="M210,252 L228,252"/>
+  <text class="d-m" x="380" y="257">free list: 반납된 버퍼 맨 앞에 다음 버퍼 주소를 적어 잇는다</text>
+
+  <rect class="d-warn" x="60" y="276" width="80" height="28" rx="6"/><text class="d-t" x="100" y="295" text-anchor="middle">mutex</text>
+  <text class="d-m" x="150" y="295">4KB · 16KB · 64KB</text>
+</svg>
+</div>
+<p class="muted">비유: 은행 창구가 하나다. 손님(스레드)이 늘어도 창구가 하나라 처리량은 늘지 않고, 줄을 세우고 깨우는 비용만 커진다.</p>
+<p>mutex는 <strong>등급마다 하나씩, 모두 5개</strong>다. 256B를 빌리는 스레드와 4KB를 빌리는 스레드는 서로 기다리지 않는다. 같은 등급끼리는 같은 mutex를 두고 다툰다. 실제 서버는 작은 패킷(256B)이 대부분이라 결국 한 등급에 몰린다. 벤치마크도 모든 스레드가 같은 크기를 빌리는 이 경우를 쟀다. 64KB보다 큰 요청은 풀을 거치지 않는다.</p>
+
+<h2>1판은 왜 느린가</h2>
+<h3>① 스레드 1개에서도: 원자 연산이 너무 많다</h3>
+<div class="table-wrap"><table>
+<tr><th>단계</th><th>원자 연산(다른 코어와 맞추는 비싼 명령, 경쟁이 없어도 한 번에 수 ns)</th></tr>
+<tr><td>Rent: mutex 잠금·해제</td><td class="num">2번</td></tr>
+<tr><td>Rent: <code>_rented</code> 증가</td><td class="num">1번</td></tr>
+<tr><td>Return: mutex 잠금·해제</td><td class="num">2번</td></tr>
+<tr><td>Return: <code>_rented</code> 감소</td><td class="num">1번</td></tr>
+<tr><td><strong>합계</strong></td><td class="num"><strong>6번 ≈ 30ns</strong>(측정 30.7ns)</td></tr>
+</table></div>
+<p>Windows 기본 힙은 작은 크기를 스레드·코어별 묶음으로 처리해 원자 연산이 적다(측정 19ns). 1판은 <strong>풀이 아끼는 비용(할당)보다 풀이 더하는 비용(락)이 더 크다.</strong></p>
+<h3>② 스레드가 늘면: 캐시 라인 핑퐁 + 줄서기</h3>
+<ul>
+  <li><strong>캐시 라인 핑퐁</strong>: CPU는 메모리를 64바이트 줄(캐시 라인) 단위로 코어마다 복사해 둔다. 한 코어가 쓰면 다른 코어의 복사본이 무효가 되고, 다음 코어는 그 줄을 다시 받아 와야 한다(수십~100ns). 모든 Rent·Return이 같은 줄(mutex, 목록 머리, 카운터)을 쓰므로 그 줄이 코어 사이를 계속 오간다.</li>
+  <li><strong>줄서기</strong>: 누가 mutex를 잡고 있으면 나머지는 잠깐 돌며 기다리다 오래 걸리면 OS에 잠들었다 깬다(수 μs).</li>
+</ul>
+<p>그래서 스레드를 늘리면 일보다 기다림이 커져 처리량이 오히려 준다. 기능은 맞다(테스트 통과, 버퍼가 섞이지 않음). 느릴 뿐이다.</p>
+
+<h2>1판과 2판: 구조는 같고, 앞에 칸 하나를 더한다</h2>
+<div class="diagram">
+<svg viewBox="0 0 760 200" role="img" aria-label="1판은 풀에 직접, 2판은 내 캐시를 먼저 거침">
+  <text class="d-t" x="20" y="44" font-weight="600">1판</text>
+  <rect class="d-cpp" x="80" y="20" width="120" height="40" rx="8"/><text class="d-t" x="140" y="45" text-anchor="middle">Lane</text>
+  <path class="d-hot" d="M202,40 L478,40"/><text class="d-wt" x="340" y="32" text-anchor="middle">매번 직접(매번 mutex)</text>
+  <rect class="d-warn" x="480" y="20" width="260" height="40" rx="8"/><text class="d-t" x="610" y="45" text-anchor="middle">풀: 등급별 mutex + 빈 버퍼 목록</text>
+
+  <text class="d-t" x="20" y="144" font-weight="600">2판</text>
+  <rect class="d-cpp" x="80" y="120" width="120" height="40" rx="8"/><text class="d-t" x="140" y="145" text-anchor="middle">Lane</text>
+  <path class="d-line" d="M202,140 L248,140"/>
+  <rect class="d-ok" x="250" y="114" width="150" height="52" rx="8"/><text class="d-t" x="325" y="138" text-anchor="middle">내 캐시</text><text class="d-ot" x="325" y="156" text-anchor="middle">대부분 여기서 끝</text>
+  <path class="d-cold" d="M402,140 L478,140"/><text class="d-m" x="440" y="130" text-anchor="middle">가끔만</text><text class="d-m" x="440" y="182" text-anchor="middle">묶음으로</text>
+  <rect class="d-box" x="480" y="120" width="260" height="40" rx="8"/><text class="d-t" x="610" y="145" text-anchor="middle">전역 풀: 1판과 같은 모양</text>
+</svg>
+</div>
+<p>달라지는 것은 두 가지다. 보통은 내 캐시에서 끝나 mutex까지 가지 않고, 전역 풀과는 하나씩이 아니라 묶음으로 오간다.</p>
+
+<h2>2판: 스레드마다 자기 캐시 + 전역 풀</h2>
+<div class="diagram">
+<svg viewBox="0 0 760 380" role="img" aria-label="2판 구조: 스레드별 캐시가 대부분을 처리하고 전역 풀과는 묶음으로 오감">
+  <rect class="d-cpp" x="40" y="16" width="200" height="130" rx="10"/>
+  <text class="d-t" x="140" y="38" text-anchor="middle" font-weight="600">Lane-0</text>
+  <text class="d-m" x="56" y="62">내 캐시(스레드 전용)</text>
+  <text class="d-m" x="56" y="88">256B</text><rect class="d-buf" x="96" y="76" width="16" height="16"/><rect class="d-buf" x="116" y="76" width="16" height="16"/><rect class="d-buf" x="136" y="76" width="16" height="16"/>
+  <text class="d-m" x="56" y="114">1KB</text><rect class="d-buf" x="96" y="102" width="16" height="16"/><rect class="d-buf" x="116" y="102" width="16" height="16"/>
+  <text class="d-ot" x="56" y="136">락 없음 · 원자 연산 없음</text>
+
+  <rect class="d-cpp" x="280" y="16" width="200" height="130" rx="10"/>
+  <text class="d-t" x="380" y="38" text-anchor="middle" font-weight="600">Lane-1</text>
+  <text class="d-m" x="296" y="62">내 캐시(스레드 전용)</text>
+  <text class="d-m" x="296" y="88">256B</text><text class="d-wt" x="336" y="88">비었음</text>
+  <text class="d-m" x="296" y="114">1KB</text><rect class="d-buf" x="336" y="102" width="16" height="16"/><rect class="d-buf" x="356" y="102" width="16" height="16"/><rect class="d-buf" x="376" y="102" width="16" height="16"/>
+  <text class="d-ot" x="296" y="136">락 없음 · 원자 연산 없음</text>
+
+  <rect class="d-cpp" x="520" y="16" width="200" height="130" rx="10"/>
+  <text class="d-t" x="620" y="38" text-anchor="middle" font-weight="600">IOCP-0</text>
+  <text class="d-m" x="536" y="62">내 캐시(스레드 전용)</text>
+  <text class="d-m" x="536" y="88">256B</text>
+  <rect class="d-buf" x="576" y="76" width="14" height="16"/><rect class="d-buf" x="592" y="76" width="14" height="16"/><rect class="d-buf" x="608" y="76" width="14" height="16"/><rect class="d-buf" x="624" y="76" width="14" height="16"/><rect class="d-buf" x="640" y="76" width="14" height="16"/><rect class="d-buf" x="656" y="76" width="14" height="16"/><rect class="d-buf" x="672" y="76" width="14" height="16"/><rect class="d-buf" x="688" y="76" width="14" height="16"/>
+  <text class="d-wt" x="536" y="114">256B 가득 참</text>
+  <text class="d-ot" x="536" y="136">락 없음 · 원자 연산 없음</text>
+
+  <path class="d-cold" d="M380,236 L380,152"/><text class="d-m" x="390" y="196">비었을 때만</text><text class="d-m" x="390" y="212">묶음으로 가져옴</text>
+  <path class="d-cold" d="M620,150 L620,234"/><text class="d-m" x="630" y="196">넘칠 때만</text><text class="d-m" x="630" y="212">절반을 한 번에 보냄</text>
+  <text class="d-ot" x="40" y="196">Rent·Return 대부분은</text><text class="d-ot" x="40" y="214">위 캐시 안에서 끝난다(수 ns)</text>
+
+  <rect class="d-box" x="40" y="240" width="680" height="124" rx="10"/>
+  <text class="d-t" x="60" y="264" font-weight="600">전역 풀 BufferPool::Shared()  (프로세스에 하나, 끝까지 살아 있음)</text>
+  <rect class="d-warn" x="60" y="278" width="80" height="28" rx="6"/><text class="d-t" x="100" y="297" text-anchor="middle">mutex</text>
+  <text class="d-m" x="150" y="297">256B</text>
+  <rect class="d-ok" x="190" y="280" width="92" height="24" rx="5"/><text class="d-m" x="236" y="297" text-anchor="middle">묶음 □□□□</text>
+  <rect class="d-ok" x="292" y="280" width="92" height="24" rx="5"/><text class="d-m" x="338" y="297" text-anchor="middle">묶음 □□□□</text>
+  <rect class="d-warn" x="60" y="318" width="80" height="28" rx="6"/><text class="d-t" x="100" y="337" text-anchor="middle">mutex</text>
+  <text class="d-m" x="150" y="337">1KB …</text>
+  <rect class="d-ok" x="190" y="320" width="92" height="24" rx="5"/><text class="d-m" x="236" y="337" text-anchor="middle">묶음 □□□□</text>
+  <text class="d-m" x="410" y="297">mutex는 묶음 하나에 한 번</text>
+  <text class="d-m" x="410" y="315">= 버퍼 여러 개를 옮길 때 한 번만 줄을 선다</text>
+</svg>
+</div>
+<p class="muted">비유: 손님마다 지갑이 있다. 지갑에서 꺼내고 넣는 건 혼자 한다. 지갑이 비면 은행에서 묶음으로 찾고, 넘치면 묶음으로 맡긴다. 창구는 가끔만 간다.</p>
+
+<h2>캐시에 있는 것: 쓰고 있는 버퍼가 아니라 반납된 빈 버퍼</h2>
+<div class="diagram">
+<svg viewBox="0 0 760 250" role="img" aria-label="버퍼의 한살이: 캐시에서 꺼내 쓰고 다시 캐시로">
+  <rect class="d-ok" x="40" y="40" width="200" height="70" rx="10"/>
+  <text class="d-t" x="140" y="68" text-anchor="middle" font-weight="600">내 스레드 캐시</text>
+  <text class="d-m" x="140" y="90" text-anchor="middle">빈 버퍼 대기실(이 스레드만 만짐)</text>
+  <rect class="d-cpp" x="520" y="40" width="200" height="70" rx="10"/>
+  <text class="d-t" x="620" y="68" text-anchor="middle" font-weight="600">사용 중</text>
+  <text class="d-m" x="620" y="90" text-anchor="middle">PooledBuffer가 들고 데이터를 씀</text>
+  <path class="d-line" d="M242,58 L518,58"/><text class="d-m" x="380" y="50" text-anchor="middle">Rent: 캐시에서 꺼냄(락 없음)</text>
+  <path class="d-line" d="M518,92 L242,92"/><text class="d-m" x="380" y="110" text-anchor="middle">다 쓰면 핸들 소멸 → 반납하는 스레드의 캐시로</text>
+  <rect class="d-box" x="40" y="170" width="200" height="60" rx="10"/>
+  <text class="d-t" x="140" y="196" text-anchor="middle" font-weight="600">전역 풀</text>
+  <text class="d-m" x="140" y="216" text-anchor="middle">빈 버퍼 창고(모든 스레드 공용)</text>
+  <path class="d-cold" d="M110,168 L110,114"/><text class="d-m" x="20" y="146">비면 묶음</text>
+  <path class="d-cold" d="M170,114 L170,168"/><text class="d-m" x="180" y="146">넘치면 절반 묶음</text>
+</svg>
+</div>
+<p>캐시는 "내 Lane 전용으로 잡아 둔 버퍼"가 아니다. <strong>내 스레드에서 방금 반납된 빈 버퍼를 전역에 돌려보내지 않고 잠깐 들고 있는 곳</strong>이다. 버퍼는 패킷 하나 쓰는 동안만 빌리고 다 쓰면 바로 반납한다. 반납하는 곳이 전역 풀이 아니라 내 캐시라서, 다음 Rent 때 방금 반납한 버퍼가 그대로 다시 나온다.</p>
+
+<h3>예: Lane-0이 이동 패킷(256B)을 계속 보낼 때 (캐시는 등급마다 최대 4개라고 하자)</h3>
+<div class="table-wrap"><table>
+<tr><th>순서</th><th>일</th><th>내 캐시(256B)</th><th>전역 풀</th></tr>
+<tr><td>1</td><td>첫 <code>Rent(200)</code>: 캐시 빔 → 전역도 빔 → 새로 할당</td><td>비어 있음</td><td>-</td></tr>
+<tr><td>2</td><td>직렬화하고 처리 끝, 핸들 소멸 → <strong>반납 = 내 캐시로</strong></td><td>□</td><td>-</td></tr>
+<tr><td>3</td><td><code>Rent(200)</code> → 내 캐시에서 꺼냄(락 없음)</td><td>비어 있음</td><td>-</td></tr>
+<tr><td>4</td><td>반납 → 내 캐시로</td><td>□</td><td>-</td></tr>
+<tr><td>…</td><td>3~4 반복. <strong>같은 버퍼 하나가 계속 돈다</strong>. 1판은 3~4마다 mutex를 잡았다</td><td>□</td><td>안 건드림</td></tr>
+</table></div>
+
+<h3>언제 반납하나 (두 단계)</h3>
+<div class="table-wrap"><table>
+<tr><th>반납</th><th>언제</th><th>어디로</th></tr>
+<tr><td><strong>버퍼 → 풀</strong></td><td>패킷 처리가 끝나 <code>PooledBuffer</code>가 소멸할 때(1판과 같음)</td><td>지금 그 코드를 실행하는 <strong>스레드의 캐시</strong></td></tr>
+<tr><td><strong>캐시 → 전역 풀</strong></td><td>캐시가 꽉 찼을 때(절반을 묶음으로), 스레드가 끝날 때(전부)</td><td>전역 풀</td></tr>
+</table></div>
+
+<h2>버퍼는 어디에 쓰이나: 수신은 고정, 송신은 패킷마다</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>등록(<code>WSARecv</code>/<code>WSASend</code>)</th><th>OS가 하는 일</th><th>완료 통지(IOCP 스레드)</th><th>버퍼 주인</th><th>BufferPool</th></tr>
+<tr><td><strong>수신</strong></td><td>빈 버퍼 등록</td><td>받은 데이터를 버퍼에 <strong>채움</strong></td><td>"다 채웠어" → 패킷 해석 → 같은 버퍼로 다시 등록</td><td>세션이 고정으로 소유(연결이 끊길 때까지 같은 버퍼)</td><td>거의 안 씀. 반납할 것이 없다</td></tr>
+<tr><td><strong>송신</strong></td><td>데이터가 <strong>이미 든</strong> 버퍼 등록</td><td>버퍼에서 데이터를 <strong>읽어</strong> 보냄</td><td>"다 보냈어" → 버퍼는 이제 필요 없음 → <strong>반납</strong></td><td>패킷마다</td><td><strong>주 용도</strong></td></tr>
+<tr><td>Lane 사이 직렬화 메시지</td><td colspan="3">보내는 Lane이 빌려 직렬화 → 받는 Lane이 다 쓰고 반납</td><td>메시지마다</td><td>주 용도(직렬화 큐)</td></tr>
+</table></div>
+<p><strong>송신 버퍼를 고정 하나로 못 쓰는 이유</strong></p>
+<ul>
+  <li><strong>보내는 중에 또 보내야 한다</strong>: 패킷 A를 <code>WSASend</code>로 맡겼는데 OS가 아직 보내는 중이다. 그 사이 패킷 B를 같은 버퍼에 쓰면 A가 망가진다. B는 다른 버퍼가 필요하다.</li>
+  <li><strong>한 패킷을 여러 명에게</strong>: 스킬 이펙트 하나를 주변 100명에게 보내면, 100개 세션의 송신이 모두 끝날 때까지 그 버퍼가 살아 있어야 한다.</li>
+</ul>
+<p>그래서 송신은 직렬화할 때 버퍼를 <strong>빌리고</strong>, 보내기가 끝났을 때 <strong>반납</strong>한다(다음 패킷이 다시 쓰게 풀에 돌려놓는다). 보내는 동안 반납하면 다른 패킷이 덮어써 엉뚱한 데이터가 나가므로, 완료 통지까지 버퍼 소유권을 송신 작업에 넘겨 둔다(<code>sendOp-&gt;buffer = std::move(buf)</code>).</p>
+<p><strong>빌리는 쪽은 Lane(패킷을 만드는 곳), 버리는(반납하는) 쪽은 IOCP 스레드(보내기 완료를 아는 곳)</strong>다. 이것이 아래 흐름과 3판 후보의 출발점이다.</p>
+
+<h2>서버의 실제 흐름: 빌리는 스레드 ≠ 반납하는 스레드</h2>
+<div class="diagram">
+<svg viewBox="0 0 760 230" role="img" aria-label="버퍼가 Lane에서 IOCP로, 전역 풀로, 다시 Lane으로 도는 흐름">
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+  </defs>
+  <rect class="d-cpp" x="40" y="30" width="200" height="70" rx="10"/>
+  <text class="d-t" x="140" y="58" text-anchor="middle" font-weight="600">Lane-0</text>
+  <text class="d-m" x="140" y="80" text-anchor="middle">Rent → 직렬화</text>
+  <rect class="d-cpp" x="520" y="30" width="200" height="70" rx="10"/>
+  <text class="d-t" x="620" y="58" text-anchor="middle" font-weight="600">IOCP-0</text>
+  <text class="d-m" x="620" y="80" text-anchor="middle">송신 완료 → Return</text>
+  <rect class="d-box" x="280" y="150" width="200" height="60" rx="10"/>
+  <text class="d-t" x="380" y="176" text-anchor="middle" font-weight="600">전역 풀</text>
+  <text class="d-m" x="380" y="196" text-anchor="middle">묶음 보관</text>
+  <path class="d-line" d="M242,64 L518,64"/><text class="d-m" x="380" y="56" text-anchor="middle">버퍼를 송신으로 넘김(std::move)</text>
+  <path class="d-cold" d="M620,102 L482,170"/><text class="d-m" x="560" y="146">캐시가 차면 절반을 묶음으로</text>
+  <path class="d-cold" d="M278,170 L140,102"/><text class="d-m" x="40" y="146">캐시가 비면 묶음으로</text>
+</svg>
+</div>
+<p>Lane은 빌리기만 하고 IOCP는 반납만 하므로, 그대로 두면 IOCP 캐시는 넘치고 Lane 캐시는 늘 빈다. 그래서 캐시가 넘치거나 빌 때 <strong>버퍼 하나씩이 아니라 묶음으로</strong> 전역 풀과 주고받는다. 락은 묶음마다 한 번이라, 버퍼가 Lane → IOCP → 전역 → Lane으로 돌아도 대부분은 락 없이 지나간다. 벤치마크에도 이 경우(빌리는 스레드와 반납하는 스레드를 나눔)를 넣는다.</p>
+
+<h2>차이 요약</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>1판</th><th>2판(제안)</th></tr>
+<tr><td>풀</td><td>인스턴스. 만든 쪽이 소유, 범위가 끝나면 사라짐</td><td>전역 하나 <code>BufferPool::Shared()</code>, 프로그램 끝까지(C# <code>ArrayPool.Shared</code>와 같은 모양)</td></tr>
+<tr><td>보통의 Rent·Return</td><td>매번 mutex + 원자 카운터</td><td>자기 캐시에서 끝. 락·원자 연산 없음</td></tr>
+<tr><td>mutex</td><td>호출마다</td><td>캐시가 비거나 넘칠 때, 묶음마다 한 번</td></tr>
+<tr><td>빌려 간 수 세기</td><td>항상(원자 카운터, 경합 원인)</td><td>Debug에서만</td></tr>
+<tr><td>반납 핸들 <code>PooledBuffer</code></td><td>있음</td><td>그대로(쓰는 법 같음)</td></tr>
+<tr><td>왜 전역이어야 하나</td><td colspan="2">스레드 캐시에 남은 버퍼는 풀이 먼저 사라지면 갈 곳이 없다. 풀이 끝까지 살아 있으면 이 문제가 없다</td></tr>
+</table></div>
+
+<h2>2판에서 정할 것</h2>
+<ol>
+  <li><strong>풀의 수명</strong>: 전역 하나(추천) vs 인스턴스 유지(스레드 캐시 정리가 복잡하고 위험)</li>
+  <li><strong>묶음 이동</strong>: 캐시가 넘치면 절반을 한 번에 보내고, 비면 묶음으로 가져온다(추천)</li>
+  <li><strong>빌려 간 수 카운터</strong>: Debug에서만(추천)</li>
+  <li><strong>1판 코드</strong>: 지우고 수치는 결정 기록에 남긴다(추천). 커밋 <code>2209890</code>로 언제든 다시 잴 수 있다</li>
+</ol>
+
+<h2>3판 후보: Lane 자체 풀 + 반납함</h2>
+<div class="card">
+<p><strong>질문</strong>: 전역 풀 대신 Lane마다 자기 풀을 두면 되지 않나? Lane만 만지면 락이 필요 없다.</p>
+<p><strong>막히는 곳</strong>: 송신 버퍼는 Lane이 빌리지만 반납은 IOCP 스레드에서 들어온다. 그 순간 Lane이 같은 풀에서 Rent를 하고 있으면 두 스레드가 같은 목록을 동시에 고쳐 목록이 깨진다. 전용 풀이어도 반납 쪽에는 장치가 필요하다.</p>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 760 200" role="img" aria-label="Lane 자체 풀: 다른 스레드는 반납함에 넣고 Lane은 통째로 가져온다">
+  <rect class="d-cpp" x="40" y="30" width="140" height="44" rx="8"/><text class="d-t" x="110" y="57" text-anchor="middle">Lane-0</text>
+  <rect class="d-ok" x="280" y="20" width="220" height="64" rx="10"/>
+  <text class="d-t" x="390" y="46" text-anchor="middle" font-weight="600">Lane-0 풀: 내 목록</text>
+  <text class="d-ot" x="390" y="68" text-anchor="middle">Lane-0만 만짐(락 없음)</text>
+  <path class="d-line" d="M182,52 L278,52"/><text class="d-m" x="230" y="44" text-anchor="middle">Rent</text>
+  <rect class="d-box" x="280" y="120" width="220" height="56" rx="10"/>
+  <text class="d-t" x="390" y="144" text-anchor="middle" font-weight="600">반납함</text>
+  <text class="d-m" x="390" y="164" text-anchor="middle">넣기: 원자 연산 1번(락 없음)</text>
+  <path class="d-cold" d="M390,118 L390,88"/><text class="d-m" x="400" y="106">내 목록이 비면 통째로 한 번에</text>
+  <rect class="d-cpp" x="600" y="110" width="140" height="40" rx="8"/><text class="d-t" x="670" y="135" text-anchor="middle">IOCP-0</text>
+  <rect class="d-cpp" x="600" y="158" width="140" height="34" rx="8"/><text class="d-t" x="670" y="180" text-anchor="middle">IOCP-1</text>
+  <path class="d-line" d="M598,130 L502,140"/><path class="d-line" d="M598,175 L502,160"/>
+  <text class="d-m" x="560" y="104" text-anchor="middle">송신 완료 → Return</text>
+</svg>
+</div>
+<div class="table-wrap"><table>
+<tr><th></th><th>2판: 스레드별 캐시 + 전역 풀</th><th>3판 후보: Lane 자체 풀 + 반납함</th></tr>
+<tr><td>버퍼가 돌아가는 곳</td><td>반납한 스레드의 캐시(넘치면 전역)</td><td><strong>빌린 Lane으로 돌아감</strong></td></tr>
+<tr><td>다른 스레드 반납 비용</td><td>캐시가 넘칠 때 묶음마다 mutex 한 번</td><td>반납마다 원자 연산 한 번(락 없음)</td></tr>
+<tr><td>쓸 수 있는 스레드</td><td>아무 스레드나</td><td>풀을 가진 스레드만(필요하면 스레드마다 풀을 따로)</td></tr>
+<tr><td>풀 수명</td><td>전역이라 문제없음</td><td>Lane이 사라질 때 송신 중인 버퍼가 돌아올 곳이 필요. Lane 풀을 프로그램 끝까지 살려 둔다</td></tr>
+<tr><td>쓰는 법</td><td><code>BufferPool::Shared().Rent()</code></td><td>Lane의 풀을 넘겨받아 <code>Rent()</code></td></tr>
+<tr><td>닮은 것</td><td>C# <code>ArrayPool.Shared</code></td><td>고성능 할당자의 "원격 반납 목록"(mimalloc 등). Lane이 자기 데이터를 소유하는 스레드 어피니티와 같은 결</td></tr>
+</table></div>
+<p><strong>진행</strong>: 2판을 먼저 만들고, "Lane이 빌리고 IOCP가 반납" 측정에서 2판의 전역 mutex 비용이 크게 나오면 3판을 만들어 비교한다. 측정 없이 미리 3판을 만들지 않는다.</p>
+</main>
+</body>
+</html>

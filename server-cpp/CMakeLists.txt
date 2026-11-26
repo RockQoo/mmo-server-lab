@@ -148,7 +148,7 @@ if(MSVC)
     target_compile_options(Bench PRIVATE /wd6326) # 테스트와 같은 매크로 오탐 대비
 endif()
 
-# ======== 실행 파일 (분산 존 구조, docs/decisions/001-서버-구조.md) ========
+# ======== 실행 파일 (분산 존 구조, docs/decisions/001-server-architecture.md) ========
 # 서버는 Core 라이브러리에만 의존한다. 서버끼리는 서로 링크하지 않는다.
 
 # ---- Gateway: 클라 소켓을 들고, 세션별 경로표로 Zone에 넘기고, Zone이 보낸 패킷을 세션별로 모아 보낸다

@@ -8,7 +8,7 @@ MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 벤치마�
 
 ## 서버 구조
 
-분산 존 구조입니다. 클라이언트는 Gateway에 붙고, Gateway가 세션별 경로표로 패킷을 ZoneServer에 넘깁니다. 존마다 전용 스레드와 틱이 있고, 존 이동(handoff) 코드를 그대로 서버 간 전쟁에 씁니다. 이유와 단계는 [docs/decisions/001-서버-구조.md](docs/decisions/001-서버-구조.md)에 있습니다.
+분산 존 구조입니다. 클라이언트는 Gateway에 붙고, Gateway가 세션별 경로표로 패킷을 ZoneServer에 넘깁니다. 존마다 전용 스레드와 틱이 있고, 존 이동(handoff) 코드를 그대로 서버 간 전쟁에 씁니다. 이유와 단계는 [docs/decisions/001-server-architecture.md](docs/decisions/001-server-architecture.md)에 있습니다.
 
 ## 구성
 

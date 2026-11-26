@@ -6,7 +6,7 @@
 
 ### 2026-11-23 개편
 
-- 서버 구조는 **분산 존**(Gateway + Zone, 이후 Coordinator·ServiceServer·DbWriter). 이유와 단계는 `docs/decisions/001-서버-구조.md`
+- 서버 구조는 **분산 존**(Gateway + Zone, 이후 Coordinator·ServiceServer·DbWriter). 이유와 단계는 `docs/decisions/001-server-architecture.md`
 - **C++(주력)과 C# 서버를 같이 만든다.** 같은 개념은 같은 클래스 이름과 namespace(`docs/naming.md`). 구현은 각 언어답게: C++은 메시지 큐 + 스레드 어피니티, C#은 async/await + `Channel<T>` + GC 할당 최소화
 - 클라이언트는 UE5 5.8 하나, 봇은 C++ BotServer 하나. 같은 프로토콜이라 두 서버에 다 붙는다
 - 프로토콜은 `proto/` 하나 → `tools/CodeGen`(C#)이 C++·C# 코드 생성. 생성 코드는 손으로 고치지 않는다
@@ -42,7 +42,7 @@
 | - | CrashDump | Base (2026-11-26) | 크래시 때 미니덤프 저장 | 일부러 크래시 내서 덤프 확인 | ⬜ | ⬜ |
 | - | Config | Base (2026-11-26) | 설정 파일 읽기 (레인 수, 포트). JSON(주석 허용): C++ nlohmann/json(그때 설치), C# `System.Text.Json` (2026-11-26) | 재빌드 없이 벤치마크 조건 변경 | ⬜ | ⬜ |
 
-나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector, UTF-8 검사(단순 구현 vs simdutf vs 끔. 즉석 측정 2026-11-19: 한글 1KB 채팅 읽기의 약 65%가 검사, 이름은 약 15~20%), C++ vs C# 틱 지연 p99·처리량·GC 멈춤, Lane 큐(mutex + 두 버퍼 교체 vs lock-free MPSC vs moodycamel::ConcurrentQueue, C#은 `Channel<T>` 설정별. 생산자 수·일 크기별 처리량과 지연. 처음엔 mutex + 두 버퍼로 만든다, 2026-11-24), Lane 스레드 코어 고정(끔 vs 하드 고정 `SetThreadAffinityMask` vs 힌트 `SetThreadIdealProcessor`, 틱 지연 p99로 비교. 기본은 끔, 2026-11-26).
+나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector, UTF-8 검사(단순 구현 vs simdutf vs 끔. 즉석 측정 2026-11-19: 한글 1KB 채팅 읽기의 약 65%가 검사, 이름은 약 15~20%), C++ vs C# 틱 지연 p99·처리량·GC 멈춤, Lane 큐(mutex + 두 버퍼 교체 vs lock-free MPSC vs moodycamel::ConcurrentQueue, C#은 `Channel<T>` 설정별. 생산자 수·일 크기별 처리량과 지연. 처음엔 mutex + 두 버퍼로 만든다, 2026-11-24), Lane 스레드 코어 고정(끔 vs 하드 고정 `SetThreadAffinityMask` vs 힌트 `SetThreadIdealProcessor`, 틱 지연 p99로 비교. 기본은 끔, 2026-11-26), BufferPool 3판 후보(Lane 자체 풀 + 원격 반납함. 2판의 "Lane이 빌리고 IOCP가 반납" 측정에서 전역 mutex 비용이 크면, docs/journal/bufferpool.html, 2026-11-26).
 
 ## 도구
 
@@ -51,7 +51,7 @@
 | CodeGen | `tools/CodeGen`(C# 콘솔). proto → `server-cpp`, `server-cs`, `client-ue5` 코드 생성 | ⬜ |
 | 기본 QA | C++·C# 빌드·테스트·lint(`qa.json`), CodeGen 재생성 결과가 커밋본과 같은지 | 🔨 (두 언어 빌드·테스트·lint 완료, CodeGen 비교는 CodeGen 만들 때) |
 
-## 그 다음 (Core를 쓰는 쪽, `docs/decisions/001-서버-구조.md` 단계)
+## 그 다음 (Core를 쓰는 쪽, `docs/decisions/001-server-architecture.md` 단계)
 
 | 단계 | 내용 | C++ | C# |
 |---|---|---|---|
