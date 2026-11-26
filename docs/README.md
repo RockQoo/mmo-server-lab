@@ -47,3 +47,4 @@
 | [006-lanegroup.html](units/006-lanegroup.html) | Messaging: LaneGroup(키로 Lane 고르기) |
 | [007-bufferpool.html](units/007-bufferpool.html) | Memory: BufferPool 1판(등급마다 mutex), PooledBuffer |
 | [008-bufferpool-v2.html](units/008-bufferpool-v2.html) | Memory: BufferPool 2판(스레드 캐시 + 전역 묶음), 첫 벤치마크, 측정 도구·빌드 문제 |
+| [009-objectpool.html](units/009-objectpool.html) | Memory: ObjectPool(반납 때 Reset, 스레드 캐시 + 전역 묶음), C++ 풀 vs C# DefaultObjectPool·new, 측정 틀 ThreadTeam |
