@@ -30,6 +30,7 @@
 | Base | `StrongId<Tag>` | 있음(템플릿, `std::hash`·`std::formatter`·ByteWriter 지원) | **없음**(ID마다 `record struct`) | 아래 참고 |
 | Base | `RwLocked<T>` | 예정 | **없음** | 아래 참고 |
 | Memory | `BufferPool` / `PooledBuffer` | 있음(2판: 전역 하나 `Shared()`, 스레드 캐시 + 전역 묶음 이동, 크기 등급 5개 256B~64KB, RAII 반납 핸들) | **없음**(BCL `ArrayPool<byte>.Shared`) | 아래 참고 |
+| Memory | `ObjectPool<T>` / `PooledPtr<T>` | 있음(템플릿, 타입마다 전역 하나 `Shared()`, 스레드 캐시 64 + 전역 묶음 32, 반납 때 `Reset()`, 핸들은 `unique_ptr` 별칭 8B) | **없음**(MS NuGet `Microsoft.Extensions.ObjectPool`의 `DefaultObjectPool<T>` + 정책 `Return`) | 같은 역할: 객체를 소멸시키지 않고 비워서 다시 쓴다. 아래 참고 |
 
 ## 한쪽에만 있는 것
 
@@ -58,6 +59,15 @@ C#에 만들지 않는 이유(2026-11-26 결정):
 - 풀은 BCL `ArrayPool<byte>.Shared`(스레드별 캐시 포함)가 이미 있다. 쓰는 법은 `Rent` + `try/finally Return`.
 - 핸들이 실수를 막는 힘은 소멸자와 "이동만"에서 나오는데 C#에는 둘 다 없다. `struct`로 감싸면 대입이 복사라 두 번 반납이 그대로 남고, `class`로 감싸면 빌릴 때마다 할당이 생긴다.
 - 실수의 결과도 가볍다(C++은 정의되지 않은 동작, C#은 GC 덕에 메모리는 안전). 네트워크 버퍼는 나중에 `System.IO.Pipelines`가 풀링한다.
+
+### `ObjectPool<T>` / `PooledPtr<T>` (C++만)
+
+객체를 소멸시키지 않고 반납할 때 `Reset()`(noexcept, concept `Poolable`로 강제)만 해서 다시 쓰는 풀. 내부 `vector` 등의 용량까지 재사용한다. 핸들 `PooledPtr<T>`는 `std::unique_ptr<T, ObjectPool<T>::Deleter>` 별칭(상태 없는 deleter라 8B). 구조는 BufferPool 2판과 같다(스레드 캐시 64개 + 전역 묶음 32개, 타입마다 `ObjectPoolTraits<T>`로 바꿀 수 있다).
+
+C#에 만들지 않는 이유(2026-11-26):
+
+- MS 공식 `Microsoft.Extensions.ObjectPool`(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>.Return`이 C++ `Reset()` 자리)이 같은 역할이다. 쓰는 법은 `Get` + `try/finally Return`.
+- 다만 측정해 보니 `DefaultObjectPool`은 스레드 캐시가 없어(공유 배열 + Interlocked) 스레드가 늘수록 느려지고, 작은 객체는 그냥 `new`(GC 할당)가 더 빠르다(스레드 1개: 풀 약 10ns, `new` 약 1.6ns, 8개에서는 풀이 약 130배 느림). 그래서 C#은 **만들기 비싼 객체(큰 버퍼, StringBuilder 등)만 풀에 넣고, 작은 객체는 `new`** 한다. 측정은 `docs/journal/objectpool.html`.
 
 ## C# 에만 있는 것
 

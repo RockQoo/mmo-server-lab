@@ -92,9 +92,9 @@ ul{padding-left:20px;margin:6px 0}
 
 <!-- Memory -->
 <tr><td class="mod" rowspan="3">Memory</td>
-<td><code>ObjectPool&lt;T&gt;</code><br><span class="b warn">제안</span></td><td>객체 재사용</td>
-<td><span class="b impl">직접 만듦</span>free list, 스레드별 캐시 비교</td>
-<td><span class="b cs">MS·대중 라이브러리</span><code>Microsoft.Extensions.ObjectPool</code>(같은 이름, 만들지 않음)</td><td class="st">⬜ ⬜</td></tr>
+<td><code>ObjectPool&lt;T&gt;</code><br><code>PooledPtr&lt;T&gt;</code></td><td>객체 재사용(반납 때 소멸하지 않고 <code>Reset()</code>), 빌린 객체 자동 반납 핸들</td>
+<td><span class="b impl">직접 만듦</span>템플릿, 타입마다 전역 하나 <code>Shared()</code>, 스레드 캐시 + 전역 묶음(BufferPool 2판 구조), 핸들은 <code>unique_ptr</code> 별칭</td>
+<td><span class="b cs">MS·대중 라이브러리</span><code>Microsoft.Extensions.ObjectPool</code>(같은 이름, 만들지 않음). 작은 객체는 <code>new</code>가 더 빨라 비싼 객체만 풀에</td><td class="st">✅ ➖</td></tr>
 <tr><td><code>BufferPool</code><br><code>PooledBuffer</code></td><td>송수신 버퍼 재사용, 빌린 버퍼 자동 반납 핸들</td>
 <td><span class="b impl">직접 만듦</span>2판: 전역 하나 <code>Shared()</code>, 스레드 캐시 + 전역 묶음 이동, 크기 등급 5개(256B~64KB), RAII 핸들</td><td><span class="b bcl">BCL·표준</span><code>ArrayPool&lt;byte&gt;.Shared</code>(만들지 않음, 핸들도 없음)</td><td class="st">✅ ➖</td></tr>
 <tr><td><code>RefCounted</code><br><span class="b warn">보류</span></td><td>참조 수로 수명 관리(세션, 방송 버퍼)</td>

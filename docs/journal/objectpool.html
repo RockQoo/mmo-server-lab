@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개발일지: ObjectPool</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+.d-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+.d-wt { fill: var(--warn); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-ot { fill: var(--ok); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-buf { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.d-hot { stroke: var(--warn); stroke-width: 2; fill: none; marker-end: url(#arrowWarn); }
+.d-cold { stroke: var(--ok); stroke-width: 2; fill: none; stroke-dasharray: 6 4; marker-end: url(#arrowOk); }
+.bar { height: 14px; border-radius: 3px; background: var(--accent); display: inline-block; vertical-align: middle; }
+.bar.warn { background: var(--warn); }
+.bar.cs { background: var(--cs); }
+.bar.muted { background: var(--muted); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+<h1>개발일지 · ObjectPool</h1>
+<p class="sub">Memory · 2026-11-26 · 만들기 전의 질문과 결정, C++ <code>ObjectPool</code> vs C# <code>DefaultObjectPool</code> 측정</p>
+
+<div class="card">
+<p><strong>한 줄 요약.</strong> 객체를 소멸시키지 않고 반납할 때 <code>Reset()</code>만 해서 다시 쓴다(내부 <code>vector</code> 용량까지 재사용). 구조는 BufferPool 2판(스레드 캐시 + 전역 묶음)과 같다. C++ 풀은 스레드 1개에서 C# <code>DefaultObjectPool</code>보다 약 6배, 8개에서 약 190배 빠르고, GC 할당(C# <code>new</code>)과 비교해도 같거나 빠르다.</p>
+</div>
+
+<h2>질문 1: BufferPool이 큰 개념이고 ObjectPool이 그 아래인가?</h2>
+<p>위아래가 아니라 형제다. 굳이 층을 따지면 BufferPool이 아래(날 바이트), ObjectPool이 위(타입이 있는 객체)다.</p>
+<div class="table-wrap"><table>
+<tr><th></th><th>BufferPool</th><th>ObjectPool</th></tr>
+<tr><td>다루는 것</td><td>타입 없는 바이트(크기만)</td><td>타입이 있는 객체(<code>Job</code>, 메시지, 송신 컨텍스트)</td></tr>
+<tr><td>아는 것</td><td>크기 등급</td><td>생성자, <code>Reset()</code></td></tr>
+<tr><td>반납 때</td><td>내용 무시(연결 정보를 덮어씀)</td><td>상태를 비워야 함</td></tr>
+</table></div>
+<p>둘이 만나는 곳은 <strong>포함</strong>이다. 예: 메시지 객체는 ObjectPool에서, 그 안의 가변 길이 본문 바이트는 BufferPool(<code>PooledBuffer</code>)에서 빌린다. <code>sizeof(객체)</code>는 본문 길이와 상관없이 늘 같다. 패킷을 객체로 둘지 바이트로 둘지는 Messaging의 "객체 큐 vs 직렬화 큐"에서 정한다(직렬화 큐면 BufferPool만 쓴다).</p>
+
+<h2>질문 2: 바이트 단위면 BufferPool로 ObjectPool도 되지 않나?</h2>
+<p>"소멸시키고 메모리만 재사용"(1A)이면 된다(<code>Rent(sizeof(T))</code> + placement new). 하지만 세 가지가 걸렸다.</p>
+<ul>
+<li>가장 작은 등급이 256B라 40B 객체도 256B를 차지한다(약 6배 낭비).</li>
+<li><code>new std::byte[]</code>는 16바이트 정렬이라 <code>alignas(64)</code> 타입을 올릴 수 없다.</li>
+<li>매번 소멸·생성하면 객체 안 <code>vector</code>·<code>string</code>의 할당이 그대로 남는다. 풀을 쓰는 큰 이유가 사라진다.</li>
+</ul>
+<p>그래서 <strong>1B: 살려 두고 <code>Reset()</code></strong>을 골랐다. 살아 있는 객체는 덮어쓸 수 없어 BufferPool과는 따로 만든다.</p>
+
+<h2>질문 3: Reset은 메모리를 미는 한 줄이면 되지 않나?</h2>
+<div class="table-wrap"><table>
+<tr><th>한 줄 Reset</th><th>결과</th></tr>
+<tr><td><code>memset(this, 0, sizeof(*this))</code></td><td><code>vector</code>가 든 객체는 내부 포인터가 0이 되어 누수·크래시(정의되지 않은 동작). 단순 값만 있을 때만 안전</td></tr>
+<tr><td><code>*this = T{}</code></td><td>정확하지만 새 빈 <code>vector</code>를 대입해 용량이 사라진다(= 1A와 같아짐)</td></tr>
+<tr><td><code>values.clear(); id = 0; ...</code></td><td>정답. 용량은 남기고 내용만 지운다. 대신 필드를 하나씩 적어야 한다</td></tr>
+</table></div>
+<p>위험은 "쓰기 어려움"이 아니라 나중에 멤버를 추가하며 <code>Reset()</code>에 넣는 것을 잊는 것이다. 그래서 concept <code>Poolable</code>로 <code>noexcept Reset()</code>이 없으면 컴파일되지 않게 했다.</p>
+
+<h2>결정</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>결정</th><th>이유</th></tr>
+<tr><td>반납 때</td><td>소멸하지 않고 <code>Reset()</code></td><td>내부 컨테이너 용량 재사용, C#과 같은 역할</td></tr>
+<tr><td>구조</td><td>스레드 캐시 + 전역 묶음</td><td>BufferPool에서 측정으로 검증(묶음이 작으면 무너졌다)</td></tr>
+<tr><td>풀 개수</td><td>타입마다 전역 하나(<code>Shared()</code>)</td><td><code>thread_local</code>은 타입마다 하나라 그대로 스레드 캐시가 된다. 인스턴스 여러 개는 "풀 번호 → 캐시" 표가 필요해 복잡하고 느리다</td></tr>
+<tr><td>핸들</td><td><code>PooledPtr&lt;T&gt;</code> = <code>unique_ptr&lt;T, Deleter&gt;</code></td><td>표준이라 <code>-&gt;</code>, <code>std::move</code> 그대로. 상태 없는 deleter라 8B</td></tr>
+<tr><td>BufferPool과 코드</td><td>따로 작성</td><td>검증된 BufferPool을 건드리지 않는다. 합치기는 후순위(PROGRESS)</td></tr>
+<tr><td>캐시 개수</td><td>64개, 묶음 32개(<code>ObjectPoolTraits&lt;T&gt;</code>로 타입마다 변경 가능)</td><td>BufferPool에서 잰 값</td></tr>
+<tr><td>C#</td><td>NuGet <code>Microsoft.Extensions.ObjectPool</code>(만들지 않음)</td><td>MS 공식, 같은 역할</td></tr>
+</table></div>
+
+<h2>블록 모양: 객체 뒤에 연결 칸</h2>
+<div class="diagram">
+<svg viewBox="0 0 760 130" role="img" aria-label="블록 하나는 T 객체와 그 뒤의 Links. 전역 묶음은 Links끼리 이어진다">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker></defs>
+<rect class="d-cpp" x="20" y="20" width="170" height="44" rx="6"/><text class="d-t" x="105" y="47" text-anchor="middle">T (살아 있는 객체)</text>
+<rect class="d-ok" x="190" y="20" width="110" height="44" rx="6"/><text class="d-t" x="245" y="47" text-anchor="middle">Links</text>
+<text class="d-m" x="20" y="86">블록 하나 = [T][Links], 한 번에 할당.</text>
+<text class="d-m" x="20" y="104">핸들은 T*를 쥐고, 반납 때 T* + LinksOffset으로 Links를 찾는다</text>
+<rect class="d-cpp" x="400" y="20" width="80" height="44" rx="6"/><text class="d-t" x="440" y="47" text-anchor="middle">T</text>
+<rect class="d-ok" x="480" y="20" width="40" height="44" rx="6"/>
+<rect class="d-cpp" x="580" y="20" width="80" height="44" rx="6"/><text class="d-t" x="620" y="47" text-anchor="middle">T</text>
+<rect class="d-ok" x="660" y="20" width="40" height="44" rx="6"/>
+<path class="d-line" d="M520,42 L578,42"/><text class="d-m" x="534" y="34">next</text>
+<text class="d-m" x="400" y="86">전역 묶음: Links.next로 같은 묶음을, 첫 Links의</text>
+<text class="d-m" x="400" y="104">nextBatch로 다음 묶음을 잇는다(BufferPool은 빈 버퍼 안에 덮어썼다)</text>
+</svg>
+</div>
+
+<h2>측정: C++이 C#만큼 나오는가</h2>
+<p>객체 하나를 빌려 값을 쓰고 바로 반납(같은 스레드). 모든 스레드를 합친 <strong>초당 횟수</strong>(클수록 좋다). C++은 Google Benchmark 3회 중앙값(전체 840만 회), C#은 BenchmarkDotNet(<code>1 / Mean</code>, 두 번 재서 같은 경향). Plain = 값 하나, WithList = <code>vector</code>/<code>List</code>에 하나 넣기.</p>
+<div class="table-wrap"><table>
+<tr><th>Plain</th><th>스레드 1</th><th>2</th><th>4</th><th>8</th></tr>
+<tr><td class="cpp">C++ <code>ObjectPool</code></td><td class="num"><strong>625M</strong></td><td class="num"><strong>964M</strong></td><td class="num"><strong>1.53G</strong></td><td class="num"><strong>2.66G</strong></td></tr>
+<tr><td class="cpp">C++ <code>new</code>/<code>delete</code></td><td class="num">48M</td><td class="num">70M</td><td class="num">120M</td><td class="num">225M</td></tr>
+<tr><td class="cs">C# <code>DefaultObjectPool</code></td><td class="num">98M</td><td class="num">28M</td><td class="num">19M</td><td class="num">14M</td></tr>
+<tr><td class="cs">C# <code>new</code>(GC)</td><td class="num">610M</td><td class="num">950M</td><td class="num">1.31G</td><td class="num">1.82G</td></tr>
+<tr><td class="muted">Noop(측정 틀 한계, C++)</td><td class="num">720M</td><td class="num">1.39G</td><td class="num">2.59G</td><td class="num">2.75G</td></tr>
+</table></div>
+<div class="table-wrap" style="margin-top:12px"><table>
+<tr><th>WithList</th><th>스레드 1</th><th>2</th><th>4</th><th>8</th></tr>
+<tr><td class="cpp">C++ <code>ObjectPool</code></td><td class="num"><strong>454M</strong></td><td class="num"><strong>634M</strong></td><td class="num"><strong>992M</strong></td><td class="num"><strong>1.84G</strong></td></tr>
+<tr><td class="cpp">C++ <code>new</code>/<code>delete</code></td><td class="num">9.4M</td><td class="num">16M</td><td class="num">30M</td><td class="num">59M</td></tr>
+<tr><td class="cs">C# <code>DefaultObjectPool</code></td><td class="num">88M</td><td class="num">28M</td><td class="num">19M</td><td class="num">13M</td></tr>
+<tr><td class="cs">C# <code>new</code>(GC, 104B 할당)</td><td class="num">93M</td><td class="num">145M</td><td class="num">335M</td><td class="num">435M</td></tr>
+</table></div>
+<p>빌리기 ≠ 반납(C++만, WithList, 64개씩 넘김): 풀 39M / 61M / 75M(스레드 2/4/8), <code>new</code>/<code>delete</code> 7.1M / 12M / 15M. 약 5배.</p>
+
+<h3>읽는 법</h3>
+<ul>
+<li><strong>C++ 풀은 C# 풀보다 빠르다</strong>(1스레드 6배, 8스레드 약 190배). C# <code>DefaultObjectPool</code>은 스레드 캐시가 없고 모든 스레드가 같은 배열을 Interlocked로 다퉈서(true sharing) 스레드가 늘수록 <strong>더 느려진다</strong>.</li>
+<li><strong>C++ 풀은 C# <code>new</code>와도 같거나 빠르다.</strong> GC 할당은 포인터를 미는 것뿐이라 매우 싸다. 그래서 C#은 작은 객체를 풀에 넣으면 오히려 손해다. C#은 <strong>만들기 비싼 객체만 풀</strong>에 넣고 작은 객체는 <code>new</code>하는 것이 맞다(docs/naming.md).</li>
+<li>C++은 반대다. <code>new</code>/<code>delete</code>가 비싸서(내부 <code>vector</code>까지 할당하면 약 48배 차이) 풀이 크게 이긴다.</li>
+<li>8스레드 Plain은 Noop과 거의 같다. 측정 틀 한계에 닿았다.</li>
+</ul>
+
+<h3>덤으로 알게 된 것: BufferPool이 느린 이유</h3>
+<p>같은 구조인데 <code>ObjectPool</code>(헤더 템플릿, 모두 인라인)은 1스레드 625M/s, <code>BufferPool</code>(<code>.cpp</code>에 있어 호출이 인라인되지 않음)은 200~290M/s다. 후순위 목록의 "BufferPool 2판 최적화 ① 빠른 길을 헤더 inline으로"의 근거가 됐다(PROGRESS).</p>
+
+</main>
+</body>
+</html>

@@ -16,3 +16,4 @@
 | xunit.v3, xunit.runner.visualstudio | 단위 테스트 | 2026-11-23 | .NET 테스트에서 가장 많이 쓰는 프레임워크. VS 테스트 탐색기 연동 |
 | Microsoft.NET.Test.Sdk | 테스트 실행 | 2026-11-23 | `dotnet test`와 VS가 테스트를 찾고 실행하는 데 필요 |
 | BenchmarkDotNet | 마이크로 벤치마크(`server-cs/Bench`) | 2026-11-26 | .NET 벤치마크의 사실상 표준(.NET 런타임 팀도 사용). JIT 워밍업·GC 영향을 걸러 내고 할당량(MemoryDiagnoser)을 잰다 |
+| Microsoft.Extensions.ObjectPool | 객체 풀(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>`). 지금은 `server-cs/Bench`만(C++ `ObjectPool<T>`와 비교), 쓰는 곳이 생기면 그 프로젝트에 추가 | 2026-11-26 | MS 공식(ASP.NET Core가 쓰는 것). C#에 직접 만들지 않는다(docs/naming.md) |
