@@ -12,6 +12,7 @@ internal sealed class ThreadTeam : IDisposable
     private readonly Thread[] _workers;
     private readonly Barrier _barrier; // 작업자 N + 측정 스레드 1. 출발과 끝에 한 번씩 모두 만난다
     private Action<int> _body = static _ => { };
+    private Action<int>? _workerBody; // RunEach: 작업자 번호로 한 번 부른다(null 이면 Run 방식)
     private int _perThread;
     private volatile bool _stopping;
 
@@ -24,7 +25,8 @@ internal sealed class ThreadTeam : IDisposable
         {
             for (; started < count; ++started)
             {
-                var worker = new Thread(Work) { IsBackground = true, Name = $"bench-{started}" };
+                var index = started;
+                var worker = new Thread(() => Work(index)) { IsBackground = true, Name = $"bench-{started}" };
                 worker.Start();
                 _workers[started] = worker;
             }
@@ -49,9 +51,19 @@ internal sealed class ThreadTeam : IDisposable
     public void Run(int perThread, Action<int> body)
     {
         _body = body;
+        _workerBody = null;
         _perThread = perThread;
         _barrier.SignalAndWait(); // 출발(Barrier 가 앞의 쓰기를 작업자에게 보이게 한다)
         _barrier.SignalAndWait(); // 끝
+    }
+
+    // 모든 작업자가 같이 출발해 body(작업자 번호)를 한 번씩 돌리고(반복은 body 안에서), 모두 끝나면 돌아온다.
+    // C++ ThreadTeam::Run 과 같은 모양이다. 작업자마다 다른 데이터(생산자 번호 등)를 쓸 때 쓴다.
+    public void RunEach(Action<int> body)
+    {
+        _workerBody = body;
+        _barrier.SignalAndWait();
+        _barrier.SignalAndWait();
     }
 
     public void Dispose()
@@ -65,7 +77,7 @@ internal sealed class ThreadTeam : IDisposable
         _barrier.Dispose();
     }
 
-    private void Work()
+    private void Work(int index)
     {
         while (true)
         {
@@ -73,6 +85,12 @@ internal sealed class ThreadTeam : IDisposable
             if (_stopping)
             {
                 return;
+            }
+            if (_workerBody is { } workerBody)
+            {
+                workerBody(index);
+                _barrier.SignalAndWait();
+                continue;
             }
             var body = _body;
             var perThread = _perThread;

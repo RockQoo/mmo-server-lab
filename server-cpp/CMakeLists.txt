@@ -143,10 +143,11 @@ gtest_discover_tests(MemoryTests EXTRA_ARGS --gtest_catch_exceptions=0)
 find_package(benchmark CONFIG REQUIRED)
 add_executable(Bench
     Bench/BufferPoolBench.cpp
+    Bench/MessageQueueBench.cpp
     Bench/ObjectPoolBench.cpp
     Bench/ThreadTeam.h
 )
-target_link_libraries(Bench PRIVATE Memory benchmark::benchmark benchmark::benchmark_main)
+target_link_libraries(Bench PRIVATE Memory Messaging Base benchmark::benchmark benchmark::benchmark_main)
 set_target_properties(Bench PROPERTIES FOLDER Bench)
 if(MSVC)
     target_compile_options(Bench PRIVATE /wd6326) # 테스트와 같은 매크로 오탐 대비
