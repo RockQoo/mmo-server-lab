@@ -34,13 +34,13 @@
 | 1 | **Base** | `Base` | `ByteWriter`/`ByteReader`(C#: 코덱 struct), Assert(C#: BCL `Trace.Assert`/`Debug.Assert`), BuildInfo, Utf8(C#: BCL), `RwLocked<T>`(C++만) | 기본 자료형, enum, string, class, 컨테이너 왕복. **C++ ↔ C# 같은 바이트** | 🔨 | 🔨 |
 | 2 | **Messaging** | `Messaging` | 메시지 큐, 생산자-소비자 N:M, 스레드 어피니티(레인), 레인 스레드(이름·코어 고정) | 생산자·소비자 수 조합, 순서 보장, 어피니티. 객체 큐 vs 직렬화 큐 | 🔨 `Lane` | 🔨 `Lane` |
 | 3 | Memory | `Memory` | ObjectPool, 참조 카운트 / C#: `ArrayPool`, 풀링 | new/delete vs 풀, C# GC 할당량 | ⬜ | ⬜ |
-| 4 | Log | `Log` | 비동기 로거 (Messaging 큐 사용) | 동기 vs 비동기 비용 | ⬜ | ⬜ |
+| 4 | Log | `Log` | 비동기 로거 (Messaging 큐 사용) / C#: Serilog (2026-11-26, NuGet 설치는 그때 확인) | 동기 vs 비동기 비용 | ⬜ | ⬜ |
 | 5 | Metrics | `Metrics` | 카운터, 지연 히스토그램(p50/p99) | 측정 비용 | ⬜ | ⬜ |
 | 6 | Timer | `Timer` | 예약 실행, 고정 틱 루프 | 우선순위 큐 vs 타이머 휠 | ⬜ | ⬜ |
 | 7 | Network | `Network` | C++: IOCP / C#: `Socket` + `System.IO.Pipelines`. Listener, Connector, Session, 송수신 버퍼, 패킷 프레이밍 | I/O 레인 1→N, Nagle, 모아 보내기 | ⬜ | ⬜ |
 | 8 | DB | `DB` | ODBC / ADO.NET, 커넥션 풀, DB 큐 | 동기 vs 비동기 vs 모아서 쓰기 | ⬜ | ⬜ |
-| - | CrashDump | (Base에 포함?) | 크래시 때 미니덤프 저장 | 일부러 크래시 내서 덤프 확인 | ⬜ | ⬜ |
-| - | Config | (Base에 포함?) | 설정 파일 읽기 (레인 수, 포트) | 재빌드 없이 벤치마크 조건 변경 | ⬜ | ⬜ |
+| - | CrashDump | Base (2026-11-26) | 크래시 때 미니덤프 저장 | 일부러 크래시 내서 덤프 확인 | ⬜ | ⬜ |
+| - | Config | Base (2026-11-26) | 설정 파일 읽기 (레인 수, 포트). JSON(주석 허용): C++ nlohmann/json(그때 설치), C# `System.Text.Json` (2026-11-26) | 재빌드 없이 벤치마크 조건 변경 | ⬜ | ⬜ |
 
 나중에 비교 실험할 것: RIO(Registered I/O) vs IOCP, mimalloc vs 기본 할당자, DeadlockDetector, UTF-8 검사(단순 구현 vs simdutf vs 끔. 즉석 측정 2026-11-19: 한글 1KB 채팅 읽기의 약 65%가 검사, 이름은 약 15~20%), C++ vs C# 틱 지연 p99·처리량·GC 멈춤, Lane 큐(mutex + 두 버퍼 교체 vs lock-free MPSC vs moodycamel::ConcurrentQueue, C#은 `Channel<T>` 설정별. 생산자 수·일 크기별 처리량과 지연. 처음엔 mutex + 두 버퍼로 만든다, 2026-11-24).
 
