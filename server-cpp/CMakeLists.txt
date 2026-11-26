@@ -116,6 +116,24 @@ if(MSVC)
 endif()
 gtest_discover_tests(MessagingTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
+# ---- Memory: 버퍼 재사용(BufferPool, 빌린 버퍼 핸들 PooledBuffer)
+add_library(Memory STATIC
+    Core/Memory/BufferPool.cpp
+    Core/Memory/BufferPool.h
+)
+target_link_libraries(Memory PUBLIC Base)
+set_target_properties(Memory PROPERTIES FOLDER Core)
+
+add_executable(MemoryTests
+    Core/Memory/Tests/BufferPoolTest.cpp
+)
+target_link_libraries(MemoryTests PRIVATE Memory GTest::gtest_main)
+set_target_properties(MemoryTests PROPERTIES FOLDER Tests)
+if(MSVC)
+    target_compile_options(MemoryTests PRIVATE /wd6326) # BaseTests와 같은 gtest 오탐
+endif()
+gtest_discover_tests(MemoryTests EXTRA_ARGS --gtest_catch_exceptions=0)
+
 # ======== 실행 파일 (분산 존 구조, docs/decisions/001-서버-구조.md) ========
 # 서버는 Core 라이브러리에만 의존한다. 서버끼리는 서로 링크하지 않는다.
 
