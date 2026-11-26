@@ -25,6 +25,7 @@
 
 | 파일 | 주제 |
 |---|---|
+| [benchmark.html](journal/benchmark.html) | 벤치마크 측정 방법: 첫 측정에서 `benchmark::DoNotOptimize`(MSVC가 전역 변수에 씀)가 여러 스레드 결과를 왜곡한 일, true/false sharing, 벤치마크 확인 목록 |
 | [bufferpool.html](journal/bufferpool.html) | BufferPool 1판(등급마다 mutex)이 왜 느린가, 2판(스레드별 캐시 + 전역 풀) 설계, 송신·수신 버퍼, 3판 후보(Lane 자체 풀) |
 
 ### decisions (설계 결정)

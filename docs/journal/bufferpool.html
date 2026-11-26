@@ -391,7 +391,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <tr><td>표준 C++만으로 Noop (Google Benchmark 없이)</td><td class="num">715M/s</td><td class="num">4,816M/s</td><td>약 7배. C++도 코어를 다 쓴다</td></tr>
 <tr><td>C++ Bench의 Noop</td><td class="num">627M/s</td><td class="num">735M/s</td><td>안 는다. <strong>Bench 코드 안에 문제가 있다</strong></td></tr>
 </table></div>
-<p><strong>원인</strong>: 반복마다 부른 <code>benchmark::DoNotOptimize()</code>. 컴파일러가 계산을 지우지 못하게 하는 장치인데, MSVC용 구현은 <strong>값을 전역 변수 하나에 쓴다</strong>. 모든 스레드가 매 반복 같은 캐시 라인에 쓰니, 1판에서 본 "캐시 라인 핑퐁"이 측정 도구 안에서 일어나 모든 여러 스레드 결과를 눌렀다. 스레드마다 자기 <code>volatile</code> 변수에 쓰도록 바꿨다(커밋 <code>4e8eaee</code>).</p>
+<p><strong>원인</strong>(자세한 추적 과정은 <a href="benchmark.html">benchmark.html</a>): 반복마다 부른 <code>benchmark::DoNotOptimize()</code>. 컴파일러가 계산을 지우지 못하게 하는 장치인데, MSVC용 구현은 <strong>값을 전역 변수 하나에 쓴다</strong>. 모든 스레드가 매 반복 같은 캐시 라인에 쓰니, 1판에서 본 "캐시 라인 핑퐁"이 측정 도구 안에서 일어나 모든 여러 스레드 결과를 눌렀다. 스레드마다 자기 <code>volatile</code> 변수에 쓰도록 바꿨다(커밋 <code>4e8eaee</code>).</p>
 <p class="muted">그래서 위쪽 "측정: 1판이 왜 문제인가"의 C++ 여러 스레드 값(<code>new</code>/<code>delete</code>, 1판)도 이 왜곡이 섞여 있다. 1판이 mutex 경합으로 느린 것은 맞지만 정확한 배수는 아니다. 스레드 1개 값과 C# 값은 영향이 없다.</p>
 
 <h3>바로잡은 측정 (256B, 모든 스레드 합친 초당 횟수, 3회 중앙값)</h3>

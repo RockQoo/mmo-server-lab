@@ -119,6 +119,7 @@ powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 �
 
 - 질문 / 가설 / 조건(부하, 하드웨어) / 결과(표, 그래프) / 결론 / Trade-off(얻은 것, 잃은 것, 결론이 깨지는 조건)
 - 측정 도구: 함수 단위는 Google Benchmark·BenchmarkDotNet, 전체 부하는 봇으로 실제 소켓을 붙여 잰다.
+- **여러 스레드 벤치마크 규칙(2026-11-26)**: 같은 측정 틀로 Noop(아무 일도 하지 않는 반복)을 스레드 1·2·4·8개로 같이 재고, 스레드 수만큼 늘지 않으면 그 결과를 믿지 않는다. 스레드 안 반복에서 `benchmark::DoNotOptimize`를 쓰지 않는다(MSVC 구현이 전역 변수 하나에 써서 true sharing). 스레드마다 자기 `volatile` 변수에 쓴다. 자세한 과정과 확인 목록은 `docs/journal/benchmark.html`.
 
 ## push 순서
 
