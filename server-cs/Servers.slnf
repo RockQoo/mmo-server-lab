@@ -1,0 +1,9 @@
+{
+    "solution":  {
+                     "path":  "mmo_server_lab.slnx",
+                     "projects":  [
+                                      "Core\\Base\\Base.csproj",
+                                      "Core\\Messaging\\Messaging.csproj"
+                                  ]
+                 }
+}

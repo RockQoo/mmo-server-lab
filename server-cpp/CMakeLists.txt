@@ -37,7 +37,8 @@ if(MSVC)
     endif()
 endif()
 
-# VS 솔루션 탐색기에서 프로젝트를 폴더(Core, Servers, Tests)로 묶는다. Ninja 빌드에는 영향 없음.
+# VS 솔루션 탐색기의 폴더를 디스크 폴더와 같게 한다(Core/Base, Core/Base/Tests, Gateway …). Ninja 빌드에는 영향 없음.
+# 대상을 추가하면 FOLDER 를 그 대상의 디스크 폴더(server-cpp/ 기준)로 준다. 필터(.slnf)는 이 폴더로 나뉜다(tools/Make-SolutionFilters.ps1).
 # CMake가 만드는 ALL_BUILD, ZERO_CHECK, RUN_TESTS는 _CMake 폴더로 몰아 둔다.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER _CMake)
@@ -72,7 +73,7 @@ add_library(Base STATIC
     Core/Base/Utf8.h
 )
 target_include_directories(Base PUBLIC ${CORE_DIR})
-set_target_properties(Base PROPERTIES FOLDER Core)
+set_target_properties(Base PROPERTIES FOLDER Core/Base)
 
 add_executable(BaseTests
     Core/Base/Tests/AssertTest.cpp
@@ -86,7 +87,7 @@ add_executable(BaseTests
 target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
 # C# 테스트와 같이 쓰는 정답 파일 위치(저장소 최상위 testdata/)
 target_compile_definitions(BaseTests PRIVATE MMO_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../testdata")
-set_target_properties(BaseTests PROPERTIES FOLDER Tests)
+set_target_properties(BaseTests PROPERTIES FOLDER Core/Base/Tests)
 # gtest 의 EXPECT_*/ASSERT_* 매크로가 안에서 상수끼리 비교해 /analyze 가 C6326 을 낸다(gtest 오탐). 테스트에서만 끈다.
 if(MSVC)
     target_compile_options(BaseTests PRIVATE /wd6326)
@@ -103,14 +104,14 @@ add_library(Messaging STATIC
     Core/Messaging/LaneGroup.h
 )
 target_link_libraries(Messaging PUBLIC Base)
-set_target_properties(Messaging PROPERTIES FOLDER Core)
+set_target_properties(Messaging PROPERTIES FOLDER Core/Messaging)
 
 add_executable(MessagingTests
     Core/Messaging/Tests/LaneGroupTest.cpp
     Core/Messaging/Tests/LaneTest.cpp
 )
 target_link_libraries(MessagingTests PRIVATE Messaging GTest::gtest_main)
-set_target_properties(MessagingTests PROPERTIES FOLDER Tests)
+set_target_properties(MessagingTests PROPERTIES FOLDER Core/Messaging/Tests)
 if(MSVC)
     target_compile_options(MessagingTests PRIVATE /wd6326) # BaseTests와 같은 gtest 오탐
 endif()
@@ -122,13 +123,13 @@ add_library(Memory STATIC
     Core/Memory/BufferPool.h
 )
 target_link_libraries(Memory PUBLIC Base)
-set_target_properties(Memory PROPERTIES FOLDER Core)
+set_target_properties(Memory PROPERTIES FOLDER Core/Memory)
 
 add_executable(MemoryTests
     Core/Memory/Tests/BufferPoolTest.cpp
 )
 target_link_libraries(MemoryTests PRIVATE Memory GTest::gtest_main)
-set_target_properties(MemoryTests PROPERTIES FOLDER Tests)
+set_target_properties(MemoryTests PROPERTIES FOLDER Core/Memory/Tests)
 if(MSVC)
     target_compile_options(MemoryTests PRIVATE /wd6326) # BaseTests와 같은 gtest 오탐
 endif()
@@ -142,14 +143,14 @@ add_executable(Gateway
     Gateway/main.cpp
 )
 target_link_libraries(Gateway PRIVATE Messaging)
-set_target_properties(Gateway PROPERTIES FOLDER Servers)
+set_target_properties(Gateway PROPERTIES FOLDER Gateway)
 
 # ---- ZoneServer: 전투·이동. 프로세스 하나에 존 여러 개, 존마다 전용 스레드와 틱
 add_executable(ZoneServer
     ZoneServer/main.cpp
 )
 target_link_libraries(ZoneServer PRIVATE Messaging)
-set_target_properties(ZoneServer PROPERTIES FOLDER Servers)
+set_target_properties(ZoneServer PROPERTIES FOLDER ZoneServer)
 
 # VS로 열면 ZoneServer가 시작 프로젝트(F5로 실행할 대상)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ZoneServer)

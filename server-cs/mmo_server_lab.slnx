@@ -1,10 +1,16 @@
 <Solution>
-  <Folder Name="/Core/">
+  <!-- 솔루션 폴더 = 디스크 폴더(server-cs/ 기준). 필터(*.slnf)는 이 폴더로 나뉜다(build.ps1 이 tools/Make-SolutionFilters.ps1 로 만든다). -->
+  <Folder Name="/Core/" />
+  <Folder Name="/Core/Base/">
     <Project Path="Core/Base/Base.csproj" />
+  </Folder>
+  <Folder Name="/Core/Base/Tests/">
+    <Project Path="Core/Base/Tests/Base.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Core/Messaging/">
     <Project Path="Core/Messaging/Messaging.csproj" />
   </Folder>
-  <Folder Name="/Tests/">
-    <Project Path="Core/Base/Tests/Base.Tests.csproj" />
+  <Folder Name="/Core/Messaging/Tests/">
     <Project Path="Core/Messaging/Tests/Messaging.Tests.csproj" />
   </Folder>
 </Solution>

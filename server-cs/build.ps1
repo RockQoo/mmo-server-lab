@@ -22,6 +22,8 @@ $solution = Join-Path $PSScriptRoot 'mmo_server_lab.slnx'
 # 저장소 루트에서 불려도 server-cs/global.json을 읽도록 이 폴더에서 실행한다.
 Push-Location $PSScriptRoot
 try {
+    # 솔루션 필터(Core/Servers/Tests.slnf)를 솔루션과 맞춘다. 바뀐 경우만 다시 쓴다(커밋한다: VS에서 바로 연다).
+    & "$PSScriptRoot/../tools/Make-SolutionFilters.ps1" -Solution $solution
     if ($Lint) {
         dotnet format $solution --verify-no-changes
         if ($LASTEXITCODE) { Write-Output "lint: FAIL"; exit $LASTEXITCODE }

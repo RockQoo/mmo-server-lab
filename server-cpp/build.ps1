@@ -1,14 +1,25 @@
 ﻿# VS 개발자 환경(cl, ninja, cmake)을 켜고 프리셋으로 빌드한다.
 # 사용: powershell -File server-cpp/build.ps1 [-Config debug|release] [-Test]
 #   -Test: 빌드 후 ctest로 단위 테스트까지 돌린다(qa.json이 쓴다).
-#   -Sln:  VS 솔루션(build/vs)을 만들고 Visual Studio로 연다. 빌드는 VS에서 한다(OpenVS.bat이 쓴다).
+#   -Sln:  VS 솔루션(build/vs)과 필터(Core/Servers/Tests.slnf)를 만들고 Visual Studio로 연다. 빌드는 VS에서 한다(OpenVS.bat이 쓴다).
+#   -Filter: -Sln 으로 열 때 필터. All(전체 솔루션), Core, Servers, Tests
 param(
     [ValidateSet('debug', 'release')]
     [string]$Config = 'debug',
     [switch]$Test,
-    [switch]$Sln
+    [switch]$Sln,
+    [ValidateSet('All', 'Core', 'Servers', 'Tests')]
+    [string]$Filter = 'All'
 )
 $ErrorActionPreference = 'Stop'
+
+# VS 솔루션을 만든 뒤 필터를 만든다. ZERO_CHECK 는 모든 필터에 넣는다(VS 안에서 빌드할 때 솔루션을 갱신한다).
+function Update-SolutionFilters {
+    $solution = Get-ChildItem build/vs -File -Filter *.slnx | Select-Object -First 1
+    if (-not $solution) { throw 'build/vs에 솔루션 파일이 없다.' }
+    & "$PSScriptRoot/../tools/Make-SolutionFilters.ps1" -Solution $solution.FullName -AlwaysInclude ZERO_CHECK.vcxproj
+    return $solution
+}
 
 # 설치된 VS 중 C++ 도구가 있는 최신 버전을 찾는다.
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -26,10 +37,10 @@ try {
         # CMakeLists.txt를 고쳤으면 다시 실행한다. VS 안에서 빌드해도 ZERO_CHECK가 솔루션을 갱신한다.
         cmake --preset vs
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
-        $solution = Get-ChildItem build/vs -File | Where-Object { $_.Extension -in '.sln', '.slnx' } | Select-Object -First 1
-        if (-not $solution) { throw 'build/vs에 솔루션 파일이 없다.' }
+        $solution = Update-SolutionFilters
+        $open = if ($Filter -eq 'All') { $solution.FullName } else { Join-Path $solution.DirectoryName "$Filter.slnf" }
         # 개발자 환경(VCPKG_ROOT 등)을 물려받도록 이 셸에서 연다.
-        Start-Process "$vs\Common7\IDE\devenv.exe" -ArgumentList "`"$($solution.FullName)`""
+        Start-Process "$vs\Common7\IDE\devenv.exe" -ArgumentList "`"$open`""
         exit 0
     }
 
@@ -40,6 +51,7 @@ try {
     if (Test-Path build/vs/CMakeCache.txt) {
         cmake --preset vs | Out-Null
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        Update-SolutionFilters | Out-Null
     }
     cmake --build --preset $Config
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
