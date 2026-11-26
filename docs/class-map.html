@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mmo-server-lab 클래스 대응표</title>
+<style>
+:root{--bg:#fbfbf9;--fg:#1f2328;--mut:#5b636d;--line:#d9dde2;--card:#fff;--code:#f3f4f6;--cpp:#0b5cad;--cppbg:#e7f0fa;--cs:#6f42c1;--csbg:#f1ebfb;--bcl:#1a7f37;--bclbg:#e8f5ec;--warn:#9a6700;--warnbg:#fff6dc;--no:#6e7781;--nobg:#eef0f2;--red:#cf222e;--redbg:#ffebe9}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--mut:#9aa3ad;--line:#30353b;--card:#1c1f23;--code:#23272d;--cpp:#6cb6ff;--cppbg:#16263a;--cs:#c49bff;--csbg:#261a3a;--bcl:#4ac26b;--bclbg:#16281c;--warn:#d4a72c;--warnbg:#2b2410;--no:#9aa3ad;--nobg:#23272d;--red:#ff7b72;--redbg:#3a1a1a}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--mut:#9aa3ad;--line:#30353b;--card:#1c1f23;--code:#23272d;--cpp:#6cb6ff;--cppbg:#16263a;--cs:#c49bff;--csbg:#261a3a;--bcl:#4ac26b;--bclbg:#16281c;--warn:#d4a72c;--warnbg:#2b2410;--no:#9aa3ad;--nobg:#23272d;--red:#ff7b72;--redbg:#3a1a1a}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 "Malgun Gothic",system-ui,sans-serif}
+main{max-width:1120px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:30px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sub{color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--code)}
+td.mod{font-weight:700;background:var(--code);white-space:nowrap}
+td.st{white-space:nowrap;text-align:center}
+.wrap{overflow-x:auto}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font:13px Consolas,monospace}
+pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;font:13px/1.5 Consolas,monospace}
+.b{display:inline-block;font-size:12px;font-weight:700;padding:0 7px;border-radius:9px;white-space:nowrap;margin:0 4px 2px 0}
+.impl{color:var(--cpp);background:var(--cppbg)}.cs{color:var(--cs);background:var(--csbg)}.bcl{color:var(--bcl);background:var(--bclbg)}.warn{color:var(--warn);background:var(--warnbg)}.no{color:var(--no);background:var(--nobg)}.red{color:var(--red);background:var(--redbg)}
+ul{padding-left:20px;margin:6px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>mmo-server-lab · C++ / C# Core 대응표</h1>
+<div class="sub">2026-11-26 · 커밋 24f5157(보고서 004)까지 반영 · 확정 이름의 원본은 <code>docs/naming.md</code>, 순서는 <code>PROGRESS.md</code> · <b>"제안" 이름은 만들 때 다시 후보를 보여 드리고 정한다</b></div>
+
+<h2>원칙</h2>
+<div class="card"><ul>
+<li><b>같은 개념이면 이름과 namespace가 같다.</b> BCL·표준과 이름이 겹치면 C++ 쪽을 바꾼다.</li>
+<li><b>기능은 1:1로 맞추지 않는다.</b> 같은 역할이면 충분하다. C#은 C++의 포팅이 아니라 C#다운 서버다.</li>
+<li><b>가져다 쓰는 것은 두 종류만</b>: MS·표준 공식(BCL, C++ 표준)과 아주 대중적인 외부 라이브러리. 느리면 직접 만들고 벤치마크로 근거를 남긴다. 새 설치(vcpkg, NuGet)는 먼저 확인받는다.</li>
+<li>우선순위: 안전 &gt; 성능 &gt; 편의.</li>
+</ul></div>
+
+<h2>표시</h2>
+<div class="card">
+<b>구현</b> <span class="b impl">직접 만듦</span><span class="b bcl">BCL·표준</span> 공식 것을 그대로 씀 <span class="b cs">MS·대중 라이브러리</span> 설치 필요 <span class="b no">없음</span> 그 언어엔 두지 않음<br>
+<b>이름</b> <span class="b bcl">확정</span> naming.md에 있음 <span class="b warn">제안</span> 아직 정하지 않음 <span class="b red">이름 겹침</span> BCL과 같은 이름이라 조정 필요<br>
+<b>상태</b> ✅ 완료 · 🔨 다음 단위 · ⬜ 예정
+</div>
+
+<h2>Core 대응표</h2>
+<div class="wrap"><table>
+<tr><th>모듈</th><th>클래스 (공통 이름)</th><th>하는 일</th><th>C++ (<code>server-cpp/Core</code>)</th><th>C# (<code>server-cs/Core</code>)</th><th>상태</th></tr>
+
+<!-- Base -->
+<tr><td class="mod" rowspan="8">Base</td>
+<td><code>ByteWriter</code> / <code>ByteReader</code><br><span class="b bcl">확정</span></td><td>값을 바이트로 쓰고 읽기</td>
+<td><span class="b impl">직접 만듦</span><code>&lt;&lt;</code> <code>&gt;&gt;</code>, 쓰기는 vector 소유, 읽기는 span. 타입 판별 <code>ByteTraits.h</code></td>
+<td><span class="b impl">직접 만듦</span><code>IBufferWriter&lt;byte&gt;</code> 위 ref struct 커서</td><td class="st">✅ ✅</td></tr>
+<tr><td>코덱 <code>IByteCodec&lt;T&gt;</code><br><span class="b bcl">확정</span></td><td>타입별 쓰기·읽기 묶음</td>
+<td><span class="b no">없음</span><code>if constexpr</code>로 충분</td>
+<td><span class="b impl">직접 만듦</span>struct 코덱(JIT 인라인). CodeGen이 패킷 코덱을 만든다</td><td class="st">➖ ✅</td></tr>
+<tr><td><code>BuildInfo</code><br><span class="b bcl">확정</span></td><td>빌드 정보</td>
+<td><span class="b impl">직접 만듦</span>함수</td><td><span class="b impl">직접 만듦</span>정적 클래스</td><td class="st">✅ ✅</td></tr>
+<tr><td><code>ASSERT</code> / <code>DEBUG_ASSERT</code><br><span class="b bcl">확정</span></td><td>조건 검사, 실패하면 종료</td>
+<td><span class="b impl">직접 만듦</span>매크로 + RaiseException</td><td><span class="b bcl">BCL·표준</span><code>Trace.Assert</code> / <code>Debug.Assert</code></td><td class="st">✅ ✅</td></tr>
+<tr><td>Utf8<br><span class="b bcl">확정</span></td><td>UTF-8 변환·검사</td>
+<td><span class="b impl">직접 만듦</span><code>Utf8.h</code></td><td><span class="b bcl">BCL·표준</span><code>Encoding.UTF8</code></td><td class="st">✅ ➖</td></tr>
+<tr><td><code>RwLocked&lt;T&gt;</code><br><span class="b bcl">확정</span></td><td>데이터 + 읽기/쓰기 락을 묶음</td>
+<td><span class="b impl">직접 만듦</span><code>std::shared_mutex</code>, <code>Read()</code>/<code>Write()</code></td>
+<td><span class="b no">없음</span>Channel + 소비자 하나로 설계, 필요하면 <code>Lock</code>/<code>SemaphoreSlim</code></td><td class="st">⬜ ➖</td></tr>
+<tr><td><code>CrashDump</code><br><span class="b warn">제안</span></td><td>크래시 때 미니덤프 저장</td>
+<td><span class="b impl">직접 만듦</span><code>SetUnhandledExceptionFilter</code> + <code>MiniDumpWriteDump</code></td>
+<td><span class="b no">없음</span>런타임 설정 <code>DOTNET_DbgEnableMiniDump</code></td><td class="st">⬜ ➖</td></tr>
+<tr><td><code>Config</code><br><span class="b warn">제안</span></td><td>설정 파일 읽기(레인 수, 포트)</td>
+<td><span class="b impl">직접 만듦</span>JSON 읽기(nlohmann/json 설치할지 정함)</td>
+<td><span class="b cs">MS·대중 라이브러리</span><code>Microsoft.Extensions.Configuration</code> 또는 BCL <code>System.Text.Json</code></td><td class="st">⬜ ⬜</td></tr>
+
+<!-- Messaging -->
+<tr><td class="mod" rowspan="2">Messaging</td>
+<td><code>Lane</code><br><span class="b bcl">확정</span></td><td>넣은 순서대로 한 번에 하나씩 실행(액터의 우편함)</td>
+<td><span class="b impl">직접 만듦</span>mutex + 두 버퍼 교체 큐, 전용 <code>std::jthread</code></td>
+<td><span class="b impl">직접 만듦</span><code>Channel&lt;Action&gt;</code> + 스레드 풀 async 루프</td><td class="st">✅ ✅</td></tr>
+<tr><td><code>LaneGroup</code><br><span class="b warn">제안</span> (LanePool 등과 비교)</td><td>키(존 ID 등)로 Lane 하나를 고름. 같은 키 → 항상 같은 Lane</td>
+<td><span class="b impl">직접 만듦</span>Lane N개 + 키 → 번호. 스레드 이름·코어 고정</td>
+<td><span class="b impl">직접 만듦</span>Lane N개 + 키 → 번호(스레드 고정 없음)</td><td class="st">🔨 🔨</td></tr>
+
+<!-- Memory -->
+<tr><td class="mod" rowspan="3">Memory</td>
+<td><code>ObjectPool&lt;T&gt;</code><br><span class="b warn">제안</span></td><td>객체 재사용</td>
+<td><span class="b impl">직접 만듦</span>free list, 스레드별 캐시 비교</td>
+<td><span class="b cs">MS·대중 라이브러리</span><code>Microsoft.Extensions.ObjectPool</code>(같은 이름, 만들지 않음)</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>BufferPool</code><br><span class="b warn">제안</span></td><td>송수신 버퍼 재사용</td>
+<td><span class="b impl">직접 만듦</span>고정 크기 청크</td><td><span class="b bcl">BCL·표준</span><code>ArrayPool&lt;byte&gt;.Shared</code></td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>RefCounted</code><br><span class="b warn">제안</span></td><td>참조 수로 수명 관리(세션 등)</td>
+<td><span class="b impl">직접 만듦</span>침투형 참조 카운트 vs <code>std::shared_ptr</code> 비교</td>
+<td><span class="b no">없음</span>GC</td><td class="st">⬜ ➖</td></tr>
+
+<!-- Log -->
+<tr><td class="mod" rowspan="1">Log</td>
+<td><code>Logger</code><br><span class="b warn">제안</span></td><td>비동기 로그(게임 스레드는 넣기만)</td>
+<td><span class="b impl">직접 만듦</span>로그 전용 Lane + 파일, <code>std::format</code></td>
+<td><span class="b bcl">BCL·표준</span><code>ILogger</code>(MS) + 파일 출력은 직접(<code>FileLoggerProvider</code>) 또는 Serilog — 정함</td><td class="st">⬜ ⬜</td></tr>
+
+<!-- Metrics -->
+<tr><td class="mod" rowspan="2">Metrics</td>
+<td><code>Counter</code><br><span class="b red">이름 겹침</span></td><td>횟수 세기(패킷 수, 접속 수)</td>
+<td><span class="b impl">직접 만듦</span>atomic, 스레드별 합산</td>
+<td><span class="b bcl">BCL·표준</span><code>System.Diagnostics.Metrics.Counter&lt;T&gt;</code> → C++ 이름 바꿀 것</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>LatencyHistogram</code><br><span class="b warn">제안</span></td><td>지연 분포, p50/p99</td>
+<td><span class="b impl">직접 만듦</span>로그 구간 버킷</td>
+<td><span class="b impl">직접 만듦</span>BCL <code>Histogram&lt;T&gt;</code>은 분위수를 직접 계산하지 않음</td><td class="st">⬜ ⬜</td></tr>
+
+<!-- Timer -->
+<tr><td class="mod" rowspan="2">Timer<br><span class="b red">이름 겹침</span></td>
+<td><code>TimerQueue</code><br><span class="b warn">제안</span></td><td>예약 실행(n초 뒤, 주기)</td>
+<td><span class="b impl">직접 만듦</span>우선순위 큐 vs 타이머 휠 벤치마크</td>
+<td><span class="b bcl">BCL·표준</span><code>Task.Delay</code>, <code>TimeProvider</code>(만들 필요 없을 수 있음)</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>TickLoop</code><br><span class="b warn">제안</span></td><td>고정 틱(존마다 50ms 등)</td>
+<td><span class="b impl">직접 만듦</span>Lane 위에서 다음 틱 예약, 밀림 보정</td>
+<td><span class="b impl">직접 만듦</span><code>PeriodicTimer</code> 위 얇은 루프</td><td class="st">⬜ ⬜</td></tr>
+
+<!-- Network -->
+<tr><td class="mod" rowspan="8">Network</td>
+<td><code>IocpCore</code><br><span class="b warn">제안</span></td><td>완료 통지 받기·나눠 주기</td>
+<td><span class="b impl">직접 만듦</span><code>GetQueuedCompletionStatus</code> 루프(I/O 레인)</td>
+<td><span class="b no">없음</span><code>Socket</code> async가 안에서 IOCP 사용</td><td class="st">⬜ ➖</td></tr>
+<tr><td><code>Listener</code><br><span class="b warn">제안</span></td><td>접속 받기</td>
+<td><span class="b impl">직접 만듦</span><code>AcceptEx</code></td><td><span class="b impl">직접 만듦</span><code>Socket.AcceptAsync</code> 위 얇은 클래스</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>Connector</code><br><span class="b warn">제안</span></td><td>서버끼리 연결(Gateway→Zone)</td>
+<td><span class="b impl">직접 만듦</span><code>ConnectEx</code>, 재접속</td><td><span class="b impl">직접 만듦</span><code>Socket.ConnectAsync</code>, 재접속</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>Session</code><br><span class="b warn">제안</span></td><td>접속 하나: 받기·보내기·종료</td>
+<td><span class="b impl">직접 만듦</span><code>WSARecv</code>/<code>WSASend</code> + OVERLAPPED, 참조 수</td>
+<td><span class="b impl">직접 만듦</span><code>PipeReader</code>/<code>PipeWriter</code> 읽기·쓰기 루프</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>RecvBuffer</code> / <code>SendBuffer</code><br><span class="b warn">제안</span></td><td>송수신 바이트 버퍼</td>
+<td><span class="b impl">직접 만듦</span>BufferPool 청크</td>
+<td><span class="b cs">MS·대중 라이브러리</span><code>System.IO.Pipelines</code>(NuGet)</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>SendQueue</code><br><span class="b warn">제안</span></td><td>여러 스레드가 보내도 안 섞이게, 모아 보내기</td>
+<td><span class="b impl">직접 만듦</span>큐 + "보내는 중" 표시 + 모아서 <code>WSASend</code> 한 번</td>
+<td><span class="b no">없음</span><code>PipeWriter</code> + 쓰기 루프 하나</td><td class="st">⬜ ➖</td></tr>
+<tr><td><code>PacketFramer</code><br><span class="b warn">제안</span></td><td>바이트 흐름을 패킷으로 자르기</td>
+<td><span class="b impl">직접 만듦</span>헤더 크기 검사, 최대 크기</td>
+<td><span class="b impl">직접 만듦</span><code>ReadOnlySequence&lt;byte&gt;</code> 자르기</td><td class="st">⬜ ⬜</td></tr>
+<tr><td><code>PacketDispatcher</code><br><span class="b warn">제안</span></td><td>패킷 번호 → 처리 함수</td>
+<td><span class="b impl">직접 만듦</span>배열 표(번호가 작으면) vs <code>unordered_map</code></td>
+<td><span class="b impl">직접 만듦</span>배열 표 vs <code>Dictionary</code>. 표는 CodeGen이 만들 수도</td><td class="st">⬜ ⬜</td></tr>
+
+<!-- DB -->
+<tr><td class="mod" rowspan="3">DB</td>
+<td><code>DbConnection</code> / <code>DbCommand</code><br><span class="b red">이름 겹침</span></td><td>SP 호출, 결과 읽기</td>
+<td><span class="b impl">직접 만듦</span>ODBC 감싸기 → BCL과 겹치니 C++ 이름 바꿀 것</td>
+<td><span class="b cs">MS·대중 라이브러리</span><code>Microsoft.Data.SqlClient</code>(+ Dapper 고려)</td><td class="st">⬜ ⬜</td></tr>
+<tr><td>커넥션 풀<br><span class="b warn">제안</span></td><td>연결 재사용</td>
+<td><span class="b impl">직접 만듦</span></td><td><span class="b no">없음</span>SqlClient가 기본 제공</td><td class="st">⬜ ➖</td></tr>
+<tr><td><code>DbQueue</code><br><span class="b warn">제안</span></td><td>DB 일을 게임 스레드 밖에서, 결과는 원래 Lane으로</td>
+<td><span class="b impl">직접 만듦</span>DB 전용 LaneGroup + 결과를 원래 Lane에 Post</td>
+<td><span class="b impl">직접 만듦</span>async 호출 + 결과를 원래 Lane에 Post(얇음)</td><td class="st">⬜ ⬜</td></tr>
+</table></div>
+
+<div class="card">C++은 Core를 거의 다 만들어야 서버 코드를 쓸 수 있고, C#은 BCL 덕분에 Core가 얇다. 다만 성능이 갈리는 자리(직렬화, Lane, 패킷 자르기, 지연 측정)는 C#도 직접 만든다. 이 차이와 벤치마크 결과가 비교의 핵심이다.</div>
+
+<h2>도구 · 프로토콜 (CodeGen이 두 언어로 생성)</h2>
+<div class="wrap"><table>
+<tr><th>이름</th><th>하는 일</th><th>C++</th><th>C#</th><th>상태</th></tr>
+<tr><td>패킷 클래스, <code>PacketId</code> <span class="b warn">제안</span></td><td><code>proto/</code> 스키마 하나 → 두 언어 코드</td><td>ByteWriter <code>SERIALIZE_FIELDS</code> 형식</td><td>클래스 + 코덱 struct 쌍</td><td class="st">⬜ ⬜</td></tr>
+<tr><td>UE5 클라 코드</td><td>직렬화까지 포함한 독립 C++20</td><td colspan="2">C++ 하나(<code>client-ue5</code>)</td><td class="st">⬜</td></tr>
+</table></div>
+
+<h2>서버 (Core를 쓰는 쪽)</h2>
+<div class="wrap"><table>
+<tr><th>서버</th><th>하는 일</th><th>C++</th><th>C#</th><th>단계</th></tr>
+<tr><td><code>Gateway</code></td><td>클라 소켓, 세션별 경로표, 묶음 전송</td><td colspan="2">같은 구조, 같은 이름</td><td>1</td></tr>
+<tr><td><code>ZoneServer</code></td><td>전투·이동. 존마다 Lane과 틱(실행 단위 <code>ZoneProcessor</code>, 기능 <code>MoveSystem</code>·<code>CombatSystem</code>, 11-18 결정)</td><td colspan="2">같은 구조, 같은 이름</td><td>1~2</td></tr>
+<tr><td><code>Coordinator</code></td><td>서버 등록·배치·조회</td><td colspan="2">같은 구조</td><td>3</td></tr>
+<tr><td><code>DbWriter</code></td><td>모아서 저장, 데이터별 저장 기준표</td><td colspan="2">같은 구조</td><td>4</td></tr>
+<tr><td><code>ServiceServer</code></td><td>길드·파티</td>
+<td><span class="b impl">직접 만듦</span>길드·파티마다 Lane(직접 만든 액터)</td>
+<td><span class="b cs">MS·대중 라이브러리</span><b>Microsoft Orleans</b>: 길드·파티 = grain(<code>IGuildGrain</code> 등, 제안). 2026-11-26 결정, NuGet 설치는 그때 확인</td><td>5</td></tr>
+<tr><td><code>BotServer</code>, UE5 클라</td><td>부하 테스트, 뷰어</td><td>C++ 하나</td><td>➖ (두 서버에 같은 봇)</td><td>-</td></tr>
+</table></div>
+
+<h2>정해야 할 것</h2>
+<div class="card"><ul>
+<li><span class="b red">이름 겹침</span> <code>Counter</code>, <code>DbConnection</code>/<code>DbCommand</code>, namespace <code>Timer</code>(C# <code>System.Threading.Timer</code>와 겹침 → 예: <code>Timing</code>). 해당 단위 때 후보를 보여 드림.</li>
+<li>Log C#: <code>ILogger</code> + 직접 만든 파일 출력 vs Serilog.</li>
+<li>Config: C++ JSON 라이브러리 설치 여부.</li>
+<li>CrashDump, Config를 Base에 넣을지.</li>
+</ul></div>
+</main>
+</body>
+</html>
