@@ -7,7 +7,7 @@ MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 벤치마�
 | 항목 | 선택 |
 |---|---|
 | 서버 구조 | 분산 존: Gateway + ZoneServer (이후 Coordinator, ServiceServer, DbWriter) |
-| C++ 서버 (주력) | C++23(MSVC `/std:c++latest`), Windows IOCP 직접 사용, CMake + vcpkg, GoogleTest. 메시지 큐 + 스레드 어피니티 |
+| C++ 서버 (주력) | C++23(MSVC `/std:c++latest`. C++26 기능은 MSVC에서 실제로 컴파일되는 것만 쓴다. 2026-11-27 확인 때는 하나도 안 됐다), Windows IOCP 직접 사용, CMake + vcpkg, GoogleTest. 메시지 큐 + 스레드 어피니티 |
 | C# 서버 (비교) | .NET 10 (LTS). async/await, `Channel<T>`, GC 할당 최소화. xUnit, BenchmarkDotNet |
 | 프로토콜 | `proto/` 스키마 하나 → `tools/CodeGen`(C# 콘솔)이 C++·C# 코드를 생성 |
 | 클라이언트 | **UE5 5.8 하나**(C++만, 블루프린트 금지). 이동·액션 동기화 확인용 뷰어(UI, 이펙트, 지형 없음). 같은 프로토콜이라 두 서버에 다 붙는다 |
@@ -119,7 +119,7 @@ powershell -File server-cpp/build.ps1 -Config release -Test  # 빌드 + 단위 �
 
 - 질문 / 가설 / 조건(부하, 하드웨어) / 결과(표, 그래프) / 결론 / Trade-off(얻은 것, 잃은 것, 결론이 깨지는 조건)
 - 측정 도구: 함수 단위는 Google Benchmark·BenchmarkDotNet, 전체 부하는 봇으로 실제 소켓을 붙여 잰다.
-- **여러 스레드 벤치마크 규칙(2026-11-26)**: 같은 측정 틀로 Noop(아무 일도 하지 않는 반복)을 스레드 1·2·4·8개로 같이 재고, 스레드 수만큼 늘지 않으면 그 결과를 믿지 않는다. 스레드 안 반복에서 `benchmark::DoNotOptimize`를 쓰지 않는다(MSVC 구현이 전역 변수 하나에 써서 true sharing). 스레드마다 자기 `volatile` 변수에 쓴다. 스레드는 측정 반복 밖에서 미리 만들고 barrier로 같이 출발시킨다(`Bench/ThreadTeam.h`, `Bench/ThreadTeam.cs`. 측정마다 만들면 생성 비용·출발 시차가 섞인다). 자세한 과정과 확인 목록은 `docs/journal/benchmark.html`.
+- **여러 스레드 벤치마크 규칙(2026-11-26)**: 같은 측정 틀로 Noop(아무 일도 하지 않는 반복)을 스레드 1·2·4·8개로 같이 재고, 스레드 수만큼 늘지 않으면 그 결과를 믿지 않는다. 스레드 안 반복에서 `benchmark::DoNotOptimize`를 쓰지 않는다(MSVC 구현이 전역 변수 하나에 써서 true sharing). 스레드마다 자기 `volatile` 변수에 쓴다. 스레드는 측정 반복 밖에서 미리 만들고 barrier로 같이 출발시킨다(`Bench/ThreadTeam.h`, `Bench/ThreadTeam.cs`. 측정마다 만들면 생성 비용·출발 시차가 섞인다). **1:1·N:1만으로 결론 내지 않고 N:M(생산자 N → 소비자 M, 키로 섞어 보내기)을 꼭 같이 잰다**(2026-11-27: 실무 경합. N:M을 넣자 C++ Lane이 병목으로 드러났다, decisions/002). 측정 틀이 경합을 만들지 않게 카운터는 쓰는 스레드가 하나인 쌍별로 둔다. 자세한 과정과 확인 목록은 `docs/journal/benchmark.html`.
 
 ## push 순서
 

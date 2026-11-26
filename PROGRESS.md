@@ -32,7 +32,7 @@
 | # | 라이브러리 | namespace | 내용 | 검증할 것 | C++ | C# |
 |---|---|---|---|---|---|---|
 | 1 | **Base** | `Base` | `ByteWriter`/`ByteReader`(C#: 코덱 struct), Assert(C#: BCL `Trace.Assert`/`Debug.Assert`), BuildInfo, Utf8(C#: BCL), `StrongId<Tag>`(C++만, C#은 ID마다 record struct), `Ruid`·`RuidGenerator`(전 서버 유일 64비트 ID), `RwLocked<T>`(C++만) | 기본 자료형, enum, string, class, 컨테이너 왕복. **C++ ↔ C# 같은 바이트** | 🔨 | 🔨 |
-| 2 | **Messaging** | `Messaging` | 메시지 큐, 생산자-소비자 N:M, 스레드 어피니티(레인), 레인 스레드(이름 ✅, 코어 고정은 벤치마크로) | 생산자·소비자 수 조합, 순서 보장, 어피니티. 객체 큐 vs 직렬화 큐 | 🔨 `Lane`, `LaneGroup` | 🔨 `Lane`, `LaneGroup` |
+| 2 | **Messaging** | `Messaging` | 메시지 큐, 생산자-소비자 N:M, 스레드 어피니티(레인), 레인 스레드(이름 ✅, 코어 고정은 벤치마크로) | 생산자·소비자 수 조합, 순서 보장, 어피니티. 객체 큐 vs 직렬화 큐 ✅ 객체(decisions/002) | 🔨 `Lane`, `LaneGroup` | 🔨 `Lane`, `LaneGroup` |
 | 3 | Memory | `Memory` | BufferPool(+ PooledBuffer 핸들), ObjectPool, 참조 카운트(보류: Network에서 `shared_ptr`와 비교) / C#: `ArrayPool`, `Microsoft.Extensions.ObjectPool` | new/delete vs 풀, C# GC 할당량, BufferPool 1판(등급마다 mutex) vs 2판(스레드 캐시 + 전역 묶음) ✅ 2판 채택(journal/bufferpool), 3판은 Network에서. ObjectPool vs new/delete vs C# DefaultObjectPool ✅(journal/objectpool) | 🔨 `BufferPool` 2판, `ObjectPool` | ➖ BCL `ArrayPool`, NuGet `ObjectPool`(Bench만) |
 | 4 | Log | `Log` | 비동기 로거 (Messaging 큐 사용) / C#: Serilog (2026-11-26, NuGet 설치는 그때 확인) | 동기 vs 비동기 비용 | ⬜ | ⬜ |
 | 5 | Metrics | `Metrics` | 카운터, 지연 히스토그램(p50/p99) | 측정 비용 | ⬜ | ⬜ |
@@ -60,7 +60,10 @@
 | Bench | **측정 틀 확장성**: 미리 만든 스레드(`ThreadTeam`)로도 Noop이 물리 8코어 8스레드에서 약 5배까지만 는다. 64B 정렬은 같고, 코어 고정은 오히려 느렸다. BufferPoolBench·ArrayPoolBench도 `ThreadTeam`으로 옮기기 | 확장성 수치를 믿으려면 Noop이 스레드 수만큼 늘어야 한다(지금은 같은 스레드 수의 언어 간 비교만 결론으로 쓴다, journal/objectpool) | BufferPool 2판 최적화와 같이 |
 | ObjectPool | 타입별 캐시 개수(`ObjectPoolTraits`), 반납 객체 상한 | 지금은 모두 64·32개. 큰 객체·내부 용량이 큰 객체는 메모리를 오래 쥔다 | 실제로 쓰는 타입이 생기면 |
 | Memory | `RefCounted`(침투형 참조 카운트) vs `std::shared_ptr` | 세션·방송 버퍼 수명 | Network |
-| Messaging | Lane 큐 비교(mutex + 두 버퍼 vs lock-free MPSC 등), Lane 코어 고정 | 위 "나중에 비교 실험할 것" | 벤치마크 때 |
+| Messaging | **Lane 큐 개선**(mutex + 두 버퍼 vs lock-free MPSC vs 여러 개 묶어 넣기 등), Lane 코어 고정 | N:M에서 C++ `Lane`이 병목이다: Lane이 늘수록 느려진다(큐만 1:1 34ns → 4:4 69ns), C# `Channel`은 빨라진다(65 → 44ns). **합격선: 4:4·8:4에서 메시지당 약 45ns 이하(C# `Channel` 수준), 1:1은 34ns 이하**(decisions/002, 2026-11-27) | 다음 단위 |
+| Base | **직렬화 필드 비용**: `WriteBytes`/`ReadBytes` 빠른 길을 헤더 `inline`으로, 쓰기 전 `reserve` | 필드 하나에 4~5ns(Inventory 970B 쓰기 765ns, 읽기 946ns, decisions/002). 패킷 경로에 그대로 쓰인다 | Network 전 |
+| Bench | **기존 여러 스레드 벤치를 N:M으로**: ObjectPool·BufferPool CrossThread는 독립된 1:1 쌍 여러 개일 뿐이다. 생산자 N → 소비자 M(키로 섞어 보내기)을 넣는다 | 실무는 여러 스레드가 빌리고 여러 스레드가 반납해 전역 묶음 mutex·할당기 경합이 더 크다(2026-11-27 사용자 지적) | Lane 큐 개선 전 |
+| C# | **GC 비용 측정**: 틱 지연 p99·최댓값, `GC.GetTotalPauseDuration()`, 메모리, Workstation vs Server GC | 마이크로 벤치마크는 메시지가 곧 죽어 Gen0만 돈다. C# `new`는 메시지당 80~1128B 할당(decisions/002). 평균 처리량만으로 언어 비교 결론을 내지 않는다 | 봇 부하 테스트 |
 
 자세한 고민 과정: `docs/journal/bufferpool.html`, `docs/journal/objectpool.html`, 측정 주의: `docs/journal/benchmark.html`.
 

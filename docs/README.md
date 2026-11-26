@@ -34,6 +34,7 @@
 | 파일 | 결정 |
 |---|---|
 | [001-server-architecture.md](decisions/001-server-architecture.md) | 서버 구조: 분산 존(Gateway + ZoneServer) |
+| [002-message-queue-object-vs-bytes.md](decisions/002-message-queue-object-vs-bytes.md) | 메시지 큐에 객체 vs 직렬화한 바이트: 같은 프로세스 안은 객체(+ ObjectPool). N:M에서 C++ Lane이 병목, C# Channel이 목표선 |
 
 ### units (단위 보고서)
 
