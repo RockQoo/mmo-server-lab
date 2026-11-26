@@ -67,7 +67,7 @@ public class RuidGeneratorTest
         var next = generator.Next();
         Assert.Equal(1001, next.Timestamp);
         Assert.Equal(0, next.Sequence);
-        Assert.True(generator.SequenceWaitCount >= 1);
+        Assert.Equal(1, generator.SequenceWaitCount); // 기다린 호출은 513번째 하나뿐
     }
 
     // 시계가 뒤로 가도(가짜 시계로 흉내) 마지막 시각을 유지해 겹치지 않고 계속 커진다.

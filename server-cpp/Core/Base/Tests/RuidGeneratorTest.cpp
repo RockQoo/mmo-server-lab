@@ -77,7 +77,7 @@ TEST(RuidGenerator, WaitsForNextMsAfter512)
     const auto next = generator.Next();
     EXPECT_EQ(Base::RuidTimestamp(next), 1001);
     EXPECT_EQ(Base::RuidSequence(next), 0);
-    EXPECT_GE(generator.SequenceWaitCount(), 1);
+    EXPECT_EQ(generator.SequenceWaitCount(), 1); // 기다린 호출은 513번째 하나뿐
 }
 
 // 시계가 뒤로 가도(가짜 시계로 흉내) 마지막 시각을 유지해 겹치지 않고 계속 커진다.

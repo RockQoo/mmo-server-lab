@@ -51,7 +51,7 @@ public sealed class RuidGenerator
     public int Realm { get; }
     public int Node { get; }
 
-    // 같은 ms 의 순번 512개를 다 써서 기다린 횟수. 0이 아니면 대량 발급을 나눌지 본다.
+    // 같은 ms 의 순번 512개를 다 써서 기다린 Next() 호출 수(한 호출이 여러 번 돌아도 1). 0이 아니면 대량 발급을 나눌지 본다.
     public long SequenceWaitCount => Interlocked.Read(ref _sequenceWaits);
 
     // 프로세스 전역 발급기. InitializeGlobal 전에 꺼내면 Trace.Assert(Init 을 빼먹은 프로세스가 아무 번호로 발급하지 않게).
@@ -78,6 +78,7 @@ public sealed class RuidGenerator
     public Ruid Next()
     {
         var last = Volatile.Read(ref _last.Value);
+        var waited = false; // 이번 호출에서 이미 기다림을 셌는가(카운터는 호출당 한 번만 쓴다. Codex 리뷰 R1)
         while (true)
         {
             var now = NowMs();
@@ -96,7 +97,11 @@ public sealed class RuidGenerator
                 if (lastSequence == SequenceMask)
                 {
                     // 이 ms 의 512개를 다 썼다. 다음 ms 가 될 때까지 양보한다.
-                    Interlocked.Increment(ref _sequenceWaits);
+                    if (!waited)
+                    {
+                        waited = true;
+                        Interlocked.Increment(ref _sequenceWaits);
+                    }
                     Thread.Yield();
                     last = Volatile.Read(ref _last.Value);
                     continue;

@@ -28,7 +28,7 @@
 //   3. 오래 켜 두면 ID 안의 시각이 실제 시각과 몇 초 벌어질 수 있다(steady_clock과 시스템 시계의 차이).
 //      ID 안의 시각은 "대략 언제"용이고, 순서(나중 ID가 크다)는 그대로 지켜진다.
 //   4. 한 프로세스가 ms당 512개를 넘게 만들면 그 프로세스의 모든 스레드가 다음 ms까지 기다린다.
-//      대량 발급(전체 우편 등)은 나눠서 한다. 기다린 횟수는 SequenceWaitCount()로 본다.
+//      대량 발급(전체 우편 등)은 나눠서 한다. 기다린 호출 수는 SequenceWaitCount()로 본다.
 namespace Base
 {
 // _last를 캐시 라인에 혼자 두려고 넣은 alignas 때문에 생기는 패딩 안내(C4324). 일부러 넣은 패딩이다.
@@ -57,7 +57,8 @@ namespace Base
         std::int32_t Realm() const noexcept;
         std::int32_t Node() const noexcept;
 
-        // 같은 ms의 순번 512개를 다 써서 기다린 횟수. 0이 아니면 대량 발급을 나눌지 본다.
+        // 같은 ms의 순번 512개를 다 써서 기다린 Next() 호출 수(한 호출이 여러 번 돌아도 1).
+        // 0이 아니면 대량 발급을 나눌지 본다.
         std::int64_t SequenceWaitCount() const noexcept;
 
         // 기본 시계. 부른 순간 실제 시각을 한 번 읽고, 이후는 steady_clock으로 흐른 시간만 더한다.

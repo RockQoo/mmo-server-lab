@@ -52,6 +52,7 @@ namespace Base
         // 순서 보장이 필요한 다른 메모리가 없고 _last 하나만 다투므로 relaxed로 충분하다.
         // (한 원자 변수에 대한 CAS들은 모든 스레드가 같은 순서로 본다)
         auto last = _last.load(std::memory_order_relaxed);
+        auto waited = false; // 이번 호출에서 이미 기다림을 셌는가(카운터는 호출당 한 번만 쓴다. Codex 리뷰 R1)
         for (;;)
         {
             const auto now = _clock();
@@ -70,7 +71,11 @@ namespace Base
                 if (lastSequence == SequenceMask)
                 {
                     // 이 ms의 512개를 다 썼다. 다음 ms가 될 때까지 양보한다.
-                    _sequenceWaits.fetch_add(1, std::memory_order_relaxed);
+                    if (!waited)
+                    {
+                        waited = true;
+                        _sequenceWaits.fetch_add(1, std::memory_order_relaxed);
+                    }
                     std::this_thread::yield();
                     last = _last.load(std::memory_order_relaxed);
                     continue;
