@@ -135,6 +135,19 @@ if(MSVC)
 endif()
 gtest_discover_tests(MemoryTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
+# ======== 벤치마크 (Google Benchmark) ========
+# 설계 선택의 근거를 재는 실행 파일. 결과는 docs/decisions/ 에 남긴다. Release 로 돌린다.
+#   build/release/Bench.exe --benchmark_filter=BufferPool
+find_package(benchmark CONFIG REQUIRED)
+add_executable(Bench
+    Bench/BufferPoolBench.cpp
+)
+target_link_libraries(Bench PRIVATE Memory benchmark::benchmark benchmark::benchmark_main)
+set_target_properties(Bench PROPERTIES FOLDER Bench)
+if(MSVC)
+    target_compile_options(Bench PRIVATE /wd6326) # 테스트와 같은 매크로 오탐 대비
+endif()
+
 # ======== 실행 파일 (분산 존 구조, docs/decisions/001-서버-구조.md) ========
 # 서버는 Core 라이브러리에만 의존한다. 서버끼리는 서로 링크하지 않는다.
 

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- C++ server-cpp/Bench(Google Benchmark)와 같은 자리. 설계 선택의 근거를 잰다. Release 로 돌린다.
+       실행: Bench 폴더에서 dotnet run -c Release (전부) 또는 뒤에 필터를 준다(예: 필터 *ArrayPool*) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Bench</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+</Project>

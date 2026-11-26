@@ -75,3 +75,8 @@ dotnet_diagnostic.CA1000.severity = none
 #   CA2007 await 마다 ConfigureAwait 를 붙여라(라이브러리용 규칙. 라이브러리 코드에서는 지킨다)
 [**/Tests/**.cs]
 dotnet_diagnostic.CA2007.severity = none
+
+# 벤치마크. BenchmarkDotNet 은 벤치마크 클래스와 [Benchmark]·[Params] 멤버가 public 이어야 찾는다.
+#   CA1515 앱 안의 타입은 internal 로 하라
+[Bench/**.cs]
+dotnet_diagnostic.CA1515.severity = none

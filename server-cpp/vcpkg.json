@@ -2,6 +2,7 @@
   "name": "mmo-server-lab",
   "version": "0.1.0",
   "dependencies": [
+    "benchmark",
     "gtest"
   ],
   "builtin-baseline": "8f363bdc11359ede4bc51e5eb32a2617538049c8"

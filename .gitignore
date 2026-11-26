@@ -25,3 +25,6 @@ PERF-LOG.md
 .qa/
 .review/
 code-review/
+
+# BenchmarkDotNet 결과 폴더(PC 경로·환경이 들어 있다. 결과는 docs/decisions/ 에 정리해 남긴다)
+BenchmarkDotNet.Artifacts/
