@@ -3,14 +3,11 @@
 #include <new>
 #include <utility>
 
-#include "Base/Assert.h"
-
 namespace Memory
 {
     // ---- PooledBuffer
 
-    PooledBuffer::PooledBuffer(BufferPool* pool, std::byte* data, const std::size_t size) noexcept
-        : _pool(pool), _data(data), _size(size)
+    PooledBuffer::PooledBuffer(std::byte* data, const std::size_t size) noexcept : _data(data), _size(size)
     {
     }
 
@@ -20,8 +17,7 @@ namespace Memory
     }
 
     PooledBuffer::PooledBuffer(PooledBuffer&& other) noexcept
-        : _pool(std::exchange(other._pool, nullptr)), _data(std::exchange(other._data, nullptr)),
-          _size(std::exchange(other._size, 0))
+        : _data(std::exchange(other._data, nullptr)), _size(std::exchange(other._size, 0))
     {
     }
 
@@ -30,7 +26,6 @@ namespace Memory
         if (this != &other)
         {
             Reset();
-            _pool = std::exchange(other._pool, nullptr);
             _data = std::exchange(other._data, nullptr);
             _size = std::exchange(other._size, 0);
         }
@@ -41,30 +36,61 @@ namespace Memory
     {
         if (_data != nullptr)
         {
-            _pool->Return(std::exchange(_data, nullptr), std::exchange(_size, 0));
-            _pool = nullptr;
+            BufferPool::Shared().Return(std::exchange(_data, nullptr), std::exchange(_size, 0));
         }
     }
+
+    // ---- 전역 풀 하나
+
+    // constinit: 프로그램 시작 전에 만들어진다(다른 전역보다 먼저, 첫 사용 검사 없음). 소멸은 가장 늦다.
+    constinit BufferPool BufferPool::s_shared{};
+
+    BufferPool& BufferPool::Shared() noexcept
+    {
+        return s_shared;
+    }
+
+    // ---- 스레드 캐시
+
+    // 스레드마다 등급별로 반납된 빈 버퍼를 들고 있다. 그 스레드만 만지므로 락이 없다.
+    struct ThreadCache
+    {
+        struct Slot
+        {
+            std::array<std::byte*, BufferPool::CacheCapacity> items{};
+            std::size_t count{};
+        };
+
+        ThreadCache() = default;
+        // 스레드가 끝나면 남은 버퍼를 전역으로 보낸다(안 보내면 누수).
+        ~ThreadCache()
+        {
+            for (auto index = std::size_t{0}; index < BufferPool::ClassCount; ++index)
+            {
+                auto& slot = slots[index];
+                if (slot.count > 0)
+                {
+                    BufferPool::Shared().PushBatch(index, slot.items.data(), slot.count);
+                    slot.count = 0;
+                }
+            }
+        }
+        ThreadCache(const ThreadCache&) = delete;
+        ThreadCache& operator=(const ThreadCache&) = delete;
+        ThreadCache(ThreadCache&&) = delete;
+        ThreadCache& operator=(ThreadCache&&) = delete;
+
+        std::array<Slot, BufferPool::ClassCount> slots{};
+    };
+
+    thread_local ThreadCache t_cache;
 
     // ---- BufferPool
 
     // 반납된 버퍼 안에 FreeNode를 적으므로 가장 작은 버퍼도 그 크기·정렬을 담아야 한다
     // (new std::byte[]는 __STDCPP_DEFAULT_NEW_ALIGNMENT__로 정렬된다).
-    static_assert(BufferPool::MinSize >= sizeof(void*) && __STDCPP_DEFAULT_NEW_ALIGNMENT__ >= alignof(void*));
-
-    BufferPool::~BufferPool()
-    {
-        ASSERT(_rented.load() == 0, "BufferPool destroyed while buffers are still rented");
-        for (auto& sizeClass : _classes)
-        {
-            while (sizeClass.head != nullptr)
-            {
-                auto* node = sizeClass.head;
-                sizeClass.head = node->next;
-                delete[] reinterpret_cast<std::byte*>(node); // FreeNode는 소멸자가 없다(포인터 하나)
-            }
-        }
-    }
+    static_assert(BufferPool::MinSize >= 3 * sizeof(void*) && __STDCPP_DEFAULT_NEW_ALIGNMENT__ >= alignof(void*));
+    static_assert(BufferPool::BatchSize > 0 && BufferPool::BatchSize <= BufferPool::CacheCapacity);
 
     PooledBuffer BufferPool::Rent(const std::size_t minSize)
     {
@@ -72,51 +98,110 @@ namespace Memory
         std::byte* data{};
         if (size <= MaxSize)
         {
-            auto& sizeClass = _classes[ClassIndex(size)];
-            const std::scoped_lock lock(sizeClass.mutex);
-            if (auto* node = sizeClass.head; node != nullptr)
+            const auto index = ClassIndex(size);
+            auto& slot = t_cache.slots[index];
+            if (slot.count == 0)
             {
-                sizeClass.head = node->next;
-                --sizeClass.freeCount;
-                data = reinterpret_cast<std::byte*>(node);
+                slot.count = PopBatch(index, slot.items.data()); // 비었으면 전역에서 한 묶음
+            }
+            if (slot.count > 0)
+            {
+                data = slot.items[--slot.count];
             }
         }
         if (data == nullptr)
         {
-            data = new std::byte[size]; // 락 밖에서 할당한다
+            data = new std::byte[size]; // 캐시도 전역도 비었거나 64KB 초과
         }
-        _rented.fetch_add(1, std::memory_order_relaxed);
-        return PooledBuffer(this, data, size);
+#ifndef NDEBUG
+        _rented.fetch_add(1);
+#endif
+        return PooledBuffer(data, size);
     }
 
     void BufferPool::Return(std::byte* data, const std::size_t size) noexcept
     {
-        _rented.fetch_sub(1, std::memory_order_relaxed);
+#ifndef NDEBUG
+        _rented.fetch_sub(1);
+#endif
         if (size > MaxSize)
         {
             delete[] data; // 풀 밖 큰 버퍼
             return;
         }
-        auto& sizeClass = _classes[ClassIndex(size)];
-        const std::scoped_lock lock(sizeClass.mutex);
-        sizeClass.head = new (data) FreeNode{sizeClass.head}; // 버퍼 맨 앞에 적는다(할당 없음)
-        ++sizeClass.freeCount;
-    }
-
-    std::size_t BufferPool::RentedCount() const noexcept
-    {
-        return _rented.load(std::memory_order_relaxed);
-    }
-
-    std::size_t BufferPool::CachedCount()
-    {
-        auto count = std::size_t{0};
-        for (auto& sizeClass : _classes)
+        const auto index = ClassIndex(size);
+        auto& slot = t_cache.slots[index];
+        if (slot.count == CacheCapacity)
         {
+            // 넘친다: 오래된 쪽(앞) BatchSize개를 한 묶음으로 전역에 보내고 나머지를 앞으로 당긴다.
+            PushBatch(index, slot.items.data(), BatchSize);
+            std::move(slot.items.begin() + BatchSize, slot.items.end(), slot.items.begin());
+            slot.count -= BatchSize;
+        }
+        slot.items[slot.count++] = data;
+    }
+
+    void BufferPool::PushBatch(const std::size_t classIndex, std::byte* const* items, const std::size_t count) noexcept
+    {
+        if (count == 0)
+        {
+            return;
+        }
+        // 락 밖에서 버퍼끼리 잇는다. 락 안에서는 머리만 바꾼다.
+        FreeNode* next{};
+        for (auto i = count; i > 0; --i)
+        {
+            next = new (items[i - 1]) FreeNode{next, nullptr, 0};
+        }
+        auto* head = next;
+        head->count = count;
+
+        auto& sizeClass = _classes[classIndex];
+        const std::scoped_lock lock(sizeClass.mutex);
+        head->nextBatch = sizeClass.batches;
+        sizeClass.batches = head;
+        sizeClass.freeCount += count;
+    }
+
+    std::size_t BufferPool::PopBatch(const std::size_t classIndex, std::byte** items) noexcept
+    {
+        FreeNode* head{};
+        {
+            auto& sizeClass = _classes[classIndex];
             const std::scoped_lock lock(sizeClass.mutex);
-            count += sizeClass.freeCount;
+            head = sizeClass.batches;
+            if (head == nullptr)
+            {
+                return 0;
+            }
+            sizeClass.batches = head->nextBatch;
+            sizeClass.freeCount -= head->count;
+        }
+        // 락 밖에서 묶음을 풀어 캐시에 담는다.
+        auto count = std::size_t{0};
+        for (auto* node = head; node != nullptr; node = node->next)
+        {
+            items[count++] = reinterpret_cast<std::byte*>(node); // FreeNode는 소멸자가 없다(포인터·정수뿐)
         }
         return count;
+    }
+
+    std::size_t BufferPool::ThreadCachedCount(const std::size_t size) noexcept
+    {
+        const auto classSize = SizeFor(size);
+        return classSize > MaxSize ? 0 : t_cache.slots[ClassIndex(classSize)].count;
+    }
+
+    std::size_t BufferPool::GlobalCachedCount(const std::size_t size)
+    {
+        const auto classSize = SizeFor(size);
+        if (classSize > MaxSize)
+        {
+            return 0;
+        }
+        auto& sizeClass = _classes[ClassIndex(classSize)];
+        const std::scoped_lock lock(sizeClass.mutex);
+        return sizeClass.freeCount;
     }
 
     std::size_t BufferPool::ClassIndex(const std::size_t size) noexcept

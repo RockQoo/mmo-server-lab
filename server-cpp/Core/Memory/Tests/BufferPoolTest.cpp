@@ -1,6 +1,11 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <mutex>
+#include <queue>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -10,86 +15,176 @@
 using Memory::BufferPool;
 using Memory::PooledBuffer;
 
+// 풀은 프로세스에 하나라 다른 테스트가 남긴 버퍼가 있을 수 있다. 개수는 "전후 차이"로 확인한다.
+// 빈 스레드 캐시에서 시작해야 하는 테스트는 새 스레드에서 돈다.
+
+namespace
+{
+    BufferPool& Pool()
+    {
+        return BufferPool::Shared();
+    }
+
+    constexpr auto Small = std::size_t{100}; // 256B 등급
+
+    // 새 스레드에서 돌리고 끝날 때까지 기다린다(스레드 캐시가 빈 상태에서 시작, 끝나면 캐시가 전역으로).
+    template <typename Function>
+    void RunOnNewThread(Function&& function)
+    {
+        std::jthread thread(std::forward<Function>(function));
+        thread.join();
+    }
+} // namespace
+
 TEST(BufferPool, RentRoundsUpToSizeClass)
 {
-    BufferPool pool;
-    EXPECT_EQ(pool.Rent(0).Size(), 256u);
-    EXPECT_EQ(pool.Rent(1).Size(), 256u);
-    EXPECT_EQ(pool.Rent(256).Size(), 256u);
-    EXPECT_EQ(pool.Rent(257).Size(), 1024u);
-    EXPECT_EQ(pool.Rent(4096).Size(), 4096u);
-    EXPECT_EQ(pool.Rent(BufferPool::MaxSize).Size(), BufferPool::MaxSize);
+    EXPECT_EQ(Pool().Rent(0).Size(), 256u);
+    EXPECT_EQ(Pool().Rent(1).Size(), 256u);
+    EXPECT_EQ(Pool().Rent(256).Size(), 256u);
+    EXPECT_EQ(Pool().Rent(257).Size(), 1024u);
+    EXPECT_EQ(Pool().Rent(4096).Size(), 4096u);
+    EXPECT_EQ(Pool().Rent(BufferPool::MaxSize).Size(), BufferPool::MaxSize);
 }
 
-TEST(BufferPool, ReturnedBufferIsReused)
+// 같은 스레드에서 반납한 버퍼는 그 스레드 캐시로 가고, 다음 Rent가 그대로 다시 준다(락 없는 길).
+TEST(BufferPool, SameThreadReuseComesFromThreadCache)
 {
-    BufferPool pool;
-    auto first = pool.Rent(100);
+    auto first = Pool().Rent(Small);
     const auto* data = first.Data();
+    const auto before = BufferPool::ThreadCachedCount(Small);
     first.Reset();
     EXPECT_TRUE(first.IsEmpty());
-    EXPECT_EQ(pool.CachedCount(), 1u);
+    EXPECT_EQ(BufferPool::ThreadCachedCount(Small), before + 1);
 
-    const auto second = pool.Rent(200); // 같은 등급(256)이라 방금 반납한 버퍼
+    const auto second = Pool().Rent(200); // 같은 등급(256)
     EXPECT_EQ(second.Data(), data);
-    EXPECT_EQ(pool.CachedCount(), 0u);
+    EXPECT_EQ(BufferPool::ThreadCachedCount(Small), before);
 }
 
 // 등급이 다르면 섞이지 않는다.
 TEST(BufferPool, SizeClassesAreSeparate)
 {
-    BufferPool pool;
-    pool.Rent(100).Reset();
-    const auto large = pool.Rent(1000);
+    Pool().Rent(Small).Reset();
+    const auto smallCached = BufferPool::ThreadCachedCount(Small);
+    const auto large = Pool().Rent(1000);
     EXPECT_EQ(large.Size(), 1024u);
-    EXPECT_EQ(pool.CachedCount(), 1u) << "256 등급 버퍼는 그대로 남아 있다";
-}
-
-TEST(BufferPool, DestructorReturns)
-{
-    BufferPool pool;
-    {
-        const auto buffer = pool.Rent(100);
-        EXPECT_EQ(pool.RentedCount(), 1u);
-    }
-    EXPECT_EQ(pool.RentedCount(), 0u);
-    EXPECT_EQ(pool.CachedCount(), 1u);
+    EXPECT_EQ(BufferPool::ThreadCachedCount(Small), smallCached) << "256 등급 버퍼는 그대로 남아 있다";
 }
 
 TEST(BufferPool, MoveTransfersOwnership)
 {
-    BufferPool pool;
-    auto source = pool.Rent(100);
+    auto source = Pool().Rent(Small);
     const auto* data = source.Data();
+    const auto before = BufferPool::ThreadCachedCount(Small);
 
     PooledBuffer moved(std::move(source));
     EXPECT_TRUE(source.IsEmpty()); // NOLINT(bugprone-use-after-move): 옮긴 뒤 빈 핸들인지 확인
     EXPECT_EQ(moved.Data(), data);
-    EXPECT_EQ(pool.RentedCount(), 1u) << "옮겨도 반납되지 않는다";
+    EXPECT_EQ(BufferPool::ThreadCachedCount(Small), before) << "옮겨도 반납되지 않는다";
 }
 
 TEST(BufferPool, MoveAssignReturnsHeldBuffer)
 {
-    BufferPool pool;
-    auto target = pool.Rent(100);
-    auto source = pool.Rent(100);
+    auto target = Pool().Rent(Small);
+    auto source = Pool().Rent(Small);
+    const auto before = BufferPool::ThreadCachedCount(Small);
     target = std::move(source);
-    EXPECT_EQ(pool.RentedCount(), 1u);
-    EXPECT_EQ(pool.CachedCount(), 1u) << "target이 들고 있던 버퍼는 반납된다";
+    EXPECT_EQ(BufferPool::ThreadCachedCount(Small), before + 1) << "target이 들고 있던 버퍼는 반납된다";
 }
 
 // 64KB보다 크면 풀에 두지 않는다.
 TEST(BufferPool, LargerThanMaxIsNotPooled)
 {
-    BufferPool pool;
     const auto size = BufferPool::MaxSize + 1;
     {
-        const auto large = pool.Rent(size);
+        const auto large = Pool().Rent(size);
         EXPECT_EQ(large.Size(), size);
-        EXPECT_EQ(pool.RentedCount(), 1u);
     }
-    EXPECT_EQ(pool.RentedCount(), 0u);
-    EXPECT_EQ(pool.CachedCount(), 0u);
+    EXPECT_EQ(BufferPool::ThreadCachedCount(size), 0u);
+    EXPECT_EQ(Pool().GlobalCachedCount(size), 0u);
+}
+
+// 캐시가 꽉 찬 채로 반납하면 BatchSize개를 한 묶음으로 전역에 보낸다.
+// 앞 테스트가 전역에 남긴 묶음을 Rent가 가져올 수 있어서, 반납 직전 개수에서 규칙대로 계산한 값과 비교한다.
+TEST(BufferPool, OverflowSendsBatchToGlobal)
+{
+    RunOnNewThread(
+        []
+        {
+            std::vector<PooledBuffer> held;
+            for (auto i = std::size_t{0}; i < BufferPool::CacheCapacity + 1; ++i)
+            {
+                held.push_back(Pool().Rent(Small));
+            }
+            auto cached = BufferPool::ThreadCachedCount(Small);
+            auto global = Pool().GlobalCachedCount(Small);
+            auto overflowed = false;
+            while (!held.empty())
+            {
+                if (cached == BufferPool::CacheCapacity) // 꽉 찬 채로 반납 → 한 묶음이 전역으로
+                {
+                    cached -= BufferPool::BatchSize;
+                    global += BufferPool::BatchSize;
+                    overflowed = true;
+                }
+                ++cached;
+                held.pop_back();
+                ASSERT_EQ(BufferPool::ThreadCachedCount(Small), cached);
+                ASSERT_EQ(Pool().GlobalCachedCount(Small), global);
+            }
+            EXPECT_TRUE(overflowed) << "17개를 반납하면 적어도 한 번은 넘친다";
+        });
+}
+
+// 스레드가 끝나면 캐시에 남은 버퍼가 모두 전역으로 간다.
+TEST(BufferPool, ThreadExitFlushesCacheToGlobal)
+{
+    auto globalAtExit = std::size_t{};
+    auto cachedAtExit = std::size_t{};
+    RunOnNewThread(
+        [&globalAtExit, &cachedAtExit]
+        {
+            {
+                auto a = Pool().Rent(Small);
+                auto b = Pool().Rent(Small);
+                auto c = Pool().Rent(Small);
+            } // a, b, c 반납 → 이 스레드 캐시로
+            globalAtExit = Pool().GlobalCachedCount(Small);
+            cachedAtExit = BufferPool::ThreadCachedCount(Small);
+        });
+    EXPECT_GE(cachedAtExit, 3u);
+    EXPECT_EQ(Pool().GlobalCachedCount(Small), globalAtExit + cachedAtExit) << "스레드가 끝나며 캐시를 전역으로 보냄";
+}
+
+// 캐시가 빈 스레드는 전역에서 한 묶음을 가져온다.
+TEST(BufferPool, EmptyCacheTakesBatchFromGlobal)
+{
+    RunOnNewThread([] { auto a = Pool().Rent(Small); }); // 전역에 적어도 한 묶음을 만든다(스레드 끝)
+    RunOnNewThread(
+        []
+        {
+            const auto globalBefore = Pool().GlobalCachedCount(Small);
+            ASSERT_GT(globalBefore, 0u);
+            const auto buffer = Pool().Rent(Small);
+            const auto taken = globalBefore - Pool().GlobalCachedCount(Small);
+            EXPECT_GE(taken, 1u) << "묶음 하나를 가져온다";
+            EXPECT_EQ(BufferPool::ThreadCachedCount(Small), taken - 1) << "하나는 빌려주고 나머지는 캐시에";
+        });
+}
+
+// 다른 스레드에서 반납하면 반납한 스레드의 캐시로 간다(송신 완료를 IOCP 스레드가 반납하는 모양).
+TEST(BufferPool, ReturnOnOtherThreadGoesToThatThreadsCache)
+{
+    auto buffer = Pool().Rent(Small);
+    const auto mineBefore = BufferPool::ThreadCachedCount(Small);
+    RunOnNewThread(
+        [moved = std::move(buffer)]() mutable
+        {
+            const auto before = BufferPool::ThreadCachedCount(Small);
+            moved.Reset();
+            EXPECT_EQ(BufferPool::ThreadCachedCount(Small), before + 1);
+        });
+    EXPECT_EQ(BufferPool::ThreadCachedCount(Small), mineBefore) << "빌린 스레드의 캐시는 그대로";
 }
 
 // 여러 스레드가 동시에 빌리고 반납해도 같은 버퍼를 두 곳이 쥐지 않는다.
@@ -98,45 +193,112 @@ TEST(BufferPool, ConcurrentRentNeverShares)
 {
     constexpr auto ThreadCount = 8;
     constexpr auto Rounds = 5000;
-    BufferPool pool;
+    std::vector<std::jthread> threads;
+    for (auto t = 0; t < ThreadCount; ++t)
+    {
+        threads.emplace_back(
+            [t]
+            {
+                const auto mark = static_cast<std::byte>(t + 1);
+                std::vector<PooledBuffer> held; // 가끔 여러 개를 들고 있어 캐시가 넘치고 비게 한다
+                for (auto i = 0; i < Rounds; ++i)
+                {
+                    auto buffer = Pool().Rent(static_cast<std::size_t>(64 + (i % 3) * 600));
+                    for (auto& b : buffer.Span())
+                    {
+                        b = mark;
+                    }
+                    std::this_thread::yield();
+                    for (const auto b : buffer.Span())
+                    {
+                        ASSERT_EQ(b, mark);
+                    }
+                    held.push_back(std::move(buffer));
+                    if (held.size() == 40)
+                    {
+                        held.clear();
+                    }
+                }
+            });
+    }
+}
+
+// 빌리는 스레드와 반납하는 스레드가 달라도 같은 버퍼를 두 곳이 쥐지 않는다.
+// 빌리는 쪽이 버퍼에 고유 번호를 적어 넘기고, 반납하는 쪽이 번호가 그대로인지 확인한 뒤 반납한다.
+TEST(BufferPool, CrossThreadRentReturnNeverShares)
+{
+    constexpr auto PairCount = 4;
+    constexpr auto PerPair = 20'000;
+    struct Channel
+    {
+        Channel() = default;
+        ~Channel() = default;
+        Channel(const Channel&) = delete; // mutex를 들고 있어 옮길 수 없다
+        Channel& operator=(const Channel&) = delete;
+        Channel(Channel&&) = delete;
+        Channel& operator=(Channel&&) = delete;
+
+        std::mutex mutex;
+        std::queue<std::pair<std::uint64_t, PooledBuffer>> items;
+    };
+    std::array<Channel, PairCount> channels{};
     {
         std::vector<std::jthread> threads;
-        for (auto t = 0; t < ThreadCount; ++t)
+        for (auto p = 0; p < PairCount; ++p)
         {
+            auto& channel = channels[static_cast<std::size_t>(p)];
             threads.emplace_back(
-                [&pool, t]
+                [&channel, p]
                 {
-                    const auto mark = static_cast<std::byte>(t + 1);
-                    for (auto i = 0; i < Rounds; ++i)
+                    for (auto i = 0; i < PerPair; ++i)
                     {
-                        const auto buffer = pool.Rent(static_cast<std::size_t>(64 + (i % 3) * 600));
-                        for (auto& b : buffer.Span())
+                        const auto id = (static_cast<std::uint64_t>(p) << 32) | static_cast<std::uint64_t>(i);
+                        auto buffer = Pool().Rent(Small);
+                        std::memcpy(buffer.Data(), &id, sizeof(id));
+                        const std::scoped_lock lock(channel.mutex);
+                        channel.items.emplace(id, std::move(buffer));
+                    }
+                });
+            threads.emplace_back(
+                [&channel]
+                {
+                    auto received = 0;
+                    while (received < PerPair)
+                    {
+                        std::pair<std::uint64_t, PooledBuffer> item;
                         {
-                            b = mark;
+                            const std::scoped_lock lock(channel.mutex);
+                            if (channel.items.empty())
+                            {
+                                continue;
+                            }
+                            item = std::move(channel.items.front());
+                            channel.items.pop();
                         }
-                        std::this_thread::yield();
-                        for (const auto b : buffer.Span())
-                        {
-                            ASSERT_EQ(b, mark);
-                        }
+                        auto written = std::uint64_t{};
+                        std::memcpy(&written, item.second.Data(), sizeof(written));
+                        ASSERT_EQ(written, item.first);
+                        item.second.Reset(); // 이 스레드 캐시로 반납
+                        ++received;
                     }
                 });
         }
     }
-    EXPECT_EQ(pool.RentedCount(), 0u);
-    EXPECT_LE(pool.CachedCount(), static_cast<std::size_t>(ThreadCount * 3))
-        << "스레드 수 × 등급 수 이상 쌓이지 않는다";
+#ifndef NDEBUG
+    EXPECT_EQ(Pool().RentedCount(), 0) << "모두 반납됐다(Debug에서만 센다)";
+#endif
 }
 
-TEST(BufferPoolDeathTest, DestroyWhileRentedCrashes)
+#ifndef NDEBUG
+// Debug에서만 빌려 간 수를 센다.
+TEST(BufferPool, DebugCountsRented)
 {
-    EXPECT_DEATH(
-        {
-            PooledBuffer buffer;
-            {
-                BufferPool pool;
-                buffer = pool.Rent(100);
-            }
-        },
-        "still rented");
+    const auto before = Pool().RentedCount();
+    {
+        const auto a = Pool().Rent(Small);
+        const auto b = Pool().Rent(BufferPool::MaxSize + 1); // 풀 밖 큰 버퍼도 센다
+        EXPECT_EQ(Pool().RentedCount(), before + 2);
+    }
+    EXPECT_EQ(Pool().RentedCount(), before);
 }
+#endif
