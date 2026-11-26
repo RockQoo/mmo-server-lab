@@ -19,10 +19,29 @@ internal sealed class ThreadTeam : IDisposable
     {
         _barrier = new Barrier(count + 1);
         _workers = new Thread[count];
-        for (var t = 0; t < count; ++t)
+        var started = 0;
+        try
         {
-            _workers[t] = new Thread(Work) { IsBackground = true, Name = $"bench-{t}" };
-            _workers[t].Start();
+            for (; started < count; ++started)
+            {
+                var worker = new Thread(Work) { IsBackground = true, Name = $"bench-{started}" };
+                worker.Start();
+                _workers[started] = worker;
+            }
+        }
+        catch
+        {
+            // 스레드 생성이 중간에 실패했다: 만들지 못한 몫은 barrier 에서 빼고, 만든 작업자를 깨워 멈추게 한 뒤 던진다
+            // (안 하면 오지 않을 작업자를 기다려 멈춘다. Codex 리뷰 3차 R1, C++ ThreadTeam 과 같음).
+            _stopping = true;
+            _barrier.RemoveParticipants(count - started);
+            _barrier.SignalAndWait();
+            for (var t = 0; t < started; ++t)
+            {
+                _workers[t].Join();
+            }
+            _barrier.Dispose();
+            throw;
         }
     }
 

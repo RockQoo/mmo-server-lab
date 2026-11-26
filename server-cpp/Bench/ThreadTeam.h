@@ -25,9 +25,25 @@ namespace Bench
         explicit ThreadTeam(const int count) : _barrier(static_cast<std::ptrdiff_t>(count) + 1)
         {
             _workers.reserve(static_cast<std::size_t>(count));
-            for (auto t = 0; t < count; ++t)
+            try
             {
-                _workers.emplace_back([this, t] { Work(t); });
+                for (auto t = 0; t < count; ++t)
+                {
+                    _workers.emplace_back([this, t] { Work(t); });
+                }
+            }
+            catch (...)
+            {
+                // 스레드 생성이 중간에 실패했다: 만들지 못한 몫은 barrier 에서 빼고, 만든 작업자를 출발 자리에서 깨워
+                // 멈추게 한 뒤 던진다(그 뒤 _workers 소멸 = join). 안 하면 오지 않을 작업자를 기다려 멈춘다(Codex 리뷰
+                // 3차 R1).
+                _stopping = true;
+                for (auto missing = static_cast<std::size_t>(count) - _workers.size(); missing > 0; --missing)
+                {
+                    (void)_barrier.arrive_and_drop();
+                }
+                _barrier.arrive_and_wait();
+                throw;
             }
         }
         ~ThreadTeam()
