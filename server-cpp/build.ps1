@@ -31,6 +31,11 @@ if (-not $vs) { throw 'C++ 도구가 설치된 Visual Studio를 찾지 못했다
 $env:PATH = "$(Split-Path $vswhere);$env:PATH"
 & "$vs\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
 
+# 컴파일러(cl) 출력을 영어로 고정한다. ninja 는 cl /showIncludes 출력에서 "Note: including file:" 줄을 찾아 헤더 의존을
+# 기록하는데, 한국어 VS 는 "참고: 포함 파일:"로 출력해 ninja 가 알아보지 못한다. 그러면 헤더만 바꿨을 때 다시 컴파일하지
+# 않는다(2026-11-26 BufferPool.h 상수를 바꿨는데 옛 값으로 빌드된 채 측정됨).
+$env:VSLANG = '1033'
+
 Push-Location $PSScriptRoot
 try {
     if ($Sln) {
