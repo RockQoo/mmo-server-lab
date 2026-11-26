@@ -43,6 +43,8 @@ CheckOptions:
   # static: s_ + camel
   readability-identifier-naming.ClassMemberPrefix: s_
   readability-identifier-naming.ClassMemberCase: camelBack
+  # static thread_local 멤버(템플릿의 스레드 캐시)는 t_ 로 시작한다(2026-11-26 ObjectPool)
+  readability-identifier-naming.ClassMemberIgnoredRegexp: '^t_[a-z][a-zA-Z0-9]*$'
   readability-identifier-naming.StaticVariablePrefix: s_
   readability-identifier-naming.StaticVariableCase: camelBack
   # 함수 안의 thread_local 도 clang-tidy 는 static 으로 본다. t_ 로 시작하는 이름을 허용한다(2026-11-26)

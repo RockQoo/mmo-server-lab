@@ -117,16 +117,18 @@ if(MSVC)
 endif()
 gtest_discover_tests(MessagingTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
-# ---- Memory: 버퍼 재사용(BufferPool, 빌린 버퍼 핸들 PooledBuffer)
+# ---- Memory: 버퍼 재사용(BufferPool, 빌린 버퍼 핸들 PooledBuffer), 객체 재사용(ObjectPool, 핸들 PooledPtr)
 add_library(Memory STATIC
     Core/Memory/BufferPool.cpp
     Core/Memory/BufferPool.h
+    Core/Memory/ObjectPool.h
 )
 target_link_libraries(Memory PUBLIC Base)
 set_target_properties(Memory PROPERTIES FOLDER Core/Memory)
 
 add_executable(MemoryTests
     Core/Memory/Tests/BufferPoolTest.cpp
+    Core/Memory/Tests/ObjectPoolTest.cpp
 )
 target_link_libraries(MemoryTests PRIVATE Memory GTest::gtest_main)
 set_target_properties(MemoryTests PROPERTIES FOLDER Core/Memory/Tests)
@@ -141,6 +143,7 @@ gtest_discover_tests(MemoryTests EXTRA_ARGS --gtest_catch_exceptions=0)
 find_package(benchmark CONFIG REQUIRED)
 add_executable(Bench
     Bench/BufferPoolBench.cpp
+    Bench/ObjectPoolBench.cpp
 )
 target_link_libraries(Bench PRIVATE Memory benchmark::benchmark benchmark::benchmark_main)
 set_target_properties(Bench PROPERTIES FOLDER Bench)
