@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>008 Memory BufferPool 2판</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>008 · Memory: BufferPool 2판, 첫 벤치마크</h1>
+<p class="sub">C++ · C# · 2026-11-26 · 커밋 <code>2209890</code> ~ <code>77613dd</code></p>
+
+<div class="card">
+<p><strong>무엇을 했나.</strong> 벤치마크를 처음 들여와(Google Benchmark, BenchmarkDotNet) 007의 BufferPool 1판을 쟀더니, 풀을 쓰지 않는 <code>new</code>/<code>delete</code>보다 느렸다. 스레드마다 캐시를 두는 2판으로 바꾸고, 빌리는 스레드와 반납하는 스레드가 다른 경우(Lane이 빌리고 IOCP 스레드가 송신 완료 후 반납)까지 재서 캐시 개수를 정했다.</p>
+<p>그 과정에서 측정 도구의 문제(여러 스레드 결과가 눌림)와 빌드 버그(헤더만 바꾸면 다시 컴파일되지 않음)를 찾아 고쳤다. 고민 과정은 개발일지 <code>docs/journal/bufferpool.html</code>, <code>docs/journal/benchmark.html</code>에 있다.</p>
+</div>
+
+<h2>1판은 왜 바꿨나</h2>
+<div class="table-wrap"><table>
+<tr><th>원인</th><th>내용</th></tr>
+<tr><td>스레드 1개에서도 느림</td><td>빌리고 반납하는 한 번에 원자 연산 6번(mutex 잠금·해제 4번 + 빌려 간 수 카운터 2번) ≈ 30ns. Windows 기본 힙은 약 20ns. 풀이 아끼는 비용보다 더하는 비용이 컸다</td></tr>
+<tr><td>스레드가 늘수록 느려짐</td><td>모든 스레드가 같은 mutex·카운터를 써서 캐시 라인이 코어 사이를 오갔다(true sharing)</td></tr>
+</table></div>
+
+<h2>2판 구조</h2>
+<div class="table-wrap"><table>
+<tr><th>부분</th><th>하는 일</th></tr>
+<tr><td>전역 풀 <code>BufferPool::Shared()</code></td><td>프로세스에 하나, 프로그램 끝까지 산다(<code>constinit</code>). 등급마다 mutex + 묶음 목록(1판 구조). 스레드 캐시에 남은 버퍼가 끝날 때 늘 돌아올 곳이 있다</td></tr>
+<tr><td>스레드 캐시</td><td>스레드마다 등급별로 반납된 빈 버퍼를 들고 있다. 보통의 빌리기·반납은 여기서 끝난다(락·원자 연산 없음)</td></tr>
+<tr><td>묶음 이동</td><td>캐시가 넘치면 절반을 한 묶음으로 전역에 보내고, 비면 한 묶음을 가져온다. mutex는 묶음 하나에 한 번</td></tr>
+<tr><td>스레드 종료</td><td>캐시에 남은 버퍼를 전역으로 보낸다. 캐시가 이미 소멸한 뒤의 반납은 전역으로 바로(리뷰 R1)</td></tr>
+<tr><td>캐시 개수</td><td>등급마다 스레드 하나가 256KB까지(4~64개, 묶음은 절반): 256B·1KB·4KB 64개, 16KB 16개, 64KB 4개. 스레드당 최대 약 848KB</td></tr>
+<tr><td>빌려 간 수</td><td>Debug에서만 센다(모든 스레드가 같은 카운터를 쓰면 경합)</td></tr>
+<tr><td><code>PooledBuffer</code></td><td>쓰는 법 그대로. 풀이 하나라 풀 포인터가 빠져 16바이트</td></tr>
+</table></div>
+<p>버퍼가 쓰이는 곳: 수신 버퍼는 세션이 고정으로 들고 있어 반납이 없다. 송신 버퍼는 패킷마다 빌리고, 보내기가 끝났을 때 IOCP 스레드가 반납한다(빌리는 스레드 ≠ 반납하는 스레드). 그래서 묶음 이동이 필요하다.</p>
+
+<h2>측정 결과</h2>
+<p>값은 모든 스레드를 합친 초당 (빌리기 + 반납) 횟수, 3회 중앙값. 측정 방법: 스레드 N개가 전체 840만 회를 나눠 하고 모두 끝날 때까지의 시간(C# 측정과 같은 방식). 측정 틀 기준(Noop)이 스레드 수만큼 느는 것을 확인한 뒤의 값이다.</p>
+<h3>같은 스레드에서 빌리고 반납 (256B)</h3>
+<div class="table-wrap"><table>
+<tr><th></th><th>스레드 1</th><th>2</th><th>4</th><th>8</th></tr>
+<tr><td>C++ <code>new</code>/<code>delete</code></td><td class="num">53M</td><td class="num">66M</td><td class="num">120M</td><td class="num">225M</td></tr>
+<tr><td>C++ 1판</td><td class="num">33M</td><td class="num" colspan="3">스레드가 늘수록 줄어듦(측정 도구 문제로 정확한 값은 없음)</td></tr>
+<tr><td><strong>C++ 2판</strong></td><td class="num"><strong>약 200~290M</strong></td><td class="num">336M</td><td class="num">583M</td><td class="num"><strong>1,089M</strong></td></tr>
+<tr><td>C# <code>ArrayPool</code></td><td class="num">268M</td><td class="num">-</td><td class="num">489M</td><td class="num">814M</td></tr>
+</table></div>
+<h3>빌리는 스레드 ≠ 반납하는 스레드 (짝 단위, 스레드 8개)</h3>
+<div class="table-wrap"><table>
+<tr><th></th><th>256B</th><th>1KB</th><th>4KB</th></tr>
+<tr><td>C++ <code>new</code>/<code>delete</code></td><td class="num">67M</td><td class="num">63M</td><td class="num">61M</td></tr>
+<tr><td>C++ 2판, 묶음 8개(처음)</td><td class="num">36M</td><td class="num">-</td><td class="num">36M</td></tr>
+<tr><td><strong>C++ 2판, 묶음 32개(정한 값)</strong></td><td class="num"><strong>129M</strong></td><td class="num"><strong>131M</strong></td><td class="num"><strong>129M</strong></td></tr>
+</table></div>
+<ul>
+  <li>같은 스레드 경로는 스레드 수만큼 는다(8개에서 <code>new</code>/<code>delete</code>의 약 5배).</li>
+  <li>빌리기 ≠ 반납은 묶음이 작으면(8개) 전역 mutex를 자주 잡아 <code>new</code>/<code>delete</code>보다 느렸다. 묶음 32개에서 약 2배.</li>
+  <li>C# 비교는 아직 조건이 다르다(C#은 8만 회, "빌리기 ≠ 반납" 없음). 스레드 1개 속도는 C# <code>ArrayPool</code>과 비슷하다. C++이 확실히 앞서도록 하는 최적화(인라인 등)는 후순위 목록에 넣었다.</li>
+</ul>
+
+<h2>같은 역할, 다른 방법</h2>
+<div class="table-wrap"><table>
+<tr><th>역할</th><th>C++ (<code>Memory::BufferPool</code> 2판)</th><th>C# (BCL)</th></tr>
+<tr><td>풀</td><td class="cpp">전역 하나 <code>BufferPool::Shared()</code></td><td class="cs"><code>ArrayPool&lt;byte&gt;.Shared</code></td></tr>
+<tr><td>빌리기·반납</td><td class="cpp"><code>Rent(n)</code> → <code>PooledBuffer</code>, 소멸·<code>Reset()</code>으로 반납</td><td class="cs"><code>Rent(n)</code> → <code>byte[]</code>, <code>Return(array)</code></td></tr>
+<tr><td>스레드</td><td class="cpp">스레드 캐시 + 전역 묶음(등급마다 mutex)</td><td class="cs">스레드별 캐시 + 코어별 공유 묶음</td></tr>
+<tr><td>등급</td><td class="cpp">256B ~ 64KB, 4배씩 5개</td><td class="cs">16B ~ 1GB, 2배씩</td></tr>
+<tr><td>스레드당 보관</td><td class="cpp">등급마다 256KB까지(4~64개)</td><td class="cs">런타임이 정함</td></tr>
+</table></div>
+
+<h2>측정 도구와 빌드에서 찾은 문제</h2>
+<div class="table-wrap"><table>
+<tr><th>문제</th><th>원인</th><th>고침</th></tr>
+<tr><td>여러 스레드 결과가 모두 눌림(아무 일도 안 하는 반복도 8스레드에서 1.2배)</td><td><code>benchmark::DoNotOptimize</code>의 MSVC 구현이 값을 전역 변수 하나에 쓴다(역어셈블로 확인). 모든 스레드가 같은 캐시 라인에 씀</td><td>스레드 안 반복에서는 스레드마다 자기 <code>volatile</code> 변수에 쓴다(<code>4e8eaee</code>). CLAUDE.md에 "여러 스레드 벤치마크 규칙"(Noop 기준 같이 재기)</td></tr>
+<tr><td>헤더만 바꾸면 다시 컴파일되지 않음</td><td>한국어 VS 컴파일러가 <code>/showIncludes</code>를 한국어로 출력해 ninja가 헤더 의존을 기록하지 못했다</td><td><code>build.ps1</code>에서 컴파일러 출력을 영어로 고정(<code>VSLANG=1033</code>, <code>b4e0bbd</code>)</td></tr>
+</table></div>
+<p class="muted">원인을 좁힌 과정(측정 시간, 코어 제한, 우선순위를 차례로 의심 → C# Noop은 정상 → 표준 C++만으로도 정상 → Bench 코드 안)은 <code>docs/journal/benchmark.html</code>. "하드웨어는 같은데 C#은 되잖아"라는 질문이 방향을 바꿨다.</p>
+
+<h2>테스트</h2>
+<div class="table-wrap"><table>
+<tr><th>확인하는 것</th><th>C++ gtest</th></tr>
+<tr><td>요청 크기를 등급으로 올림</td><td>RentRoundsUpToSizeClass</td></tr>
+<tr><td>같은 스레드에서 반납한 버퍼를 캐시에서 다시 줌</td><td>SameThreadReuseComesFromThreadCache</td></tr>
+<tr><td>등급끼리 섞이지 않음, 이동·이동 대입, 64KB 초과는 풀에 두지 않음</td><td>SizeClassesAreSeparate, MoveTransfersOwnership, MoveAssignReturnsHeldBuffer, LargerThanMaxIsNotPooled</td></tr>
+<tr><td>캐시가 넘치면 묶음 하나를 전역으로(규칙대로 계산한 값과 매번 비교)</td><td>OverflowSendsBatchToGlobal</td></tr>
+<tr><td>스레드가 끝나면 캐시를 전역으로, 빈 캐시는 전역에서 묶음을 가져옴</td><td>ThreadExitFlushesCacheToGlobal, EmptyCacheTakesBatchFromGlobal</td></tr>
+<tr><td>다른 스레드에서 반납하면 그 스레드의 캐시로</td><td>ReturnOnOtherThreadGoesToThatThreadsCache</td></tr>
+<tr><td>thread_local 핸들이 어느 순서로 소멸해도 버퍼 수가 맞음(R1)</td><td>ThreadLocalHolderReturnKeepsCount</td></tr>
+<tr><td>8스레드 동시, 빌리기 ≠ 반납 4쌍 × 2만 개: 같은 버퍼를 두 곳이 쥐지 않음</td><td>ConcurrentRentNeverShares, CrossThreadRentReturnNeverShares</td></tr>
+<tr><td>등급별 캐시 개수 규칙, Debug 빌려 간 수</td><td>CacheCountFollowsByteBudget, DebugCountsRented(Debug만)</td></tr>
+</table></div>
+<p class="muted">전역 풀이 프로세스에 하나라, 개수는 "전후 차이"나 규칙대로 계산한 값으로 확인한다. 처음엔 앞 테스트가 남긴 묶음을 계산에 넣지 않아 한 프로세스에서 반복하면 실패했다(ctest는 테스트마다 새 프로세스라 통과). 고친 뒤 Release 30회·Debug 10회 반복 실패 0.</p>
+
+<h2>결과</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> Debug·Release 경고 0, lint 0, gtest Debug <strong>102개</strong>·Release <strong>101개</strong> 통과(Memory 15·14). Bench: Noop, 같은 스레드, 빌리기 ≠ 반납</div>
+  <div class="card cs"><span class="tag cs">C#</span> 코드 변경 없음(ArrayPool 그대로). Bench 프로젝트 추가: ArrayPool vs <code>new byte[]</code>, Noop. xUnit 56개 통과</div>
+</div>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap"><table>
+<tr><th>차수</th><th>범위</th><th>결과</th></tr>
+<tr><td>1차</td><td><code>8258ea0..26b19dc</code>(파일 27개: C++ 8, C# 6, docs·도구 13)</td><td>1건(medium): 스레드 캐시가 먼저 소멸한 뒤 반납하면 소멸한 캐시에 쓴다(정적 객체가 버퍼를 들고 있다 종료 때 반납하는 경우) → <strong>동의, 수정</strong>(<code>77613dd</code>): 소멸자 없는 플래그로 표시하고 그 뒤 반납은 전역으로 바로. MSVC는 파일 범위 thread_local을 스레드 시작 때 만들어 테스트로는 재현되지 않았다(수정 전 코드로도 통과). 표준은 이 순서를 허용해 수정은 유지, 테스트는 어느 순서든 수가 맞는지만 확인</td></tr>
+<tr><td>2차</td><td><code>26b19dc..77613dd</code>(파일 3개)</td><td>0건</td></tr>
+</table></div>
+
+<h2>함께 바꾼 것</h2>
+<ul>
+  <li>docs 파일 이름을 영어 소문자로 통일하고 한글 목차 <code>docs/README.md</code>, 개발일지 폴더 <code>docs/journal/</code>를 만들었다(<code>ab92253</code>).</li>
+  <li>외부 라이브러리 추가: Google Benchmark(vcpkg), BenchmarkDotNet(NuGet). <code>docs/libraries.md</code>에 이유.</li>
+  <li><code>.clang-tidy</code>: 함수 안 <code>thread_local</code>도 <code>t_</code> 접두사 허용.</li>
+</ul>
+
+<h2>나중에</h2>
+<p>PROGRESS "나중에 개선·고민할 것 (후순위)"에 모았다: 2판 최적화(빠른 길 인라인, <code>thread_local</code> 초기화 검사 없애기, <code>std::bit_width</code>), C#과 같은 조건 비교, 3판(Lane 자체 풀 + 반납함, Network에서 재서 조금이라도 좋으면 넣음), 16KB·64KB 묶음 크기, 반납 버퍼 상한, <code>RefCounted</code>.</p>
+
+<h2>다음</h2>
+<p>Memory의 <code>ObjectPool&lt;T&gt;</code>(C#은 MS 공식 NuGet <code>Microsoft.Extensions.ObjectPool</code>이라 설치 전에 확인), 그다음 Messaging의 객체 큐 vs 직렬화 큐 비교.</p>
+</main>
+</body>
+</html>

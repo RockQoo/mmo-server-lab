@@ -29,7 +29,7 @@
 | Base | `RuidGenerator` | 있음(`std::atomic` CAS, `Clock` 함수 주입, `alignas`) | 있음(`Interlocked.CompareExchange`, BCL `TimeProvider`, 패딩 구조체) | 같은 역할: (시각, 순번)을 원자 변수 하나에 담아 CAS, 단조 시계, 512개 소진 시 다음 ms까지 양보, `InitializeGlobal`/`Global` |
 | Base | `StrongId<Tag>` | 있음(템플릿, `std::hash`·`std::formatter`·ByteWriter 지원) | **없음**(ID마다 `record struct`) | 아래 참고 |
 | Base | `RwLocked<T>` | 예정 | **없음** | 아래 참고 |
-| Memory | `BufferPool` / `PooledBuffer` | 있음(크기 등급 5개 256B~64KB, 등급마다 mutex + free list, RAII 반납 핸들) | **없음**(BCL `ArrayPool<byte>.Shared`) | 아래 참고 |
+| Memory | `BufferPool` / `PooledBuffer` | 있음(2판: 전역 하나 `Shared()`, 스레드 캐시 + 전역 묶음 이동, 크기 등급 5개 256B~64KB, RAII 반납 핸들) | **없음**(BCL `ArrayPool<byte>.Shared`) | 아래 참고 |
 
 ## 한쪽에만 있는 것
 
