@@ -30,8 +30,10 @@ namespace Messaging
         // count가 0이면 ASSERT. 개수는 벤치마크로 정하고, 나중에 Config에서 받는다.
         LaneGroup(const std::string_view name, const std::size_t count);
 
-        // 모든 Lane을 멈춘다. 각 Lane은 남은 일을 처리한 뒤 끝난다.
-        ~LaneGroup() = default;
+        // 모든 Lane을 먼저 멈춘 뒤(각자 남은 일을 처리하고 끝남) Lane 객체를 해제한다.
+        // 하나씩 "멈추고 해제"하면, 아직 도는 다른 Lane의 일이 이미 해제된 Lane에 Post할 수 있다(Codex 리뷰 R1).
+        // 모두 멈춘 뒤에는 멈춘 Lane에 넣는 Post가 안전하게 false를 돌려준다(그 일은 버려진다).
+        ~LaneGroup();
 
         LaneGroup(const LaneGroup&) = delete;
         LaneGroup& operator=(const LaneGroup&) = delete;

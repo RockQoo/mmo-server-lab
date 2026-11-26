@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <future>
@@ -128,6 +130,26 @@ TEST(LaneGroup, KeepsOrderPerKey)
             ASSERT_EQ(mine[static_cast<std::size_t>(i)], i);
         }
     }
+}
+
+// 그룹이 사라지는 중에도 Lane끼리 일을 넣어도 안전하다(Codex 리뷰 R1 회귀 테스트).
+// Lane 1의 일이 잠깐 일한 뒤 끝에 Lane 0에 넣는다. 그사이 소멸자가 Lane 0을 멈추므로 Post는 false여야 한다.
+// 고치기 전에는 Lane 0이 멈추자마자 해제되어, 이 Post가 해제된 메모리를 건드렸다(ASan heap-use-after-free로 확인).
+// 일반 빌드에서는 해제된 메모리 접근이 항상 크래시로 드러나지는 않는다(정의되지 않은 동작).
+TEST(LaneGroup, CrossLanePostDuringShutdownIsSafe)
+{
+    std::atomic<int> result{-1};
+    {
+        LaneGroup group("Test", 2);
+        auto& target = group.At(0);
+        ASSERT_TRUE(group.At(1).Post(
+            [&target, &result]
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds{100}); // 그사이 소멸자가 Lane 0을 멈춘다
+                result = target.Post([] {}) ? 1 : 0;
+            }));
+    }
+    EXPECT_EQ(result, 0) << "멈춘 Lane에 넣으면 false";
 }
 
 TEST(LaneGroupDeathTest, RejectsZeroLanes)

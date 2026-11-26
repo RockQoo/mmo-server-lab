@@ -32,6 +32,15 @@ namespace Messaging
         }
     }
 
+    LaneGroup::~LaneGroup()
+    {
+        for (const auto& lane : _lanes)
+        {
+            lane->Stop();
+        }
+        // 여기서부터 _lanes가 해제된다. 모든 Lane 스레드가 끝나 있어 해제된 Lane을 건드리는 일이 없다.
+    }
+
     Lane& LaneGroup::LaneFor(const uint64_t key) noexcept
     {
         return *_lanes[IndexFor(key, _lanes.size())];

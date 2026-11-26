@@ -84,6 +84,25 @@ public class LaneGroupTest
         Assert.All(seen, mine => Assert.Equal(Enumerable.Range(0, PerProducer), mine));
     }
 
+    // 그룹을 멈추는 중에 Lane 끼리 일을 넣어도 안전하게 끝난다(C++ 의 Codex 리뷰 R1 과 같은 상황).
+    // Lane 1 의 일이 잠깐 일한 뒤 끝에 Lane 0 에 넣는다. 그사이 DisposeAsync 가 Lane 0 을 닫으므로 false 여야 한다.
+    // C# 은 GC 라 해제된 메모리 문제는 없고, 닫힌 Lane 에 넣으면 false 인지만 본다.
+    [Fact]
+    public async Task CrossLanePostDuringShutdownIsSafe()
+    {
+        var result = -1;
+        var group = new LaneGroup(2);
+        var target = group[0];
+        Assert.True(group[1].TryPost(() =>
+        {
+            Thread.Sleep(100); // 그사이 DisposeAsync 가 Lane 0 을 닫는다
+            result = target.TryPost(() => { }) ? 1 : 0;
+        }));
+        await group.DisposeAsync();
+
+        Assert.Equal(0, result);
+    }
+
     [Fact]
     public void RejectsZeroLanes()
     {
