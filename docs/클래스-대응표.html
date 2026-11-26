@@ -27,7 +27,7 @@ ul{padding-left:20px;margin:6px 0}
 <body>
 <main>
 <h1>mmo-server-lab · C++ / C# Core 대응표</h1>
-<div class="sub">2026-11-26 · 보고서 005(Ruid)까지 반영 · 확정 이름의 원본은 <code>docs/naming.md</code>, 순서는 <code>PROGRESS.md</code> · <b>"제안" 이름은 만들 때 다시 후보를 보여 드리고 정한다</b></div>
+<div class="sub">2026-11-26 · 보고서 006(LaneGroup)까지 반영 · 확정 이름의 원본은 <code>docs/naming.md</code>, 순서는 <code>PROGRESS.md</code> · <b>"제안" 이름은 만들 때 다시 후보를 보여 드리고 정한다</b></div>
 
 <h2>원칙</h2>
 <div class="card"><ul>
@@ -86,9 +86,9 @@ ul{padding-left:20px;margin:6px 0}
 <td><code>Lane</code><br><span class="b bcl">확정</span></td><td>넣은 순서대로 한 번에 하나씩 실행(액터의 우편함)</td>
 <td><span class="b impl">직접 만듦</span>mutex + 두 버퍼 교체 큐, 전용 <code>std::jthread</code></td>
 <td><span class="b impl">직접 만듦</span><code>Channel&lt;Action&gt;</code> + 스레드 풀 async 루프</td><td class="st">✅ ✅</td></tr>
-<tr><td><code>LaneGroup</code><br><span class="b warn">제안</span> (LanePool 등과 비교)</td><td>키(존 ID 등)로 Lane 하나를 고름. 같은 키 → 항상 같은 Lane</td>
-<td><span class="b impl">직접 만듦</span>Lane N개 + 키 → 번호. 스레드 이름·코어 고정</td>
-<td><span class="b impl">직접 만듦</span>Lane N개 + 키 → 번호(스레드 고정 없음)</td><td class="st">🔨 🔨</td></tr>
+<tr><td><code>LaneGroup</code><br><span class="b bcl">확정</span></td><td>키로 Lane 하나를 고름. 같은 키 → 항상 같은 Lane(키별 순서). 많은 키는 splitmix64로 섞기, 존은 번호로</td>
+<td><span class="b impl">직접 만듦</span><code>LaneFor(key)</code>, <code>At(i)</code>, 스레드 이름 <code>"이름-i"</code>. 소멸자는 모두 멈춘 뒤 해제</td>
+<td><span class="b impl">직접 만듦</span><code>LaneFor(long)</code>, 인덱서 <code>[i]</code>. 이름 없음(스레드 풀)</td><td class="st">✅ ✅</td></tr>
 
 <!-- Memory -->
 <tr><td class="mod" rowspan="3">Memory</td>

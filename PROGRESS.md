@@ -32,7 +32,7 @@
 | # | 라이브러리 | namespace | 내용 | 검증할 것 | C++ | C# |
 |---|---|---|---|---|---|---|
 | 1 | **Base** | `Base` | `ByteWriter`/`ByteReader`(C#: 코덱 struct), Assert(C#: BCL `Trace.Assert`/`Debug.Assert`), BuildInfo, Utf8(C#: BCL), `StrongId<Tag>`(C++만, C#은 ID마다 record struct), `Ruid`·`RuidGenerator`(전 서버 유일 64비트 ID), `RwLocked<T>`(C++만) | 기본 자료형, enum, string, class, 컨테이너 왕복. **C++ ↔ C# 같은 바이트** | 🔨 | 🔨 |
-| 2 | **Messaging** | `Messaging` | 메시지 큐, 생산자-소비자 N:M, 스레드 어피니티(레인), 레인 스레드(이름·코어 고정) | 생산자·소비자 수 조합, 순서 보장, 어피니티. 객체 큐 vs 직렬화 큐 | 🔨 `Lane` | 🔨 `Lane` |
+| 2 | **Messaging** | `Messaging` | 메시지 큐, 생산자-소비자 N:M, 스레드 어피니티(레인), 레인 스레드(이름 ✅, 코어 고정은 벤치마크로) | 생산자·소비자 수 조합, 순서 보장, 어피니티. 객체 큐 vs 직렬화 큐 | 🔨 `Lane`, `LaneGroup` | 🔨 `Lane`, `LaneGroup` |
 | 3 | Memory | `Memory` | ObjectPool, 참조 카운트 / C#: `ArrayPool`, 풀링 | new/delete vs 풀, C# GC 할당량 | ⬜ | ⬜ |
 | 4 | Log | `Log` | 비동기 로거 (Messaging 큐 사용) / C#: Serilog (2026-11-26, NuGet 설치는 그때 확인) | 동기 vs 비동기 비용 | ⬜ | ⬜ |
 | 5 | Metrics | `Metrics` | 카운터, 지연 히스토그램(p50/p99) | 측정 비용 | ⬜ | ⬜ |
