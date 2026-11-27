@@ -15,16 +15,16 @@ using Messaging::Lane;
 
 TEST(Lane, RunsJobsInPostedOrder)
 {
-    std::vector<int> order;
+    std::vector<int32_t> order;
     Lane lane;
-    for (auto i = 0; i < 1000; ++i)
+    for (auto i = int32_t{0}; i < 1000; ++i)
     {
         ASSERT_TRUE(lane.Post([&order, i] { order.push_back(i); }));
     }
     lane.Stop();
 
     ASSERT_EQ(order.size(), 1000U);
-    for (auto i = 0; i < 1000; ++i)
+    for (auto i = int32_t{0}; i < 1000; ++i)
     {
         EXPECT_EQ(order[static_cast<std::size_t>(i)], i);
     }
@@ -53,7 +53,7 @@ TEST(Lane, IsInLaneIsFalseInOtherLane)
 {
     Lane first;
     first.Stop();
-    for (auto i = 0; i < 20; ++i) // ID 재사용이 일어날 기회를 여러 번 준다
+    for (auto i = int32_t{0}; i < 20; ++i) // ID 재사용이 일어날 기회를 여러 번 준다
     {
         auto inFirst = true;
         Lane other;
@@ -66,18 +66,18 @@ TEST(Lane, IsInLaneIsFalseInOtherLane)
 // 여러 스레드가 동시에 넣어도 하나도 잃지 않고, 같은 생산자가 넣은 일끼리는 순서가 지켜진다.
 TEST(Lane, KeepsOrderPerProducer)
 {
-    constexpr auto Producers = 4;
-    constexpr auto PerProducer = 10000;
-    std::vector<std::pair<int, int>> seen; // (생산자, 순번). Lane 스레드만 쓴다
+    constexpr auto Producers = int32_t{4};
+    constexpr auto PerProducer = int32_t{10000};
+    std::vector<std::pair<int32_t, int32_t>> seen; // (생산자, 순번). Lane 스레드만 쓴다
     {
         Lane lane;
         std::vector<std::jthread> threads;
-        for (auto p = 0; p < Producers; ++p)
+        for (auto p = int32_t{0}; p < Producers; ++p)
         {
             threads.emplace_back(
                 [&lane, &seen, p]
                 {
-                    for (auto n = 0; n < PerProducer; ++n)
+                    for (auto n = int32_t{0}; n < PerProducer; ++n)
                     {
                         // Post는 Stop 전이라 실패하지 않는다. 실패하면 아래 개수 확인에서 드러난다.
                         static_cast<void>(lane.Post([&seen, p, n] { seen.emplace_back(p, n); }));
@@ -88,7 +88,7 @@ TEST(Lane, KeepsOrderPerProducer)
     } // Lane 소멸 = Stop: 남은 일 처리 후 join
 
     ASSERT_EQ(seen.size(), static_cast<std::size_t>(Producers * PerProducer));
-    std::vector<int> next(Producers, 0);
+    std::vector<int32_t> next(Producers, 0);
     for (const auto& [p, n] : seen)
     {
         ASSERT_EQ(n, next[static_cast<std::size_t>(p)]) << "producer " << p;
@@ -99,10 +99,10 @@ TEST(Lane, KeepsOrderPerProducer)
 // 멈출 때 이미 넣은 일은 버리지 않는다.
 TEST(Lane, StopRunsRemainingJobs)
 {
-    std::atomic<int> done{};
+    std::atomic<int32_t> done{};
     {
         Lane lane;
-        for (auto i = 0; i < 100; ++i)
+        for (auto i = int32_t{0}; i < 100; ++i)
         {
             ASSERT_TRUE(lane.Post([&done] { ++done; }));
         }

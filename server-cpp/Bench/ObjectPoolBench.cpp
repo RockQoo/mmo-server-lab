@@ -34,13 +34,13 @@ namespace
 
     void TeamNoop(benchmark::State& state)
     {
-        const auto threads = static_cast<int>(state.range(0));
+        const auto threads = static_cast<int32_t>(state.range(0));
         const auto ops = TotalOps / threads;
         Bench::ThreadTeam team(threads);
         for (auto iteration : state)
         {
             team.Run(
-                [ops](int)
+                [ops](int32_t)
                 {
                     volatile int64_t sink{};
                     for (auto i = int64_t{0}; i < ops; ++i)
@@ -68,7 +68,7 @@ namespace
     struct WithList
     {
         uint64_t id{};
-        std::vector<int> values;
+        std::vector<int32_t> values;
         void Reset() noexcept
         {
             id = 0;
@@ -106,13 +106,13 @@ namespace
     template <typename Renter>
     void SameThread(benchmark::State& state)
     {
-        const auto threads = static_cast<int>(state.range(0));
+        const auto threads = static_cast<int32_t>(state.range(0));
         const auto ops = TotalOps / threads;
         Bench::ThreadTeam team(threads);
         for (auto iteration : state)
         {
             team.Run(
-                [ops](int)
+                [ops](int32_t)
                 {
                     void* volatile sink{}; // 스레드마다 자기 변수(BufferPoolBench 주석 "DoNotOptimize")
                     for (auto i = int64_t{0}; i < ops; ++i)
@@ -131,8 +131,8 @@ namespace
     template <typename Renter>
     void RentReturn(benchmark::State& state)
     {
-        const auto renters = static_cast<int>(state.range(0));
-        const auto returners = static_cast<int>(state.range(1));
+        const auto renters = static_cast<int32_t>(state.range(0));
+        const auto returners = static_cast<int32_t>(state.range(1));
         Bench::RentReturnGrid<typename Renter::Handle> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
         auto ops = int64_t{};                                                    // 한 횟수(= RentReturnOps)
         for (auto iteration : state)
@@ -152,8 +152,8 @@ namespace
     // 풀 측정보다 충분히 빨라야 풀 값을 풀 비용으로 읽을 수 있다. BufferPoolBench 도 같은 틀이라 이 값을 같이 쓴다.
     void RentReturnNoop(benchmark::State& state)
     {
-        const auto renters = static_cast<int>(state.range(0));
-        const auto returners = static_cast<int>(state.range(1));
+        const auto renters = static_cast<int32_t>(state.range(0));
+        const auto returners = static_cast<int32_t>(state.range(1));
         Bench::RentReturnGrid<uint64_t> grid(renters, returners);
         auto ops = int64_t{}; // 한 횟수(= RentReturnOps)
         for (auto iteration : state)

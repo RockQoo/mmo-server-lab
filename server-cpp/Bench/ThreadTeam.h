@@ -22,12 +22,12 @@ namespace Bench
     class ThreadTeam
     {
     public:
-        explicit ThreadTeam(const int count) : _barrier(static_cast<std::ptrdiff_t>(count) + 1)
+        explicit ThreadTeam(const int32_t count) : _barrier(static_cast<std::ptrdiff_t>(count) + 1)
         {
             _workers.reserve(static_cast<std::size_t>(count));
             try
             {
-                for (auto t = 0; t < count; ++t)
+                for (auto t = int32_t{0}; t < count; ++t)
                 {
                     _workers.emplace_back([this, t] { Work(t); });
                 }
@@ -57,7 +57,7 @@ namespace Bench
         ThreadTeam& operator=(ThreadTeam&&) = delete;
 
         // 모든 작업자가 같이 출발해 body(번호)를 돌리고, 모두 끝나면 돌아온다.
-        void Run(std::function<void(int)> body)
+        void Run(std::function<void(int32_t)> body)
         {
             _body = std::move(body);
             _barrier.arrive_and_wait(); // 출발(barrier 가 앞의 쓰기를 작업자에게 보이게 한다)
@@ -65,7 +65,7 @@ namespace Bench
         }
 
     private:
-        void Work(const int index)
+        void Work(const int32_t index)
         {
             while (true)
             {
@@ -80,7 +80,7 @@ namespace Bench
         }
 
         std::barrier<> _barrier; // 작업자 N + 측정 스레드 1
-        std::function<void(int)> _body;
+        std::function<void(int32_t)> _body;
         bool _stopping{};                   // barrier 앞에서 쓰고 뒤에서 읽는다(barrier 가 순서를 맞춘다)
         std::vector<std::jthread> _workers; // 마지막 멤버: 가장 먼저 소멸(join)한다
     };

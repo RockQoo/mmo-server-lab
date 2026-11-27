@@ -114,7 +114,7 @@ TEST(CrashDumpDeathTest, WritesDumpOnUnhandledException)
             InstallOnce(dir);
             RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
         },
-        [](int) { return true; }, "");
+        [](int32_t) { return true; }, "");
     EXPECT_TRUE(HasDump(dir, L"_crash.dmp"));
 }
 
@@ -132,7 +132,7 @@ TEST(CrashDumpDeathTest, WritesDumpOnTerminateInOtherThread)
             InstallOnce(dir);
             std::thread{[] { std::terminate(); }}.join();
         },
-        [](int) { return true; }, "");
+        [](int32_t) { return true; }, "");
     EXPECT_TRUE(HasDump(dir, L"_abort.dmp"));
 }
 
@@ -150,7 +150,7 @@ TEST(CrashDumpDeathTest, CallsAfterCrashBeforeExit)
             InstallOnce({.directory = dir, .afterCrash = [] { std::ofstream{AfterCrashMarker()} << "called"; }});
             RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
         },
-        [](int) { return true; }, "");
+        [](int32_t) { return true; }, "");
     EXPECT_TRUE(HasDump(dir, L"_crash.dmp"));
     EXPECT_TRUE(std::filesystem::exists(AfterCrashMarker()));
 }
@@ -173,7 +173,7 @@ TEST(CrashDumpDeathTest, GivesUpAfterCrashAfterTimeout)
                          .afterCrashTimeout = std::chrono::milliseconds{200}});
             RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
         },
-        [](int) { return true; }, "");
+        [](int32_t) { return true; }, "");
     EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds{10});
     EXPECT_TRUE(HasDump(dir, L"_crash.dmp"));
 }
@@ -214,7 +214,7 @@ TEST(CrashDumpDeathTest, ExitsWhenDumpThreadCrashes)
                          .afterCrashTimeout = std::chrono::seconds{10}});
             RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
         },
-        [](int) { return true; }, "");
+        [](int32_t) { return true; }, "");
     EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds{5});
     EXPECT_TRUE(HasDump(dir, L"_crash.dmp")); // 처음 크래시의 덤프는 남는다
 }

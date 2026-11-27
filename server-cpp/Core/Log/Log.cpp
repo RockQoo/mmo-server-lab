@@ -103,8 +103,8 @@ namespace Log
                 _line.clear();
                 std::format_to(std::back_inserter(_line),
                                "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03} [{}] [{}] {} (T{}, {}:{})",
-                               static_cast<int>(date.year()), static_cast<unsigned>(date.month()),
-                               static_cast<unsigned>(date.day()), clock.hours().count(), clock.minutes().count(),
+                               static_cast<int32_t>(date.year()), static_cast<uint32_t>(date.month()),
+                               static_cast<uint32_t>(date.day()), clock.hours().count(), clock.minutes().count(),
                                clock.seconds().count(), clock.subseconds().count(),
                                LevelCodes[static_cast<std::size_t>(event.level)], event.category, event.text,
                                event.threadId, FileName(event.location.file_name()), event.location.line());

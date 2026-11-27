@@ -48,7 +48,7 @@ TEST(Scheduler, AfterRunsOnceOnGivenLane)
     Lane lane;
     Scheduler scheduler;
     std::promise<bool> ranInLane;
-    std::atomic<int> count{};
+    std::atomic<int32_t> count{};
 
     scheduler.After(10ms, lane,
                     [&]
@@ -70,7 +70,7 @@ TEST(Scheduler, EveryRepeatsUntilCanceled)
 {
     Lane lane;
     Scheduler scheduler;
-    std::atomic<int> count{};
+    std::atomic<int32_t> count{};
 
     const auto id = scheduler.Every(5ms, lane, [&] { ++count; });
     ASSERT_TRUE(WaitUntil([&] { return count >= 3; }));
@@ -152,7 +152,7 @@ TEST(Scheduler, PeriodicJobCanCancelItselfInLane)
 {
     Lane lane;
     Scheduler scheduler;
-    std::atomic<int> count{};
+    std::atomic<int32_t> count{};
     std::atomic<uint64_t> idValue{};
 
     const auto id = scheduler.Every(2ms, lane,

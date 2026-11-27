@@ -36,7 +36,7 @@ namespace Base
         constexpr DWORD InvalidParameterCode{0xE000'7E73};
 
         // 같은 초·같은 이유 덤프 이름 뒤에 붙일 번호의 상한(넘으면 실패)
-        constexpr auto MaxSameNameDumps = 100;
+        constexpr auto MaxSameNameDumps = int32_t{100};
 
         // 스레드·스택·전역 변수(DataSegs)·핸들·스택이 가리키는 메모리 조금. 보통 수 MB.
         constexpr auto MiniFlags =
@@ -174,7 +174,7 @@ namespace Base
                 // 같은 초에 같은 이유로 또 남기면 덮어쓰지 않고 _2, _3 … 을 붙인다(Codex 리뷰 R4: 연달아 뜬 덤프를
                 // 비교하는 일이 있다)
                 auto file = INVALID_HANDLE_VALUE;
-                for (auto n = 1; n <= MaxSameNameDumps && file == INVALID_HANDLE_VALUE; ++n)
+                for (auto n = int32_t{1}; n <= MaxSameNameDumps && file == INVALID_HANDLE_VALUE; ++n)
                 {
                     _path = _directory / (n == 1 ? stem + L".dmp" : std::format(L"{}_{}.dmp", stem, n));
                     file = CreateFileW(_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
@@ -313,6 +313,7 @@ namespace Base
 
         // std::terminate 처리기는 MSVC 에서 스레드마다 따로라 Install 한 스레드만 덮는다. 다른 스레드(Lane 등)의 기본
         // terminate 는 abort 를 부르고, SIGABRT 처리기는 프로세스 전체라 여기서 잡는다.
+        // 바깥 API 모양: signal 처리기는 void(int) 로 정해져 있다(int32_t 규칙 예외)
         void OnAbortSignal(int) noexcept
         {
             DumpAndExit("abort", AbortCode);
@@ -323,6 +324,7 @@ namespace Base
             DumpAndExit("purecall", PureCallCode);
         }
 
+        // 바깥 API 모양: CRT 처리기(_invalid_parameter_handler) 모양 그대로(int32_t 규칙 예외)
         void OnInvalidParameter(const wchar_t*, const wchar_t*, const wchar_t*, unsigned int, std::uintptr_t) noexcept
         {
             DumpAndExit("invalidparameter", InvalidParameterCode);

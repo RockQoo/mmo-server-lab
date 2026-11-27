@@ -107,14 +107,14 @@ TEST(Log, KeepsOrderFromOneThread)
 {
     const LoggerScope scope{Log::Level::Info};
     auto& lines = *scope.lines;
-    for (auto i = 0; i < 1000; ++i)
+    for (auto i = int32_t{0}; i < 1000; ++i)
     {
         Log::Info(TestCategory::System, "n").KV("i", i);
     }
     Log::Flush();
 
     ASSERT_EQ(lines.size(), 1000U);
-    for (auto i = 0; i < 1000; ++i)
+    for (auto i = int32_t{0}; i < 1000; ++i)
     {
         const auto expected = std::format("n i={} ", i);
         EXPECT_NE(lines[static_cast<std::size_t>(i)].find(expected), std::string::npos);
@@ -127,12 +127,12 @@ TEST(Log, LosesNothingFromManyThreads)
     auto& lines = *scope.lines;
     {
         std::vector<std::jthread> threads;
-        for (auto t = 0; t < 4; ++t)
+        for (auto t = int32_t{0}; t < 4; ++t)
         {
             threads.emplace_back(
                 [t]
                 {
-                    for (auto i = 0; i < 1000; ++i)
+                    for (auto i = int32_t{0}; i < 1000; ++i)
                     {
                         Log::Info(TestCategory::System, "n").KV("t", t).KV("i", i);
                     }
@@ -239,7 +239,7 @@ TEST(LogDeathTest, FlushesQueuedLinesOnCrash)
     {
         GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
     }
-    constexpr auto Lines = 200;
+    constexpr auto Lines = int32_t{200};
     const auto dir = std::filesystem::temp_directory_path() / "mmo-server-lab-LogCrash";
     const auto path = dir / "crash.log";
     std::filesystem::remove_all(dir);
@@ -251,16 +251,16 @@ TEST(LogDeathTest, FlushesQueuedLinesOnCrash)
             std::vector<std::unique_ptr<Log::LogSink>> sinks;
             sinks.push_back(std::make_unique<SlowFileSink>(path));
             Log::Initialize({.minimumLevel = Log::Level::Info}, std::move(sinks));
-            for (auto i = 0; i < Lines; ++i)
+            for (auto i = int32_t{0}; i < Lines; ++i)
             {
                 Log::Info(TestCategory::System, "before crash").KV("i", i);
             }
             RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
         },
-        [](int) { return true; }, "");
+        [](int32_t) { return true; }, "");
 
     std::ifstream file{path};
-    auto count = 0;
+    auto count = int32_t{0};
     for (std::string line; std::getline(file, line);)
     {
         ++count;

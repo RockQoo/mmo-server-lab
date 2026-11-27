@@ -38,11 +38,11 @@ namespace
 
     // 스레드 count개를 띄워 body(스레드 번호, 맡은 횟수)를 돌리고 모두 끝날 때까지 기다린다.
     template <typename Body>
-    void RunOnThreads(const int count, const Body& body)
+    void RunOnThreads(const int32_t count, const Body& body)
     {
         std::vector<std::jthread> threads;
         threads.reserve(static_cast<std::size_t>(count));
-        for (auto t = 0; t < count; ++t)
+        for (auto t = int32_t{0}; t < count; ++t)
         {
             threads.emplace_back([&body, t, count] { body(t, TotalOps / count); });
         }
@@ -99,11 +99,11 @@ namespace
 
     void Noop(benchmark::State& state)
     {
-        const auto threads = static_cast<int>(state.range(0));
+        const auto threads = static_cast<int32_t>(state.range(0));
         for (auto iteration : state)
         {
             RunOnThreads(threads,
-                         [](int, const int64_t ops)
+                         [](int32_t, const int64_t ops)
                          {
                              volatile int64_t sink{}; // 스레드마다 자기 변수(아래 주석 "DoNotOptimize")
                              for (auto i = int64_t{0}; i < ops; ++i)
@@ -120,12 +120,12 @@ namespace
     template <typename Renter>
     void SameThread(benchmark::State& state)
     {
-        const auto threads = static_cast<int>(state.range(0));
+        const auto threads = static_cast<int32_t>(state.range(0));
         const auto size = static_cast<std::size_t>(state.range(1));
         for (auto iteration : state)
         {
             RunOnThreads(threads,
-                         [size](int, const int64_t ops)
+                         [size](int32_t, const int64_t ops)
                          {
                              std::byte* volatile sink{}; // 스레드마다 자기 변수(아래 주석 "DoNotOptimize")
                              for (auto i = int64_t{0}; i < ops; ++i)
@@ -144,8 +144,8 @@ namespace
     template <typename Renter>
     void RentReturn(benchmark::State& state)
     {
-        const auto renters = static_cast<int>(state.range(0));
-        const auto returners = static_cast<int>(state.range(1));
+        const auto renters = static_cast<int32_t>(state.range(0));
+        const auto returners = static_cast<int32_t>(state.range(1));
         const auto size = static_cast<std::size_t>(state.range(2));
         Bench::RentReturnGrid<typename Renter::Buffer> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
         auto ops = int64_t{};                                                    // 한 횟수(= RentReturnOps)

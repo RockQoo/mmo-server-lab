@@ -35,22 +35,22 @@ TEST(TimerHeap, RunsOnlyDueJobsInTimeOrder)
 TEST(TimerHeap, SameTimeRunsInAddOrder)
 {
     TimerHeap heap;
-    std::vector<int> ran;
-    for (auto i = 0; i < 5; ++i)
+    std::vector<int32_t> ran;
+    for (auto i = int32_t{0}; i < 5; ++i)
     {
         heap.Add(Start + 1s, [&ran, i] { ran.push_back(i); });
     }
 
     heap.RunDue(Start + 1s);
 
-    EXPECT_EQ(ran, (std::vector<int>{0, 1, 2, 3, 4}));
+    EXPECT_EQ(ran, (std::vector<int32_t>{0, 1, 2, 3, 4}));
 }
 
 // 고정 간격: 늦게 실행해도 다음 예정은 예정 시각 + 주기(밀리지 않는다)
 TEST(TimerHeap, RepeatsAtFixedRate)
 {
     TimerHeap heap;
-    auto count = 0;
+    auto count = int32_t{0};
     heap.Add(Start + 5s, [&] { ++count; }, 5s);
 
     heap.RunDue(Start + 6s); // 1초 늦게
@@ -67,7 +67,7 @@ TEST(TimerHeap, RepeatsAtFixedRate)
 TEST(TimerHeap, RunsMissedPeriodsOnlyOnce)
 {
     TimerHeap heap;
-    auto count = 0;
+    auto count = int32_t{0};
     heap.Add(Start + 1s, [&] { ++count; }, 1s);
 
     heap.RunDue(Start + 10500ms); // 1~10초, 10칸을 놓침
@@ -98,7 +98,7 @@ TEST(TimerHeap, CanceledJobDoesNotRun)
 TEST(TimerHeap, PeriodicJobCanCancelItself)
 {
     TimerHeap heap;
-    auto count = 0;
+    auto count = int32_t{0};
     TimerId id;
     id = heap.Add(
         Start + 1s,
@@ -111,7 +111,7 @@ TEST(TimerHeap, PeriodicJobCanCancelItself)
         },
         1s);
 
-    for (auto second = 1; second <= 10; ++second)
+    for (auto second = int32_t{1}; second <= 10; ++second)
     {
         heap.RunDue(Start + std::chrono::seconds{second});
     }
@@ -157,11 +157,11 @@ TEST(TimerHeap, StaysCorrectAfterManyCancels)
 {
     TimerHeap heap;
     std::vector<TimerId> ids;
-    for (auto i = 0; i < 1000; ++i)
+    for (auto i = int32_t{0}; i < 1000; ++i)
     {
         ids.push_back(heap.Add(Start + std::chrono::minutes{30 + i}, [] {}));
     }
-    std::vector<int> ran;
+    std::vector<int32_t> ran;
     heap.Add(Start + 1s, [&] { ran.push_back(1); });
     heap.Add(Start + 2s, [&] { ran.push_back(2); });
 
@@ -173,5 +173,5 @@ TEST(TimerHeap, StaysCorrectAfterManyCancels)
     EXPECT_EQ(heap.Size(), 2U);
     EXPECT_EQ(heap.NextDue(), Start + 1s);
     heap.RunDue(Start + 1h);
-    EXPECT_EQ(ran, (std::vector<int>{1, 2}));
+    EXPECT_EQ(ran, (std::vector<int32_t>{1, 2}));
 }

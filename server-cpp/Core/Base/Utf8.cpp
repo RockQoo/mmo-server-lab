@@ -46,7 +46,7 @@ namespace Base
 
     bool DecodeCodePoint(const std::string_view in, std::size_t& pos, char32_t& codePoint)
     {
-        const auto lead = static_cast<unsigned char>(in[pos]);
+        const auto lead = static_cast<uint8_t>(in[pos]);
         if (lead < 0x80)
         {
             codePoint = lead;
@@ -87,7 +87,7 @@ namespace Base
         }
         for (auto i = std::size_t{1}; i < length; ++i)
         {
-            const auto next = static_cast<unsigned char>(in[pos + i]);
+            const auto next = static_cast<uint8_t>(in[pos + i]);
             if ((next & 0xC0) != 0x80)
             {
                 return false;
@@ -108,7 +108,7 @@ namespace Base
         auto pos = std::size_t{};
         while (pos < in.size())
         {
-            if (static_cast<unsigned char>(in[pos]) < 0x80) // ASCII는 함수 호출 없이 바로 넘긴다
+            if (static_cast<uint8_t>(in[pos]) < 0x80) // ASCII는 함수 호출 없이 바로 넘긴다
             {
                 ++pos;
                 continue;

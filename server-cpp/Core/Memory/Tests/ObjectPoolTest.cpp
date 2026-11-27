@@ -22,11 +22,11 @@ using Memory::PooledPtr;
 namespace
 {
     // 시험용 객체: 값 하나와 vector 하나. Reset()은 값을 비우고 vector는 clear()(용량은 남김).
-    template <int Tag>
+    template <int32_t Tag>
     struct Item
     {
         uint64_t id{};
-        std::vector<int> values;
+        std::vector<int32_t> values;
 
         void Reset() noexcept
         {
@@ -35,7 +35,7 @@ namespace
         }
     };
 
-    template <int Tag>
+    template <int32_t Tag>
     ObjectPool<Item<Tag>>& Pool()
     {
         return ObjectPool<Item<Tag>>::Shared();
@@ -60,7 +60,7 @@ namespace
     };
     struct NoDefault
     {
-        explicit NoDefault(int)
+        explicit NoDefault(int32_t)
         {
         }
         void Reset() noexcept
@@ -254,17 +254,17 @@ TEST(ObjectPool, ReturnOnOtherThreadGoesToThatThreadsCache)
 // 여러 스레드가 동시에 빌리고 반납해도 같은 객체를 두 곳이 쥐지 않는다(자기 번호를 적고 양보한 뒤 그대로인지 확인).
 TEST(ObjectPool, ConcurrentRentNeverShares)
 {
-    constexpr auto ThreadCount = 8;
-    constexpr auto Rounds = 5000;
+    constexpr auto ThreadCount = int32_t{8};
+    constexpr auto Rounds = int32_t{5000};
     std::vector<std::jthread> threads;
-    for (auto t = 0; t < ThreadCount; ++t)
+    for (auto t = int32_t{0}; t < ThreadCount; ++t)
     {
         threads.emplace_back(
             [t]
             {
                 const auto mark = static_cast<uint64_t>(t) + 1;
                 std::vector<PooledPtr<Item<8>>> held; // 가끔 여러 개를 들고 있어 캐시가 넘치고 비게 한다
-                for (auto i = 0; i < Rounds; ++i)
+                for (auto i = int32_t{0}; i < Rounds; ++i)
                 {
                     auto item = Pool<8>().Rent();
                     ASSERT_EQ(item->id, 0u) << "Reset()된 객체만 받는다";
@@ -287,8 +287,8 @@ TEST(ObjectPool, ConcurrentRentNeverShares)
 TEST(ObjectPool, CrossThreadRentReturnNeverShares)
 {
     using Type = Item<9>;
-    constexpr auto PairCount = 4;
-    constexpr auto PerPair = 20'000;
+    constexpr auto PairCount = int32_t{4};
+    constexpr auto PerPair = int32_t{20'000};
     struct Channel
     {
         Channel() = default;
@@ -304,13 +304,13 @@ TEST(ObjectPool, CrossThreadRentReturnNeverShares)
     std::array<Channel, PairCount> channels{};
     {
         std::vector<std::jthread> threads;
-        for (auto p = 0; p < PairCount; ++p)
+        for (auto p = int32_t{0}; p < PairCount; ++p)
         {
             auto& channel = channels[static_cast<std::size_t>(p)];
             threads.emplace_back(
                 [&channel, p]
                 {
-                    for (auto i = 0; i < PerPair; ++i)
+                    for (auto i = int32_t{0}; i < PerPair; ++i)
                     {
                         const auto id = ((static_cast<uint64_t>(p) + 1) << 32) | static_cast<uint64_t>(i);
                         auto item = Pool<9>().Rent();
@@ -322,7 +322,7 @@ TEST(ObjectPool, CrossThreadRentReturnNeverShares)
             threads.emplace_back(
                 [&channel]
                 {
-                    auto received = 0;
+                    auto received = int32_t{0};
                     while (received < PerPair)
                     {
                         std::pair<uint64_t, PooledPtr<Type>> entry;
@@ -351,7 +351,7 @@ TEST(ObjectPool, CrossThreadRentReturnNeverShares)
 TEST(ObjectPool, KeepsAlignment)
 {
     std::vector<PooledPtr<Aligned>> held;
-    for (auto i = 0; i < 10; ++i)
+    for (auto i = int32_t{0}; i < 10; ++i)
     {
         held.push_back(ObjectPool<Aligned>::Shared().Rent());
         EXPECT_EQ(reinterpret_cast<std::uintptr_t>(held.back().get()) % 64, 0u);
@@ -395,7 +395,7 @@ TEST(ObjectPool, TraitsChangeCacheCount)
         []
         {
             std::vector<PooledPtr<SmallCache>> held;
-            for (auto i = 0; i < 5; ++i)
+            for (auto i = int32_t{0}; i < 5; ++i)
             {
                 held.push_back(ObjectPool<SmallCache>::Shared().Rent());
             }

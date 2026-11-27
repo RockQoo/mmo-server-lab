@@ -242,7 +242,7 @@ TEST(ByteRW, TooLongStringFailsWrite)
 TEST(ByteRW, ClearKeepsCapacityForReuse)
 {
     Base::ByteWriter writer;
-    for (auto i = 0; i < 100; ++i)
+    for (auto i = int32_t{0}; i < 100; ++i)
     {
         writer << std::numeric_limits<uint64_t>::max();
     }

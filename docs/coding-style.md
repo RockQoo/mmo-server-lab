@@ -127,9 +127,12 @@ switch (state)
 - 멤버 변수는 **모두** 초기화를 붙인다: `std::vector<std::byte> _buffer{};`
 - 예외: `std::initializer_list` 생성자가 있는 타입(컨테이너)에 크기나 개수를 줄 때는 `()`를 쓴다. `std::vector<int> v(3)`은 원소 3개, `v{3}`은 원소 1개(3)다.
 
-### 정수 타입 (2026-11-26)
+### 정수 타입 (2026-11-26, 2026-11-28 모든 정수로 넓힘)
 
-- 크기가 정해져야 하는 정수(직렬화, 비트 배치, C#과 같은 값, ID)는 **고정 폭 정수**를 쓴다: `int8_t`~`int64_t`, `uint8_t`~`uint64_t`. `long`은 Windows 32비트, Linux 64비트라 쓰지 않는다.
+- **정수는 모두 고정 폭 정수**를 쓴다: `int8_t`~`int64_t`, `uint8_t`~`uint64_t`. 카운터·인덱스·테스트 값도 `int` 대신 `int32_t`(크기가 눈에 보이고, "크기가 중요한가"를 매번 판단하지 않는다). `int`·`unsigned`·`long`·`short`는 쓰지 않는다(`long`은 Windows 32비트, Linux 64비트). 바이트는 `unsigned char` 대신 `uint8_t`.
+- 정수 리터럴은 `int`라서 `auto i = 0;`은 `int`가 된다. `auto i = int32_t{0};`처럼 오른쪽에 타입을 적는다(`for (auto i = int32_t{0}; ...)`).
+- 예외: 바깥이 모양을 정한 함수. `int main()`, signal 처리기 `void(int)`, CRT 처리기 등. 바로 윗줄 주석에 "바깥 API 모양"을 적는다. MSVC·GCC·Clang(x64)에서 `int32_t`는 `int`와 같은 타입이라 값과 성능은 같다.
+- `lint.ps1`이 검사한다(주석·문자열 안은 보지 않는다).
 - 고정 폭 정수는 **`std::` 없이** 쓴다: `int32_t`(`std::int32_t` 아님). 표준은 `<cstdint>`가 전역 이름을 넣는다고 보장하지 않지만 MSVC·GCC·Clang 모두 넣는다. 짧게 쓰려는 결정이다.
 - 다른 표준 타입은 그대로 `std::`를 붙인다: `std::size_t`, `std::byte`, `std::ptrdiff_t`.
 

@@ -65,10 +65,10 @@ TEST(RuidGenerator, SequenceCountsWithinSameMs)
 TEST(RuidGenerator, WaitsForNextMsAfter512)
 {
     // 시계를 513번째로 볼 때부터 1001ms가 된다(512번은 1000ms, 513번째 호출은 한 번 막힌 뒤 1001ms).
-    auto calls = std::make_shared<std::atomic<int>>(0);
+    auto calls = std::make_shared<std::atomic<int32_t>>(0);
     RuidGenerator generator(1, 0, [calls] { return calls->fetch_add(1) < 513 ? 1000 : 1001; });
 
-    for (auto i = 0; i <= Ruid::MaxSequence; ++i)
+    for (auto i = int32_t{0}; i <= Ruid::MaxSequence; ++i)
     {
         const auto id = generator.Next();
         ASSERT_EQ(id.Timestamp(), 1000);
@@ -99,7 +99,7 @@ TEST(RuidGenerator, RealClockIdsAlwaysIncrease)
 {
     RuidGenerator generator(1, 0);
     auto previous = generator.Next();
-    for (auto i = 0; i < 20'000; ++i)
+    for (auto i = int32_t{0}; i < 20'000; ++i)
     {
         const auto id = generator.Next();
         ASSERT_LT(previous, id);
@@ -111,8 +111,8 @@ TEST(RuidGenerator, RealClockIdsAlwaysIncrease)
 // 스레드마다 만든 순서대로 커지는지도 본다. 실제 시계를 쓰고, latch로 한꺼번에 출발시켜 경쟁을 최대로 만든다.
 TEST(RuidGenerator, ManyThreadsNeverDuplicate)
 {
-    constexpr auto ThreadCount = 200;
-    constexpr auto PerThread = 2'500; // 총 50만 개(ms당 512개 상한이라 1초 남짓 걸린다)
+    constexpr auto ThreadCount = int32_t{200};
+    constexpr auto PerThread = int32_t{2'500}; // 총 50만 개(ms당 512개 상한이라 1초 남짓 걸린다)
 
     RuidGenerator generator(5, 9);
     std::vector<std::vector<Ruid>> results(ThreadCount);
@@ -120,7 +120,7 @@ TEST(RuidGenerator, ManyThreadsNeverDuplicate)
     {
         std::vector<std::jthread> threads;
         threads.reserve(ThreadCount);
-        for (auto t = 0; t < ThreadCount; ++t)
+        for (auto t = int32_t{0}; t < ThreadCount; ++t)
         {
             threads.emplace_back(
                 [&, t]
@@ -128,7 +128,7 @@ TEST(RuidGenerator, ManyThreadsNeverDuplicate)
                     auto& mine = results[static_cast<std::size_t>(t)];
                     mine.reserve(PerThread);
                     start.arrive_and_wait();
-                    for (auto i = 0; i < PerThread; ++i)
+                    for (auto i = int32_t{0}; i < PerThread; ++i)
                     {
                         mine.push_back(generator.Next());
                     }
@@ -166,7 +166,7 @@ TEST(RuidGenerator, DifferentNodesNeverCollide)
     RuidGenerator nodeB(1, 2, clock.Get());
 
     std::unordered_set<Ruid> seen;
-    for (auto i = 0; i < 300; ++i)
+    for (auto i = int32_t{0}; i < 300; ++i)
     {
         EXPECT_TRUE(seen.insert(nodeA.Next()).second);
         EXPECT_TRUE(seen.insert(nodeB.Next()).second);

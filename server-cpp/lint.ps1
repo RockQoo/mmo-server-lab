@@ -62,12 +62,29 @@ if ($tidyExit -and -not $diagnostics) {
     $out | Where-Object { $_ -notmatch 'Processing file' } | Select-Object -First 20 | ForEach-Object { Write-Output "  $_" }
 }
 
-# 3) 도구가 못 보는 프로젝트 규칙(docs/coding-style.md). 고정 폭 정수는 std:: 없이(int32_t, std::int32_t 아님).
+# 3) 도구가 못 보는 프로젝트 규칙(docs/coding-style.md "정수 타입").
+#   - 고정 폭 정수는 std:: 없이(int32_t, std::int32_t 아님)
+#   - 정수는 모두 고정 폭: int·unsigned·long·short 를 쓰지 않는다. auto x = 0 도 int 가 되므로 auto x = int32_t{0}.
+#     예외: int main(, 바로 윗줄 주석에 "바깥 API 모양"이 있는 줄(signal·CRT 처리기처럼 모양이 정해진 함수)
+#   검사 전에 문자열·문자 리터럴과 // 주석을 지운다(주석에 int 라고 써도 된다).
+$rules = @(
+    @{ Pattern = 'std::u?int(8|16|32|64)_t'; Message = 'fixed-width integer without std:: (int32_t)' },
+    @{ Pattern = '\b(int|unsigned|signed|long|short)\b'; Message = 'use fixed-width integer (int32_t, uint8_t ...)' },
+    @{ Pattern = '\bauto\s+\w+\s*=\s*-?\d[\d'']*\s*[;,)]'; Message = 'integer literal makes int: auto x = int32_t{0}' }
+)
 foreach ($file in $files) {
-    $hits = Select-String -Path $file -Pattern 'std::u?int(8|16|32|64)_t' -Encoding UTF8
-    foreach ($hit in $hits) {
-        $problems++
-        Write-Output "style: ${file}:$($hit.LineNumber): fixed-width integer without std:: (int32_t)"
+    $lines = [System.IO.File]::ReadAllLines($file, [System.Text.Encoding]::UTF8)
+    for ($i = 0; $i -lt $lines.Length; $i++) {
+        $code = $lines[$i] -replace '"(\\.|[^"\\])*"', '""' -replace "(?<![0-9A-Fa-f])'(\\.|[^'\\])*'", "''" -replace '//.*$', ''
+        # -cmatch: 대소문자를 구분한다(-match 는 구분하지 않아 Windows 타입 LONG 까지 long 으로 잡는다)
+        if ($code -cmatch '\bint main\(') { continue }
+        if ($i -gt 0 -and $lines[$i - 1] -match '//.*바깥 API 모양') { continue }
+        foreach ($rule in $rules) {
+            if ($code -cmatch $rule.Pattern) {
+                $problems++
+                Write-Output "style: ${file}:$($i + 1): $($rule.Message)"
+            }
+        }
     }
 }
 

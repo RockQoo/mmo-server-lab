@@ -51,10 +51,10 @@ TEST(LaneGroup, IndexForMatchesKnownValues)
 TEST(LaneGroup, SpreadsSparseRuids)
 {
     constexpr auto LaneCount = std::size_t{8};
-    constexpr auto IdCount = 1000;
-    std::array<int, LaneCount> mixed{};
-    std::array<int, LaneCount> plainModulo{};
-    for (auto i = 0; i < IdCount; ++i)
+    constexpr auto IdCount = int32_t{1000};
+    std::array<int32_t, LaneCount> mixed{};
+    std::array<int32_t, LaneCount> plainModulo{};
+    for (auto i = int32_t{0}; i < IdCount; ++i)
     {
         const auto id = Base::Ruid::Make(1000 + int64_t{i} * 7919, 1, 3, 0); // 서로 다른 ms, 순번 0
         const auto key = static_cast<uint64_t>(id.Value());
@@ -63,7 +63,7 @@ TEST(LaneGroup, SpreadsSparseRuids)
     }
 
     EXPECT_EQ(plainModulo[0], IdCount) << "key % 8 은 순번 비트만 봐서 전부 Lane 0";
-    constexpr auto Mean = IdCount / static_cast<int>(LaneCount);
+    constexpr auto Mean = IdCount / static_cast<int32_t>(LaneCount);
     for (const auto count : mixed)
     {
         EXPECT_GT(count, Mean * 6 / 10);
@@ -100,20 +100,20 @@ TEST(LaneGroup, AtGivesNamedDistinctLanes)
 // 키마다 기록하는 vector는 그 키의 Lane만 만지므로 락이 없다.
 TEST(LaneGroup, KeepsOrderPerKey)
 {
-    constexpr auto ProducerCount = 4;
-    constexpr auto PerProducer = 2000;
-    std::array<std::vector<int>, ProducerCount> seen{};
+    constexpr auto ProducerCount = int32_t{4};
+    constexpr auto PerProducer = int32_t{2000};
+    std::array<std::vector<int32_t>, ProducerCount> seen{};
     {
         LaneGroup group("Test", 3); // Lane보다 키가 많아 한 Lane에 여러 키가 섞이게 한다
         std::vector<std::jthread> producers;
-        for (auto p = 0; p < ProducerCount; ++p)
+        for (auto p = int32_t{0}; p < ProducerCount; ++p)
         {
             producers.emplace_back(
                 [&group, &seen, p]
                 {
                     auto& lane = group.LaneFor(static_cast<uint64_t>(p));
                     auto& mine = seen[static_cast<std::size_t>(p)];
-                    for (auto i = 0; i < PerProducer; ++i)
+                    for (auto i = int32_t{0}; i < PerProducer; ++i)
                     {
                         ASSERT_TRUE(lane.Post([&mine, i] { mine.push_back(i); }));
                     }
@@ -124,7 +124,7 @@ TEST(LaneGroup, KeepsOrderPerKey)
     for (const auto& mine : seen)
     {
         ASSERT_EQ(mine.size(), static_cast<std::size_t>(PerProducer));
-        for (auto i = 0; i < PerProducer; ++i)
+        for (auto i = int32_t{0}; i < PerProducer; ++i)
         {
             ASSERT_EQ(mine[static_cast<std::size_t>(i)], i);
         }
@@ -138,7 +138,7 @@ TEST(LaneGroup, KeepsOrderPerKey)
 // 드러나지는 않는다(정의되지 않은 동작).
 TEST(LaneGroup, CrossLanePostDuringShutdownIsSafe)
 {
-    std::atomic<int> result{-1};
+    std::atomic<int32_t> result{-1};
     {
         LaneGroup group("Test", 2);
         auto& self = group.At(1);

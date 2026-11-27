@@ -42,7 +42,7 @@ namespace
     template <bool ToFile>
     void LogLine(benchmark::State& state)
     {
-        const auto threads = static_cast<int>(state.range(0));
+        const auto threads = static_cast<int32_t>(state.range(0));
         const auto dir = std::filesystem::temp_directory_path() / "mmo-server-lab-LogBench";
         std::vector<std::unique_ptr<Log::LogSink>> sinks;
         if constexpr (ToFile)
@@ -63,7 +63,7 @@ namespace
         {
             const auto start = std::chrono::steady_clock::now();
             team.Run(
-                [perThread](int)
+                [perThread](int32_t)
                 {
                     for (auto i = int64_t{0}; i < perThread; ++i)
                     {

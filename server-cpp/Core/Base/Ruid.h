@@ -51,16 +51,16 @@ namespace Base
     public:
         using StrongId::StrongId;
 
-        static constexpr int TimestampBits{41};
-        static constexpr int RealmBits{7};
-        static constexpr int NodeBits{6};
-        static constexpr int SequenceBits{9};
+        static constexpr int32_t TimestampBits{41};
+        static constexpr int32_t RealmBits{7};
+        static constexpr int32_t NodeBits{6};
+        static constexpr int32_t SequenceBits{9};
         static_assert(TimestampBits + RealmBits + NodeBits + SequenceBits == 63,
                       "부호 비트 하나는 비워 둔다(음수가 나오지 않게)");
 
-        static constexpr int NodeShift{SequenceBits};
-        static constexpr int RealmShift{NodeShift + NodeBits};
-        static constexpr int TimestampShift{RealmShift + RealmBits};
+        static constexpr int32_t NodeShift{SequenceBits};
+        static constexpr int32_t RealmShift{NodeShift + NodeBits};
+        static constexpr int32_t TimestampShift{RealmShift + RealmBits};
 
         static constexpr int64_t MaxTimestamp{(int64_t{1} << TimestampBits) - 1};
         static constexpr int32_t MinRealm{1}; // 0은 예약(Ruid{} = 없음, Init을 빼먹은 프로세스 잡기)

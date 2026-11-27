@@ -217,17 +217,17 @@ TEST(BufferPool, ReturnOnOtherThreadGoesToThatThreadsCache)
 // 빌린 버퍼에 자기 번호를 채우고 잠깐 양보한 뒤 그대로인지 확인한다(다른 스레드가 같은 버퍼를 받았다면 덮어써진다).
 TEST(BufferPool, ConcurrentRentNeverShares)
 {
-    constexpr auto ThreadCount = 8;
-    constexpr auto Rounds = 5000;
+    constexpr auto ThreadCount = int32_t{8};
+    constexpr auto Rounds = int32_t{5000};
     std::vector<std::jthread> threads;
-    for (auto t = 0; t < ThreadCount; ++t)
+    for (auto t = int32_t{0}; t < ThreadCount; ++t)
     {
         threads.emplace_back(
             [t]
             {
                 const auto mark = static_cast<std::byte>(t + 1);
                 std::vector<PooledBuffer> held; // 가끔 여러 개를 들고 있어 캐시가 넘치고 비게 한다
-                for (auto i = 0; i < Rounds; ++i)
+                for (auto i = int32_t{0}; i < Rounds; ++i)
                 {
                     auto buffer = Pool().Rent(static_cast<std::size_t>(64 + (i % 3) * 600));
                     for (auto& b : buffer.Span())
@@ -253,8 +253,8 @@ TEST(BufferPool, ConcurrentRentNeverShares)
 // 빌리는 쪽이 버퍼에 고유 번호를 적어 넘기고, 반납하는 쪽이 번호가 그대로인지 확인한 뒤 반납한다.
 TEST(BufferPool, CrossThreadRentReturnNeverShares)
 {
-    constexpr auto PairCount = 4;
-    constexpr auto PerPair = 20'000;
+    constexpr auto PairCount = int32_t{4};
+    constexpr auto PerPair = int32_t{20'000};
     struct Channel
     {
         Channel() = default;
@@ -270,13 +270,13 @@ TEST(BufferPool, CrossThreadRentReturnNeverShares)
     std::array<Channel, PairCount> channels{};
     {
         std::vector<std::jthread> threads;
-        for (auto p = 0; p < PairCount; ++p)
+        for (auto p = int32_t{0}; p < PairCount; ++p)
         {
             auto& channel = channels[static_cast<std::size_t>(p)];
             threads.emplace_back(
                 [&channel, p]
                 {
-                    for (auto i = 0; i < PerPair; ++i)
+                    for (auto i = int32_t{0}; i < PerPair; ++i)
                     {
                         const auto id = (static_cast<uint64_t>(p) << 32) | static_cast<uint64_t>(i);
                         auto buffer = Pool().Rent(Small);
@@ -288,7 +288,7 @@ TEST(BufferPool, CrossThreadRentReturnNeverShares)
             threads.emplace_back(
                 [&channel]
                 {
-                    auto received = 0;
+                    auto received = int32_t{0};
                     while (received < PerPair)
                     {
                         std::pair<uint64_t, PooledBuffer> item;

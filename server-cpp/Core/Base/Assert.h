@@ -13,7 +13,7 @@
 namespace Base
 {
     // ASSERT 실패로 낸 예외의 코드. 덤프에서 일반 크래시(0xC0000005 등)와 구분된다.
-    inline constexpr unsigned long AssertExceptionCode{0xE000'A55E};
+    inline constexpr uint32_t AssertExceptionCode{0xE000'A55E};
 
     // 매크로가 부른다. 돌아오지 않는다. location의 기본값은 부른 쪽(ASSERT를 쓴 줄)이다.
     [[noreturn]] void AssertFailed(const std::string_view condition, const std::string_view message,

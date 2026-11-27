@@ -28,9 +28,9 @@ namespace Bench
     // 풀 N:M 측정의 전체 횟수: 2^18 x 50 = 13,107,200(64 의 배수, C# 과 같은 수). 조합과 상관없이 정확히 이만큼 한다.
     inline constexpr int64_t RentReturnOps = int64_t{50} << 18;
 
-    inline std::vector<std::pair<int, int>> RentReturnShapes()
+    inline std::vector<std::pair<int32_t, int32_t>> RentReturnShapes()
     {
-        const auto cores = std::max(4, static_cast<int>(std::thread::hardware_concurrency()));
+        const auto cores = std::max(4, static_cast<int32_t>(std::thread::hardware_concurrency()));
         const auto half = cores / 2;
         const auto quarter = cores / 4;
         const auto over = cores + cores / 4;
@@ -80,7 +80,7 @@ namespace Bench
     public:
         using Block = std::array<Handle, BlockSize>;
 
-        RentReturnGrid(const int renters, const int returners)
+        RentReturnGrid(const int32_t renters, const int32_t returners)
             : _renters(renters), _returners(returners),
               _cells(std::make_unique<Cell[]>(static_cast<std::size_t>(renters) * static_cast<std::size_t>(returners))),
               _team(renters + returners)
@@ -105,7 +105,7 @@ namespace Bench
             const auto totalBlocks = totalOps / int64_t{BlockSize};
 
             _team.Run(
-                [this, &rent, totalBlocks](const int t)
+                [this, &rent, totalBlocks](const int32_t t)
                 {
                     if (t < _renters)
                     {
@@ -138,14 +138,14 @@ namespace Bench
             std::array<Block, 2> blocks{};
         };
 
-        Cell& CellAt(const int renter, const int returner) noexcept
+        Cell& CellAt(const int32_t renter, const int32_t returner) noexcept
         {
             return _cells[static_cast<std::size_t>(renter) * static_cast<std::size_t>(_returners) +
                           static_cast<std::size_t>(returner)];
         }
 
         // 빌리는 스레드 renter 가 맡는 블록 수: 고르게 나누고 남는 것은 앞 스레드가 하나씩 더.
-        [[nodiscard]] int64_t BlocksOfRenter(const int64_t totalBlocks, const int renter) const noexcept
+        [[nodiscard]] int64_t BlocksOfRenter(const int64_t totalBlocks, const int32_t renter) const noexcept
         {
             const auto renters = static_cast<int64_t>(_renters);
             return totalBlocks / renters + (renter < totalBlocks % renters ? 1 : 0);
@@ -153,8 +153,8 @@ namespace Bench
 
         // renter 가 returner 에게 보내는 블록 수. renter 는 블록 번호 % M 으로 보내므로 앞 returner 가 하나씩 더
         // 받는다.
-        [[nodiscard]] int64_t BlocksBetween(const int64_t totalBlocks, const int renter,
-                                            const int returner) const noexcept
+        [[nodiscard]] int64_t BlocksBetween(const int64_t totalBlocks, const int32_t renter,
+                                            const int32_t returner) const noexcept
         {
             const auto blocks = BlocksOfRenter(totalBlocks, renter);
             const auto returners = static_cast<int64_t>(_returners);
@@ -162,12 +162,12 @@ namespace Bench
         }
 
         template <typename Rent>
-        void RunRenter(const int renter, const int64_t blocks, const Rent& rent)
+        void RunRenter(const int32_t renter, const int64_t blocks, const Rent& rent)
         {
             auto next = std::vector<std::size_t>(static_cast<std::size_t>(_returners)); // 쌍마다 다음에 채울 블록
             for (auto b = int64_t{0}; b < blocks; ++b)
             {
-                const auto returner = static_cast<int>(b % _returners); // 반납하는 쪽을 차례로 바꾼다
+                const auto returner = static_cast<int32_t>(b % _returners); // 반납하는 쪽을 차례로 바꾼다
                 auto& cell = CellAt(renter, returner);
                 auto& slot = next[static_cast<std::size_t>(returner)];
                 auto& block = cell.blocks[slot];
@@ -184,10 +184,10 @@ namespace Bench
             }
         }
 
-        void RunReturner(const int returner, const int64_t totalBlocks)
+        void RunReturner(const int32_t returner, const int64_t totalBlocks)
         {
             auto expected = int64_t{0};
-            for (auto renter = 0; renter < _renters; ++renter)
+            for (auto renter = int32_t{0}; renter < _renters; ++renter)
             {
                 expected += BlocksBetween(totalBlocks, renter, returner);
             }
@@ -195,7 +195,7 @@ namespace Bench
             while (received < expected)
             {
                 auto progressed = false;
-                for (auto renter = 0; renter < _renters; ++renter)
+                for (auto renter = int32_t{0}; renter < _renters; ++renter)
                 {
                     auto& cell = CellAt(renter, returner);
                     auto* const block = cell.mailbox.load(std::memory_order_acquire);
@@ -218,8 +218,8 @@ namespace Bench
             }
         }
 
-        int _renters;
-        int _returners;
+        int32_t _renters;
+        int32_t _returners;
         std::unique_ptr<Cell[]> _cells;
         ThreadTeam _team; // 마지막 멤버: 가장 먼저 소멸(작업자 join)한다
     };

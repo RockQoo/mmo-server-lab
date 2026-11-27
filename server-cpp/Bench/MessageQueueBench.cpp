@@ -99,7 +99,7 @@ namespace
             auto sum = id;
             for (const auto c : text)
             {
-                sum += static_cast<unsigned char>(c);
+                sum += static_cast<uint8_t>(c);
             }
             return sum;
         }
@@ -281,7 +281,7 @@ namespace
         const auto lanes = static_cast<std::size_t>(state.range(1));
         const auto perProducer = TotalMessages / static_cast<int64_t>(producers);
         Messaging::LaneGroup group("bench-lane", lanes);
-        Bench::ThreadTeam team(static_cast<int>(producers));
+        Bench::ThreadTeam team(static_cast<int32_t>(producers));
         const auto flows = std::make_unique<Flow[]>(producers * lanes); // [생산자 * lanes + Lane]
         std::atomic<int64_t> waits{}; // 생산자가 흐름 제어로 기다린 횟수(Lane이 못 따라온 정도)
         const auto cpuBefore = ProcessCpu();
@@ -289,7 +289,7 @@ namespace
         for (auto iteration : state)
         {
             team.Run(
-                [&group, &flows, &waits, lanes, perProducer](const int producer)
+                [&group, &flows, &waits, lanes, perProducer](const int32_t producer)
                 {
                     auto myWaits = int64_t{0};
                     auto* const myFlows = &flows[static_cast<std::size_t>(producer) * lanes];

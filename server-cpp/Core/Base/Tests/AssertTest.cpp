@@ -13,7 +13,7 @@ TEST(Assert, PassesWhenTrue)
 
 TEST(Assert, EvaluatesConditionOnce)
 {
-    auto calls = 0;
+    auto calls = int32_t{0};
     ASSERT(++calls == 1, "condition must run once");
     EXPECT_EQ(calls, 1);
 }
@@ -37,15 +37,15 @@ TEST(AssertDeathTest, ExitsWithAssertExceptionCode)
     {
         GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
     }
-    const auto isAssertCrash = [](const int exitCode)
-    { return static_cast<unsigned long>(exitCode) == Base::AssertExceptionCode; };
+    const auto isAssertCrash = [](const int32_t exitCode)
+    { return static_cast<uint32_t>(exitCode) == Base::AssertExceptionCode; };
     EXPECT_EXIT(ASSERT(false, "code check"), isAssertCrash, "code check");
 }
 
 TEST(AssertDeathTest, DebugAssertOnlyInDebug)
 {
 #ifdef NDEBUG
-    auto calls = 0;
+    auto calls = int32_t{0};
     DEBUG_ASSERT(++calls == 0, "not evaluated in release");
     EXPECT_EQ(calls, 0);
 #else
