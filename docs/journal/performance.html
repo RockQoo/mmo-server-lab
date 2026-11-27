@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>최적화·결정 노트</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+.d-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+.d-wt { fill: var(--warn); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-ot { fill: var(--ok); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-buf { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.d-hot { stroke: var(--warn); stroke-width: 2; fill: none; marker-end: url(#arrowWarn); }
+.d-cold { stroke: var(--ok); stroke-width: 2; fill: none; stroke-dasharray: 6 4; marker-end: url(#arrowOk); }
+.bar { height: 14px; border-radius: 3px; background: var(--accent); display: inline-block; vertical-align: middle; }
+.bar.warn { background: var(--warn); }
+.bar.cs { background: var(--cs); }
+.bar.muted { background: var(--muted); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+@media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+.step { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; background: var(--card); }
+.step b { display: block; font-size: 12px; margin-bottom: 2px; }
+.step.s1 { border-top: 3px solid var(--warn); } .step.s1 b { color: var(--warn); }
+.step.s2 { border-top: 3px solid var(--cs); } .step.s2 b { color: var(--cs); }
+.step.s3 { border-top: 3px solid var(--accent); } .step.s3 b { color: var(--accent); }
+.step.s4 { border-top: 3px solid var(--ok); } .step.s4 b { color: var(--ok); }
+.talk { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 8px 12px; border-radius: 6px; margin: 10px 0 4px; font-size: 14px; }
+.talk b { color: var(--accent); }
+.case-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.case-head h3 { margin: 0; }
+.date { color: var(--muted); font-size: 13px; }
+.card.plan { border-style: dashed; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.plan { background: var(--code); color: var(--muted); }
+.toc { columns: 2; column-gap: 28px; padding-left: 20px; }
+@media (max-width: 760px) { .toc { columns: 1; } }
+.d-axis { stroke: var(--line); stroke-width: 1; }
+.d-cppl { stroke: var(--cpp); stroke-width: 2.5; fill: none; }
+.d-csl { stroke: var(--cs); stroke-width: 2.5; fill: none; }
+.d-target { stroke: var(--ok); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.d-cppdot { fill: var(--cpp); } .d-csdot { fill: var(--cs); }
+.d-ct { fill: var(--cpp); font-size: 11.5px; font-weight: 600; font-family: inherit; }
+.d-st { fill: var(--cs); font-size: 11.5px; font-weight: 600; font-family: inherit; }
+</style>
+</head>
+<body>
+<main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker>
+<marker id="arrowWarn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--warn)"/></marker>
+<marker id="arrowOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--ok)"/></marker>
+</defs>
+</svg>
+
+<h1>최적화·결정 노트</h1>
+<p class="sub">mmo-server-lab · 처음 작성 2026-11-27 · 같은 기능을 C++과 C#으로 만들고 재서, 차이가 나면 원인을 찾아 고친 기록. 공부와 면접 준비용</p>
+
+<div class="card">
+<p><strong>읽는 법.</strong> 사례마다 <span class="tag warn">증상</span>→<span class="tag cs">원인</span>→<span class="tag cpp">해결</span>→<span class="tag ok">결과</span> 네 칸과 그림 하나가 있다. 파란 상자의 <b>30초 답변</b>은 면접에서 말할 수 있게 줄인 것이다. 자세한 과정은 각 사례의 개발일지(journal)와 결정 기록(decisions)에 있다.</p>
+<p class="muted">숫자는 모두 같은 PC(Ryzen 7 9800X3D, 물리 8코어)에서 잰 값이다. 개발하면서 새 최적화나 결정이 생기면 이 페이지에 사례를 하나씩 더한다.</p>
+</div>
+
+<h2>한눈에 보기</h2>
+<div class="diagram">
+<svg viewBox="0 0 1000 230" role="img" aria-label="지금까지 한 일 아홉 개와 앞으로 할 일 여섯 개의 흐름">
+<text class="d-t" x="20" y="24" font-weight="600">지금까지 (✅)</text>
+<rect class="d-ok" x="20" y="36" width="140" height="50" rx="8"/><text class="d-t" x="90" y="58" text-anchor="middle">1 측정 도구</text><text class="d-m" x="90" y="76" text-anchor="middle">true sharing</text>
+<rect class="d-ok" x="180" y="36" width="140" height="50" rx="8"/><text class="d-t" x="250" y="58" text-anchor="middle">2·3 BufferPool</text><text class="d-m" x="250" y="76" text-anchor="middle">mutex → 스레드 캐시</text>
+<rect class="d-ok" x="340" y="36" width="140" height="50" rx="8"/><text class="d-t" x="410" y="58" text-anchor="middle">4·5 ObjectPool</text><text class="d-m" x="410" y="76" text-anchor="middle">C# 풀 vs C++ 풀</text>
+<rect class="d-ok" x="500" y="36" width="140" height="50" rx="8"/><text class="d-t" x="570" y="58" text-anchor="middle">6 측정 틀</text><text class="d-m" x="570" y="76" text-anchor="middle">ThreadTeam</text>
+<rect class="d-ok" x="660" y="36" width="150" height="50" rx="8"/><text class="d-t" x="735" y="58" text-anchor="middle">7·8 메시지 큐</text><text class="d-m" x="735" y="76" text-anchor="middle">객체 vs 바이트, N:M</text>
+<rect class="d-ok" x="830" y="36" width="150" height="50" rx="8"/><text class="d-t" x="905" y="58" text-anchor="middle">9·10 발견</text><text class="d-m" x="905" y="76" text-anchor="middle">클로저, 직렬화</text>
+<path class="d-line" d="M160,61 L178,61"/><path class="d-line" d="M320,61 L338,61"/><path class="d-line" d="M480,61 L498,61"/><path class="d-line" d="M640,61 L658,61"/><path class="d-line" d="M810,61 L828,61"/>
+<text class="d-t" x="20" y="134" font-weight="600">앞으로 (⬜)</text>
+<rect class="d-box" x="20" y="146" width="150" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="95" y="168" text-anchor="middle">A 풀 벤치 N:M</text><text class="d-m" x="95" y="186" text-anchor="middle">불균형 비율</text>
+<rect class="d-warn" x="190" y="146" width="150" height="50" rx="8"/><text class="d-t" x="265" y="168" text-anchor="middle">B Lane 큐 개선</text><text class="d-m" x="265" y="186" text-anchor="middle">합격선 45ns</text>
+<rect class="d-box" x="360" y="146" width="150" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="435" y="168" text-anchor="middle">C BufferPool 인라인</text><text class="d-m" x="435" y="186" text-anchor="middle">ObjectPool급으로</text>
+<rect class="d-box" x="530" y="146" width="150" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="605" y="168" text-anchor="middle">D 직렬화 비용</text><text class="d-m" x="605" y="186" text-anchor="middle">덩어리 복사</text>
+<rect class="d-box" x="700" y="146" width="130" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="765" y="168" text-anchor="middle">E C# GC 공부</text><text class="d-m" x="765" y="186" text-anchor="middle">설정별 측정</text>
+<rect class="d-box" x="850" y="146" width="130" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="915" y="168" text-anchor="middle">F 부하 테스트</text><text class="d-m" x="915" y="186" text-anchor="middle">p99, GC 멈춤</text>
+<path class="d-line" d="M170,171 L188,171"/><path class="d-line" d="M340,171 L358,171"/><path class="d-line" d="M510,171 L528,171"/><path class="d-line" d="M680,171 L698,171"/><path class="d-line" d="M830,171 L848,171"/>
+<text class="d-m" x="20" y="220">B(주황)가 지금 가장 큰 문제: 실무 모양(N:M)에서 C++ Lane이 C# Channel보다 약 1.5배 느리다(사례 8)</text>
+</svg>
+</div>
+
+<h3>목차</h3>
+<ol class="toc">
+<li><a href="#c1">측정 도구가 여러 스레드 결과를 눌렀다</a></li>
+<li><a href="#c2">BufferPool 1판이 new/delete보다 느렸다</a></li>
+<li><a href="#c3">빌리는 스레드 ≠ 반납하는 스레드에서 무너졌다</a></li>
+<li><a href="#c4">C# 공식 풀이 스레드를 늘리면 느려졌다</a></li>
+<li><a href="#c5">같은 구조인데 ObjectPool이 BufferPool보다 3배 빨랐다</a></li>
+<li><a href="#c6">C#·C++ 측정 틀이 공정하지 않았다</a></li>
+<li><a href="#c7">메시지 큐: 객체 vs 직렬화한 바이트</a></li>
+<li><a href="#c8">N:M에서 C++ Lane이 C# Channel보다 1.5배 느리다</a></li>
+<li><a href="#c9">C# 클로저가 보이지 않게 할당하고 있었다</a></li>
+<li><a href="#c10">직렬화가 필드 하나에 4~5ns였다</a></li>
+<li><a href="#plan">앞으로 할 것 A~F</a></li>
+<li><a href="#talk">면접용 정리</a></li>
+</ol>
+
+<!-- ===================== 사례 1 ===================== -->
+<h2 id="c1">1. 측정 도구가 여러 스레드 결과를 눌렀다</h2>
+<div class="card">
+<div class="case-head"><h3>Google Benchmark <code>DoNotOptimize</code>와 true sharing</h3><span class="date">2026-11-26 · 자세히: <a href="benchmark.html">benchmark.html</a></span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>아무 일도 안 하는 반복(Noop)이 스레드 1개 627M/s → 8개 735M/s. 8코어인데 1.2배만 늘었다</div>
+<div class="step s2"><b>원인</b>반복마다 부른 <code>benchmark::DoNotOptimize()</code>가 MSVC에서 <strong>전역 변수 하나</strong>에 쓴다. 8개 스레드가 같은 캐시 줄(64B)에 써서 줄이 코어 사이를 계속 오갔다</div>
+<div class="step s3"><b>해결</b>스레드마다 자기 <code>volatile</code> 변수에 쓰게 바꿨다. "Noop을 먼저 재고, 스레드 수만큼 늘지 않으면 결과를 믿지 않는다"를 규칙으로 만들었다</div>
+<div class="step s4"><b>결과</b>BufferPool 2판 8스레드 값이 1,655M/s로 정상이 됐다. 그 전에 잰 여러 스레드 값은 모두 다시 쟀다</div>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 900 200" role="img" aria-label="왼쪽은 8코어가 전역 변수 하나의 캐시 줄을 서로 빼앗는 모습, 오른쪽은 코어마다 자기 변수에 쓰는 모습">
+<text class="d-wt" x="20" y="22">고치기 전: 모든 코어가 같은 줄에 쓴다(true sharing)</text>
+<rect class="d-cpp" x="20" y="40" width="60" height="34" rx="5"/><text class="d-t" x="50" y="62" text-anchor="middle">코어0</text>
+<rect class="d-cpp" x="90" y="40" width="60" height="34" rx="5"/><text class="d-t" x="120" y="62" text-anchor="middle">코어1</text>
+<rect class="d-cpp" x="160" y="40" width="60" height="34" rx="5"/><text class="d-t" x="190" y="62" text-anchor="middle">코어2</text>
+<rect class="d-cpp" x="230" y="40" width="60" height="34" rx="5"/><text class="d-t" x="260" y="62" text-anchor="middle">…코어7</text>
+<rect class="d-warn" x="95" y="130" width="130" height="40" rx="6"/><text class="d-t" x="160" y="155" text-anchor="middle">전역 변수 1개</text>
+<path class="d-hot" d="M50,74 L140,128"/><path class="d-hot" d="M120,74 L150,128"/><path class="d-hot" d="M190,74 L170,128"/><path class="d-hot" d="M260,74 L180,128"/>
+<text class="d-m" x="250" y="150">쓸 때마다 다른 코어의 복사본이 무효</text>
+<text class="d-m" x="250" y="166">→ 한 번에 수십~100ns</text>
+<text class="d-ot" x="500" y="22">고친 뒤: 코어마다 자기 변수</text>
+<rect class="d-cpp" x="500" y="40" width="60" height="34" rx="5"/><text class="d-t" x="530" y="62" text-anchor="middle">코어0</text>
+<rect class="d-cpp" x="580" y="40" width="60" height="34" rx="5"/><text class="d-t" x="610" y="62" text-anchor="middle">코어1</text>
+<rect class="d-cpp" x="660" y="40" width="60" height="34" rx="5"/><text class="d-t" x="690" y="62" text-anchor="middle">코어2</text>
+<rect class="d-cpp" x="740" y="40" width="60" height="34" rx="5"/><text class="d-t" x="770" y="62" text-anchor="middle">…코어7</text>
+<rect class="d-ok" x="500" y="130" width="60" height="36" rx="5"/><text class="d-m" x="530" y="152" text-anchor="middle">변수0</text>
+<rect class="d-ok" x="580" y="130" width="60" height="36" rx="5"/><text class="d-m" x="610" y="152" text-anchor="middle">변수1</text>
+<rect class="d-ok" x="660" y="130" width="60" height="36" rx="5"/><text class="d-m" x="690" y="152" text-anchor="middle">변수2</text>
+<rect class="d-ok" x="740" y="130" width="60" height="36" rx="5"/><text class="d-m" x="770" y="152" text-anchor="middle">변수7</text>
+<path class="d-cold" d="M530,74 L530,126"/><path class="d-cold" d="M610,74 L610,126"/><path class="d-cold" d="M690,74 L690,126"/><path class="d-cold" d="M770,74 L770,126"/>
+<text class="d-m" x="500" y="190">줄이 코어에 계속 머문다 → 스레드 수만큼 는다</text>
+</svg>
+</div>
+<p class="talk"><b>30초 답변.</b> 여러 스레드 벤치마크가 이상하게 안 늘어서, 아무 일도 안 하는 Noop부터 쟀습니다. 표준 C++만으로 만든 Noop은 7배 늘고 벤치마크 도구 안의 Noop만 안 늘어서, 도구의 <code>DoNotOptimize</code>가 MSVC에서 전역 변수 하나에 쓴다는 걸 찾았습니다. 모든 스레드가 같은 캐시 줄을 쓰는 true sharing이었고, 스레드별 변수로 바꿔 해결했습니다. 그 뒤로는 Noop 기준선을 먼저 확인하고 결과를 봅니다.</p>
+</div>
+
+<!-- ===================== 사례 2 ===================== -->
+<h2 id="c2">2. BufferPool 1판이 new/delete보다 느렸다</h2>
+<div class="card">
+<div class="case-head"><h3>등급마다 mutex 하나 → 스레드 캐시 + 전역 묶음</h3><span class="date">2026-11-26 · 자세히: <a href="bufferpool.html">bufferpool.html</a>, 보고서 007·008</span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>풀을 썼는데 스레드 1개에서도 <code>new</code>/<code>delete</code>(48M/s)보다 느렸다(33M/s). 스레드가 늘수록 더 느려졌다</div>
+<div class="step s2"><b>원인</b>빌리기·반납마다 mutex 잠금·풀기 + 원자 카운터 = 원자 연산 6번(약 30ns). Windows 힙은 작은 크기를 스레드별로 처리해 19ns. <strong>풀이 아끼는 비용보다 더하는 비용이 컸다</strong></div>
+<div class="step s3"><b>해결</b>2판: 스레드마다 캐시(락 없음)를 두고, 넘치거나 빌 때만 전역에 <strong>묶음</strong>으로 넣고 꺼낸다. mutex는 묶음 하나에 한 번. C# <code>ArrayPool</code>과 같은 구조</div>
+<div class="step s4"><b>결과</b>스레드 1개 33M → 223M/s(약 6.8배), C# <code>ArrayPool</code>(268M/s)과 같은 급. 8스레드 1,655M/s(<code>new</code>/<code>delete</code>의 약 7배)</div>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 900 190" role="img" aria-label="1판은 모든 스레드가 mutex 하나를 거치고, 2판은 스레드 캐시에서 끝나고 가끔만 전역 묶음을 쓴다">
+<text class="d-wt" x="20" y="22">1판: 매번 mutex</text>
+<rect class="d-cpp" x="20" y="40" width="70" height="30" rx="5"/><text class="d-t" x="55" y="60" text-anchor="middle">스레드A</text>
+<rect class="d-cpp" x="20" y="80" width="70" height="30" rx="5"/><text class="d-t" x="55" y="100" text-anchor="middle">스레드B</text>
+<rect class="d-cpp" x="20" y="120" width="70" height="30" rx="5"/><text class="d-t" x="55" y="140" text-anchor="middle">스레드C</text>
+<rect class="d-warn" x="180" y="70" width="130" height="50" rx="6"/><text class="d-t" x="245" y="92" text-anchor="middle">mutex + 목록</text><text class="d-m" x="245" y="110" text-anchor="middle">+ 원자 카운터</text>
+<path class="d-hot" d="M90,55 L178,85"/><path class="d-hot" d="M90,95 L178,95"/><path class="d-hot" d="M90,135 L178,105"/>
+<text class="d-m" x="20" y="178">빌리기·반납마다 줄을 다툰다 → 스레드가 늘수록 느려짐</text>
+<text class="d-ot" x="470" y="22">2판: 보통은 내 캐시에서 끝</text>
+<rect class="d-cpp" x="470" y="40" width="70" height="30" rx="5"/><text class="d-t" x="505" y="60" text-anchor="middle">스레드A</text>
+<rect class="d-ok" x="550" y="40" width="90" height="30" rx="5"/><text class="d-m" x="595" y="60" text-anchor="middle">캐시 64개</text>
+<rect class="d-cpp" x="470" y="80" width="70" height="30" rx="5"/><text class="d-t" x="505" y="100" text-anchor="middle">스레드B</text>
+<rect class="d-ok" x="550" y="80" width="90" height="30" rx="5"/><text class="d-m" x="595" y="100" text-anchor="middle">캐시 64개</text>
+<rect class="d-cpp" x="470" y="120" width="70" height="30" rx="5"/><text class="d-t" x="505" y="140" text-anchor="middle">스레드C</text>
+<rect class="d-ok" x="550" y="120" width="90" height="30" rx="5"/><text class="d-m" x="595" y="140" text-anchor="middle">캐시 64개</text>
+<rect class="d-box" x="730" y="70" width="140" height="50" rx="6"/><text class="d-t" x="800" y="92" text-anchor="middle">전역 묶음</text><text class="d-m" x="800" y="110" text-anchor="middle">32개씩, mutex 1번</text>
+<path class="d-cold" d="M640,55 L728,82"/><path class="d-cold" d="M640,135 L728,108"/>
+<text class="d-m" x="470" y="178">캐시가 넘치거나 빌 때만 전역(점선) → 원자 연산이 거의 없다</text>
+</svg>
+</div>
+<p class="talk"><b>30초 답변.</b> 처음 만든 버퍼 풀은 등급마다 mutex 하나였는데, 재 보니 <code>new</code>/<code>delete</code>보다 느렸습니다. 원자 연산 수를 세 보니 빌리고 반납하는 데 6번, 약 30ns였고 Windows 힙은 19ns였습니다. 그래서 스레드별 캐시를 두고 전역은 묶음 단위로만 만나게 바꿨고, 스레드 1개에서 6.8배, C# <code>ArrayPool</code>과 같은 급이 됐습니다.</p>
+</div>
+
+<!-- ===================== 사례 3 ===================== -->
+<h2 id="c3">3. 빌리는 스레드 ≠ 반납하는 스레드에서 무너졌다</h2>
+<div class="card">
+<div class="case-head"><h3>묶음 크기 8 → 32</h3><span class="date">2026-11-26 · 자세히: <a href="bufferpool.html">bufferpool.html</a></span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>Lane이 빌리고 IOCP 스레드가 반납하는 모양(빌리기 ≠ 반납)에서 2판이 8스레드 36M/s. <code>new</code>/<code>delete</code>(64M/s)보다 느렸다</div>
+<div class="step s2"><b>원인</b>반납하는 쪽 캐시는 늘 넘치고 빌리는 쪽은 늘 비어서, 거의 모든 호출이 전역 mutex를 거친다. 묶음이 8개라 mutex를 너무 자주 잡았다</div>
+<div class="step s3"><b>해결</b>묶음을 32개로(mutex 잡는 횟수 1/4). 대신 메모리가 늘어서 등급마다 들고 있는 바이트로 개수를 정했다(256B~4KB 64개, 16KB 16개, 64KB 4개)</div>
+<div class="step s4"><b>결과</b>8스레드 36M → 131M/s(<code>new</code>/<code>delete</code>의 약 2배). 스레드당 최대 약 848KB</div>
+</div>
+<div class="table-wrap"><table>
+<tr><th>빌리기 ≠ 반납, 스레드 8개</th><th class="num">초당 횟수</th><th style="width:50%"></th></tr>
+<tr><td><code>new</code>/<code>delete</code></td><td class="num">64M</td><td><span class="bar muted" style="width:49%"></span></td></tr>
+<tr><td>2판, 묶음 8</td><td class="num">36M</td><td><span class="bar warn" style="width:27%"></span></td></tr>
+<tr><td>2판, 묶음 32</td><td class="num">131M</td><td><span class="bar" style="width:100%"></span></td></tr>
+</table></div>
+<p class="talk"><b>30초 답변.</b> 빌리는 스레드와 반납하는 스레드가 다르면 스레드 캐시가 한쪽은 넘치고 한쪽은 비어서 전역 풀을 계속 거칩니다. 그래서 전역과 주고받는 묶음 크기가 성능을 좌우했고, 8개에서 32개로 늘려 3.6배가 됐습니다. 메모리와 맞바꾸는 것이라 등급마다 바이트 기준으로 개수를 정했습니다.</p>
+</div>
+
+<!-- ===================== 사례 4 ===================== -->
+<h2 id="c4">4. C# 공식 풀이 스레드를 늘리면 느려졌다</h2>
+<div class="card">
+<div class="case-head"><h3>C++ <code>ObjectPool</code> vs C# <code>DefaultObjectPool</code> vs C# <code>new</code></h3><span class="date">2026-11-26 · 자세히: <a href="objectpool.html">objectpool.html</a>, 보고서 009</span></div>
+<div class="steps">
+<div class="step s1"><b>질문</b>C#은 풀을 공식으로 준다(<code>Microsoft.Extensions.ObjectPool</code>). C++로 직접 만든 풀은 최소한 그만큼은 나와야 한다</div>
+<div class="step s2"><b>원인 분석</b>C# <code>DefaultObjectPool</code>은 스레드별 캐시가 없다. 모든 스레드가 배열 하나를 <code>Interlocked</code>로 다툰다. 그래서 스레드가 늘수록 느려진다(102M → 15M/s)</div>
+<div class="step s3"><b>C++ 설계</b>BufferPool 2판과 같은 스레드 캐시 + 전역 묶음. 반납 때 소멸하지 않고 <code>Reset()</code>만 해서 내부 <code>vector</code> 용량까지 다시 쓴다</div>
+<div class="step s4"><b>결과</b>C++ 풀 845M → 3.01G/s. C# 풀보다 1스레드 약 8배, 8스레드 약 200배. C# <code>new</code>(479M → 1.96G)보다도 빠르다</div>
+</div>
+<div class="table-wrap"><table>
+<tr><th>값만 있는 객체, 초당 횟수</th><th class="num">1스레드</th><th class="num">8스레드</th><th style="width:40%">8스레드 막대</th></tr>
+<tr><td class="cpp">C++ <code>ObjectPool</code></td><td class="num">845M</td><td class="num">3.01G</td><td><span class="bar" style="width:100%"></span></td></tr>
+<tr><td class="cs">C# <code>new</code>(GC)</td><td class="num">479M</td><td class="num">1.96G</td><td><span class="bar cs" style="width:65%"></span></td></tr>
+<tr><td class="cpp">C++ <code>new</code>/<code>delete</code></td><td class="num">54M</td><td class="num">213M</td><td><span class="bar muted" style="width:7%"></span></td></tr>
+<tr><td class="cs">C# <code>DefaultObjectPool</code></td><td class="num">102M</td><td class="num">15M</td><td><span class="bar warn" style="width:1%"></span></td></tr>
+</table></div>
+<p><strong>배운 것:</strong> C#의 <code>new</code>는 포인터를 앞으로 미는 것뿐이라 아주 싸고, 짧게 사는 객체는 Gen0에서 거의 공짜로 치워진다. 그래서 C#은 <strong>만들기 비싼 객체만</strong> 풀에 넣는다. C++은 할당기가 비싸서 풀이 크게 이긴다.</p>
+<p class="talk"><b>30초 답변.</b> C# 공식 오브젝트 풀을 재 보니 스레드를 늘릴수록 느려졌습니다. 스레드별 캐시 없이 공유 배열 하나를 Interlocked로 다투기 때문입니다. C++은 스레드 캐시와 전역 묶음 구조로 만들어 8스레드에서 약 200배 빨랐습니다. 반대로 C#은 GC 할당 자체가 싸서, 작은 객체는 풀 없이 new하는 게 맞다는 결론도 같이 얻었습니다.</p>
+</div>
+
+<!-- ===================== 사례 5 ===================== -->
+<h2 id="c5">5. 같은 구조인데 ObjectPool이 BufferPool보다 3배 빨랐다</h2>
+<div class="card">
+<div class="case-head"><h3>인라인의 힘(아직 고치지 않음 → 계획 C)</h3><span class="date">2026-11-26 발견</span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>둘 다 스레드 캐시 + 전역 묶음인데, 스레드 1개에서 ObjectPool 625~845M/s, BufferPool 200~290M/s</div>
+<div class="step s2"><b>원인(추정)</b>ObjectPool은 헤더 템플릿이라 모두 인라인된다. BufferPool은 <code>Rent</code>/<code>Return</code>이 .cpp에 있어 호출마다 함수 호출 + MSVC <code>thread_local</code> 초기화 검사가 붙는다</div>
+<div class="step s3"><b>해결(계획)</b>빠른 길(내 캐시 꺼내기·넣기)만 헤더 <code>inline</code>, 느린 길은 .cpp. 하나씩 바꾸며 잰다</div>
+<div class="step s4"><b>목표</b>BufferPool 스레드 1개가 ObjectPool과 비슷한 급(약 600M/s 이상)</div>
+</div>
+</div>
+
+<!-- ===================== 사례 6 ===================== -->
+<h2 id="c6">6. C#·C++ 측정 틀이 공정하지 않았다</h2>
+<div class="card">
+<div class="case-head"><h3><code>Parallel.For</code>, 측정마다 스레드 만들기 → <code>ThreadTeam</code></h3><span class="date">2026-11-26 · Codex 리뷰 1~3차 · 자세히: <a href="objectpool.html">objectpool.html</a></span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>C#은 <code>Parallel.For</code>, C++은 측정마다 스레드를 새로 만들었다. Noop이 8스레드에서 C++ 3.8배, C# 3.4배만 늘었다</div>
+<div class="step s2"><b>원인</b>① <code>MaxDegreeOfParallelism</code>은 <strong>상한</strong>일 뿐이라 실제로 동시에 도는 스레드 수를 보장하지 않는다. ② 측정 한 번이 몇 ms라 스레드 생성 비용과 출발 시차(앞 스레드가 먼저 시작)가 섞였다</div>
+<div class="step s3"><b>해결</b>두 언어 모두 같은 틀: 스레드를 측정 밖에서 미리 만들고 barrier로 같이 출발, 같이 끝(<code>Bench/ThreadTeam</code>). 스레드 생성 실패 때 멈추는 문제도 고쳤다</div>
+<div class="step s4"><b>결과</b>Noop 8스레드 C++ 4.7배, C# 5.2배. 아직 8배는 아니다(64B 정렬은 같고 코어 고정은 더 느림). 그래서 "스레드 몇 배" 결론은 쓰지 않고 <strong>같은 스레드 수끼리 언어 비교만</strong> 한다</div>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 900 160" role="img" aria-label="측정마다 스레드를 만들면 출발이 어긋나고, ThreadTeam은 barrier에서 같이 출발한다">
+<text class="d-wt" x="20" y="22">측정마다 만들기: 출발이 어긋난다</text>
+<rect class="d-warn" x="20" y="36" width="30" height="18" rx="3"/><rect class="d-cpp" x="50" y="36" width="250" height="18" rx="3"/>
+<rect class="d-warn" x="20" y="60" width="70" height="18" rx="3"/><rect class="d-cpp" x="90" y="60" width="250" height="18" rx="3"/>
+<rect class="d-warn" x="20" y="84" width="110" height="18" rx="3"/><rect class="d-cpp" x="130" y="84" width="250" height="18" rx="3"/>
+<text class="d-m" x="20" y="128">주황 = 스레드 생성·출발 대기. 끝나는 시간이 뒤로 밀려 측정에 섞인다</text>
+<text class="d-ot" x="480" y="22">ThreadTeam: barrier에서 같이 출발</text>
+<line class="d-axis" x1="500" y1="30" x2="500" y2="108"/><text class="d-m" x="494" y="122" text-anchor="end">출발</text>
+<rect class="d-cpp" x="500" y="36" width="250" height="18" rx="3"/>
+<rect class="d-cpp" x="500" y="60" width="250" height="18" rx="3"/>
+<rect class="d-cpp" x="500" y="84" width="250" height="18" rx="3"/>
+<line class="d-axis" x1="750" y1="30" x2="750" y2="108"/><text class="d-m" x="756" y="122">끝</text>
+<text class="d-m" x="480" y="146">스레드는 측정 밖에서 한 번만 만든다. 두 언어가 같은 방법</text>
+</svg>
+</div>
+<p class="talk"><b>30초 답변.</b> C#과 C++을 비교하려면 측정 방법부터 같아야 했습니다. <code>Parallel.For</code>는 동시 스레드 수를 보장하지 않고, 측정마다 스레드를 만들면 생성 비용과 출발 시차가 섞였습니다. 그래서 미리 만든 스레드를 barrier로 같이 출발시키는 틀을 두 언어에 똑같이 만들었습니다. 이 틀도 8코어에서 5배까지만 늘어서, 결론은 같은 스레드 수에서의 비교로만 냅니다.</p>
+</div>
+
+<!-- ===================== 사례 7 ===================== -->
+<h2 id="c7">7. 메시지 큐: 객체 vs 직렬화한 바이트</h2>
+<div class="card">
+<div class="case-head"><h3>같은 프로세스 안은 객체(+ ObjectPool)</h3><span class="date">2026-11-27 · 자세히: <a href="messagequeue.html">messagequeue.html</a>, <a href="../decisions/002-message-queue-object-vs-bytes.md">결정 002</a></span></div>
+<div class="steps">
+<div class="step s1"><b>질문</b>스레드끼리 메시지를 넘길 때 객체를 그대로 넘길까, 바이트로 직렬화해서 넘길까. 바이트는 공유가 없어 안전하고 프로세스 밖에도 같은 코드로 보낼 수 있다</div>
+<div class="step s2"><b>분석</b>객체는 크기와 상관없이 포인터 하나를 넘긴다. 바이트는 "객체 → 바이트 → 객체"로 최소 두 번 복사하고, 필드마다 쓰고 읽는다</div>
+<div class="step s3"><b>측정</b>메시지 3종(24B, 106B, 970B) × 방식 3종(new, ObjectPool, 바이트) × 생산자:소비자 6조합, C++·C# 둘 다</div>
+<div class="step s4"><b>결과</b>970B 메시지에서 바이트가 3~13배 느렸다. CPU 비용은 Pool 25ns vs 바이트 1,751ns. 결정: 같은 프로세스는 객체, 직렬화는 프로세스 밖만</div>
+</div>
+<div class="table-wrap"><table>
+<tr><th>C++ 큐 없이 잰 CPU 비용(보내기 + 받기)</th><th class="num">Move 24B</th><th class="num">Chat 106B</th><th class="num">Inventory 970B</th></tr>
+<tr><td>객체 + ObjectPool</td><td class="num"><strong>6ns</strong></td><td class="num"><strong>30ns</strong></td><td class="num"><strong>25ns</strong></td></tr>
+<tr><td>객체 + <code>new</code></td><td class="num">20ns</td><td class="num">61ns</td><td class="num">65ns</td></tr>
+<tr><td>직렬화한 바이트</td><td class="num">72ns</td><td class="num">112ns</td><td class="num">1,751ns</td></tr>
+</table></div>
+<p class="talk"><b>30초 답변.</b> 같은 프로세스 안 메시지를 객체로 넘길지 직렬화해서 넘길지 C++과 C# 둘 다 재 봤습니다. 객체는 크기와 상관없이 포인터만 넘기고, 직렬화는 최소 두 번 복사합니다. 970바이트 메시지에서 직렬화가 수십 배 비싸서, 같은 프로세스는 객체로 넘기고 직렬화는 네트워크나 서버 간 통신에만 쓰기로 했습니다.</p>
+</div>
+
+<!-- ===================== 사례 8 ===================== -->
+<h2 id="c8">8. N:M에서 C++ Lane이 C# Channel보다 1.5배 느리다</h2>
+<div class="card">
+<div class="case-head"><h3>지금 가장 큰 문제 · 계획 B로 고친다</h3><span class="date">2026-11-27 · 자세히: <a href="messagequeue.html#nm">messagequeue.html</a></span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>1:1, 4:1(Lane 1개)은 C++이 빠른데, 실무 모양인 N:M(4:4, 8:4)에서 C#이 1.5배 빠르다. C++은 Lane을 늘리면 오히려 느려진다(34 → 69ns)</div>
+<div class="step s2"><b>원인(좁히는 중)</b>4:4에서 메시지당 user CPU 490ns, kernel 38ns라 깨우기보다 잠금 경합·캐시 줄 쪽. "C#은 lock-free라서"라고 생각했으나 <strong>.NET 소스를 보니 C# Channel도 쓰기마다 lock</strong>을 잡는다. 차이는 잠금 안에서 하는 일(아래 가설)</div>
+<div class="step s3"><b>해결(계획 B)</b>먼저 가설을 하나씩 고쳐 원인 확정 → 그다음 lock-free MPSC(직접) vs <code>moodycamel::ConcurrentQueue</code>(가져오기) vs 묶어 넣기</div>
+<div class="step s4"><b>합격선</b>4:4·8:4에서 메시지당 <strong>45ns 이하</strong>(C# <code>Channel</code> 수준), 1:1은 34ns 이하 유지</div>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 700 290" role="img" aria-label="큐만 잰 메시지당 시간. C++ Lane은 소비자가 늘면 느려지고 C# Channel은 빨라진다">
+<text class="d-t" x="20" y="20" font-weight="600">큐만 잰 메시지 하나의 시간(ns, 낮을수록 좋음)</text>
+<line class="d-axis" x1="70" y1="40" x2="70" y2="230"/><line class="d-axis" x1="70" y1="230" x2="650" y2="230"/>
+<text class="d-m" x="62" y="234" text-anchor="end">0</text><text class="d-m" x="62" y="140" text-anchor="end">50</text><text class="d-m" x="62" y="50" text-anchor="end">100</text>
+<line class="d-axis" x1="70" y1="140" x2="650" y2="140" stroke-dasharray="2 4"/><line class="d-axis" x1="70" y1="50" x2="650" y2="50" stroke-dasharray="2 4"/>
+<line class="d-target" x1="70" y1="149" x2="650" y2="149"/><text class="d-ot" x="652" y="153">목표 45</text>
+<polyline class="d-cppl" points="110,168.8 210,145.4 310,100.4 410,73.4 510,105.8 610,105.8"/>
+<polyline class="d-csl" points="110,140 210,42.8 310,109.4 410,102.2 510,145.4 610,149"/>
+<circle class="d-cppdot" cx="110" cy="168.8" r="4"/><circle class="d-cppdot" cx="210" cy="145.4" r="4"/><circle class="d-cppdot" cx="310" cy="100.4" r="4"/><circle class="d-cppdot" cx="410" cy="73.4" r="4"/><circle class="d-cppdot" cx="510" cy="105.8" r="4"/><circle class="d-cppdot" cx="610" cy="105.8" r="4"/>
+<circle class="d-csdot" cx="110" cy="140" r="4"/><circle class="d-csdot" cx="210" cy="42.8" r="4"/><circle class="d-csdot" cx="310" cy="109.4" r="4"/><circle class="d-csdot" cx="410" cy="102.2" r="4"/><circle class="d-csdot" cx="510" cy="145.4" r="4"/><circle class="d-csdot" cx="610" cy="149" r="4"/>
+<text class="d-ct" x="110" y="186" text-anchor="middle">34</text><text class="d-ct" x="210" y="164" text-anchor="middle">47</text><text class="d-ct" x="322" y="96" text-anchor="start">72</text><text class="d-ct" x="410" y="66" text-anchor="middle">87</text><text class="d-ct" x="510" y="98" text-anchor="middle">69</text><text class="d-ct" x="610" y="98" text-anchor="middle">69</text>
+<text class="d-st" x="110" y="132" text-anchor="middle">50</text><text class="d-st" x="226" y="46" text-anchor="start">104</text><text class="d-st" x="298" y="126" text-anchor="end">67</text><text class="d-st" x="410" y="118" text-anchor="middle">71</text><text class="d-st" x="510" y="163" text-anchor="middle">47</text><text class="d-st" x="610" y="167" text-anchor="middle">45</text>
+<text class="d-m" x="110" y="250" text-anchor="middle">1:1</text><text class="d-m" x="210" y="250" text-anchor="middle">4:1</text><text class="d-m" x="310" y="250" text-anchor="middle">2:2</text><text class="d-m" x="410" y="250" text-anchor="middle">4:2</text><text class="d-m" x="510" y="250" text-anchor="middle">4:4</text><text class="d-m" x="610" y="250" text-anchor="middle">8:4</text>
+<text class="d-m" x="360" y="268" text-anchor="middle">생산자 : 소비자</text>
+<rect class="d-cpp" x="80" y="274" width="12" height="10"/><text class="d-m" x="98" y="283">C++ Lane(mutex + 두 vector 교체)</text>
+<rect class="d-cs" x="330" y="274" width="12" height="10"/><text class="d-m" x="348" y="283">C# Channel(쓰기 lock + 단일 소비자 큐)</text>
+</svg>
+</div>
+<div class="table-wrap"><table>
+<tr><th>가설(Lane 개선 첫 단계에서 하나씩 확인)</th><th>C++ Lane</th><th>C# Channel</th></tr>
+<tr><td>① 잠금 안의 원자 연산</td><td><code>Post</code>마다 <code>_thread.get_stop_token()</code>: stop 상태 공유 참조 카운트를 원자적으로 올리고 내림(모든 스레드가 같은 줄)</td><td>닫힘 확인은 필드 읽기</td></tr>
+<tr><td>② 일 하나의 크기</td><td><code>std::move_only_function</code> 64B</td><td><code>Envelope</code> 구조체 24B</td></tr>
+<tr><td>③ 소비자의 잠금</td><td>swap 때 같은 mutex</td><td>읽기 빠른 길은 잠금 없음</td></tr>
+<tr><td>④ 잠금 종류</td><td><code>std::mutex</code> + <code>condition_variable_any</code></td><td><code>Monitor</code></td></tr>
+</table></div>
+<p class="talk"><b>30초 답변.</b> 생산자 여러 개가 Lane 여러 개에 키로 섞어 넣는 실무 모양으로 재니, C++ Lane이 C# Channel보다 1.5배 느렸습니다. 프로세스 CPU를 user와 kernel로 나눠 보니 user가 대부분이라 깨우기보다 잠금 경합 쪽이었습니다. 처음엔 C# Channel이 lock-free라서 빠르다고 생각했는데, .NET 소스를 직접 보니 C#도 쓰기마다 lock을 잡았습니다. 그래서 잠금의 유무가 아니라 잠금 안에서 하는 일과 옮기는 데이터 크기로 원인을 좁혔습니다. (원인 확정과 개선 결과는 계획 B를 마치면 여기에 더한다)</p>
+</div>
+
+<!-- ===================== 사례 9 ===================== -->
+<h2 id="c9">9. C# 클로저가 보이지 않게 할당하고 있었다</h2>
+<div class="card">
+<div class="case-head"><h3>람다 캡처는 분기와 상관없이 반복마다 만들어진다</h3><span class="date">2026-11-27 · Codex 리뷰 R1</span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>클로저를 쓰지 않는 <code>Channel</code> 경로인데도 메시지마다 48B가 할당됐다</div>
+<div class="step s2"><b>원인</b>같은 반복 블록 안에 <code>envelope</code>를 캡처하는 람다가 <strong>있기만 하면</strong>, 컴파일러가 그 변수를 캡처 객체(display class) 안에 만든다. 람다를 쓰지 않는 분기에서도 반복마다 할당된다</div>
+<div class="step s3"><b>해결</b>람다 만들기를 별도 함수 <code>ToJob(handle, envelope)</code>로 뺐다. 이제 Lane 경로에서만 할당된다</div>
+<div class="step s4"><b>결과</b>Channel 큐만 1:1 65 → 50ns, 할당 48B → 0B. N:M 값은 거의 같아 결론은 그대로</div>
+</div>
+<div class="grid2">
+<pre><code>// 고치기 전: useLane == false여도 반복마다 48B
+var envelope = Make(...);           // 캡처 객체 안에 생긴다
+var ok = useLane
+    ? lane.TryPost(() =&gt; handle(envelope))
+    : channel.Writer.TryWrite(envelope);</code></pre>
+<pre><code>// 고친 뒤: 람다는 함수 안에서만 생긴다
+var envelope = Make(...);           // 평범한 지역 변수
+var ok = useLane
+    ? lane.TryPost(ToJob(handle, envelope))
+    : channel.Writer.TryWrite(envelope);
+
+static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
+    =&gt; () =&gt; h(e);</code></pre>
+</div>
+<p class="talk"><b>30초 답변.</b> C#에서 람다가 지역 변수를 캡처하면, 컴파일러는 그 변수가 선언된 범위에 들어갈 때 캡처 객체를 만듭니다. 그래서 람다를 실행하지 않는 분기에서도 반복마다 할당이 생깁니다. 할당량을 보는 <code>MemoryDiagnoser</code>로 찾았고, 람다를 별도 메서드로 빼서 할당이 필요한 경로에만 생기게 했습니다.</p>
+</div>
+
+<!-- ===================== 사례 10 ===================== -->
+<h2 id="c10">10. 직렬화가 필드 하나에 4~5ns였다</h2>
+<div class="card">
+<div class="case-head"><h3>발견만 함 · 계획 D로 고친다</h3><span class="date">2026-11-27</span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>970B Inventory 하나를 쓰는 데 765ns, 읽는 데 946ns. 필드가 약 180개라 필드 하나에 4~5ns</div>
+<div class="step s2"><b>원인(추정)</b><code>WriteBytes</code>/<code>ReadBytes</code>가 .cpp에 있어 필드마다 함수 호출, 쓰기는 일반 경로인 <code>vector::insert</code>. (Chat 읽기 72ns는 대부분 UTF-8 검사라 안전 비용으로 둔다)</div>
+<div class="step s3"><b>해결(계획 D)</b>빠른 길 인라인, 빈틈 없는 구조체 배열은 <code>memcpy</code> 한 번으로</div>
+<div class="step s4"><b>목표</b>Inventory 쓰기·읽기를 수십 ns대로. 패킷마다 쓰이므로 Network 전에</div>
+</div>
+</div>
+
+<!-- ===================== 계획 ===================== -->
+<h2 id="plan">앞으로 할 것</h2>
+
+<div class="card plan">
+<div class="case-head"><h3>A. 풀 벤치마크를 N:M으로</h3><span class="tag plan">다음 차례</span></div>
+<p>풀의 <code>CrossThread</code> 측정은 지금 서로 독립된 1:1 쌍이다(빌리는 수 = 반납하는 수). 실무는 비율이 다르다. 생산자 4개가 빌리고 Lane 1개가 반납하면 Lane의 캐시는 늘 넘치고 생산자의 캐시는 늘 빈다. 거의 모든 호출이 전역 mutex를 거친다(사례 3의 압박이 더 세진다).</p>
+<div class="diagram">
+<svg viewBox="0 0 900 170" role="img" aria-label="지금은 1:1 쌍 네 개, 바꿀 모양은 생산자 넷이 소비자 하나에 반납하는 4:1">
+<text class="d-t" x="20" y="22" font-weight="600">지금: 독립된 쌍(균형)</text>
+<rect class="d-cpp" x="20" y="40" width="60" height="26" rx="4"/><text class="d-t" x="50" y="58" text-anchor="middle">P1</text><rect class="d-ok" x="150" y="40" width="60" height="26" rx="4"/><text class="d-t" x="180" y="58" text-anchor="middle">C1</text><path class="d-line" d="M80,53 L148,53"/>
+<rect class="d-cpp" x="20" y="74" width="60" height="26" rx="4"/><text class="d-t" x="50" y="92" text-anchor="middle">P2</text><rect class="d-ok" x="150" y="74" width="60" height="26" rx="4"/><text class="d-t" x="180" y="92" text-anchor="middle">C2</text><path class="d-line" d="M80,87 L148,87"/>
+<rect class="d-cpp" x="20" y="108" width="60" height="26" rx="4"/><text class="d-t" x="50" y="126" text-anchor="middle">P3</text><rect class="d-ok" x="150" y="108" width="60" height="26" rx="4"/><text class="d-t" x="180" y="126" text-anchor="middle">C3</text><path class="d-line" d="M80,121 L148,121"/>
+<text class="d-m" x="20" y="158">빌리는 수 = 반납하는 수</text>
+<text class="d-wt" x="480" y="22">바꿀 모양: 4:1, 8:4 등(불균형)</text>
+<rect class="d-cpp" x="480" y="36" width="60" height="24" rx="4"/><text class="d-t" x="510" y="53" text-anchor="middle">P1</text>
+<rect class="d-cpp" x="480" y="66" width="60" height="24" rx="4"/><text class="d-t" x="510" y="83" text-anchor="middle">P2</text>
+<rect class="d-cpp" x="480" y="96" width="60" height="24" rx="4"/><text class="d-t" x="510" y="113" text-anchor="middle">P3</text>
+<rect class="d-cpp" x="480" y="126" width="60" height="24" rx="4"/><text class="d-t" x="510" y="143" text-anchor="middle">P4</text>
+<rect class="d-warn" x="650" y="76" width="70" height="34" rx="5"/><text class="d-t" x="685" y="98" text-anchor="middle">C1</text>
+<path class="d-hot" d="M540,48 L648,86"/><path class="d-hot" d="M540,78 L648,90"/><path class="d-hot" d="M540,108 L648,96"/><path class="d-hot" d="M540,138 L648,102"/>
+<text class="d-m" x="735" y="88">C1 캐시: 늘 넘침</text><text class="d-m" x="735" y="104">P 캐시: 늘 빔</text><text class="d-m" x="735" y="120">→ 전역 mutex 직행</text>
+</svg>
+</div>
+<p class="muted">같은 스레드에서 빌리고 반납하는 <code>SameThread</code> 측정은 그대로 둔다(스레드 캐시 성능을 본다). C#에도 같은 N:M을 더해 C++과 비교한다.</p>
+</div>
+
+<div class="card plan">
+<div class="case-head"><h3>B. Lane 큐 개선: 1.5배 느린 것을 C# Channel 수준 이상으로</h3><span class="tag warn">가장 중요</span></div>
+<p><strong>1단계: 원인 확정.</strong> 사례 8의 가설 ①~④를 하나씩 고치고(예: stop 확인을 잠금 안의 <code>bool</code>로, 일 크기 줄이기) 같은 벤치마크로 재서 어느 것이 얼마나 차지하는지 남긴다. 가장 싼 수정으로 합격선을 넘기면 2단계는 비교만 한다.</p>
+<p><strong>2단계: 구조 후보 비교.</strong> 아래 셋을 같은 N:M 벤치마크에 넣는다. 합격선은 4:4·8:4에서 메시지당 45ns 이하, 1:1은 34ns 이하다.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 330" role="img" aria-label="후보 셋. A 직접 만든 MPSC는 꼬리를 원자 교환 한 번으로 붙인다. B ConcurrentQueue는 생산자마다 작은 큐를 둔다. C는 생산자가 모아서 한 번에 넣는다">
+<text class="d-t" x="20" y="22" font-weight="600">A. 직접 만든 lock-free MPSC(생산자 여럿, 소비자 하나)</text>
+<rect class="d-cpp" x="20" y="38" width="70" height="28" rx="4"/><text class="d-m" x="55" y="57" text-anchor="middle">일1</text>
+<rect class="d-cpp" x="110" y="38" width="70" height="28" rx="4"/><text class="d-m" x="145" y="57" text-anchor="middle">일2</text>
+<rect class="d-cpp" x="200" y="38" width="70" height="28" rx="4"/><text class="d-m" x="235" y="57" text-anchor="middle">일3</text>
+<path class="d-line" d="M90,52 L108,52"/><path class="d-line" d="M180,52 L198,52"/>
+<rect class="d-ok" x="320" y="38" width="70" height="28" rx="4"/><text class="d-m" x="355" y="57" text-anchor="middle">새 일</text>
+<path class="d-cold" d="M318,52 L272,52"/>
+<text class="d-m" x="410" y="50">넣기 = tail.exchange(새 일) 원자 연산 한 번</text>
+<text class="d-m" x="410" y="66">모든 생산자에 걸쳐 넣은 순서가 지켜진다. 메모리 순서 검증이 어렵다</text>
+
+<text class="d-t" x="20" y="112" font-weight="600">B. moodycamel::ConcurrentQueue(가져다 쓰기, 설치 필요)</text>
+<rect class="d-cpp" x="20" y="126" width="56" height="24" rx="4"/><text class="d-m" x="48" y="143" text-anchor="middle">P1 큐</text>
+<rect class="d-cpp" x="20" y="156" width="56" height="24" rx="4"/><text class="d-m" x="48" y="173" text-anchor="middle">P2 큐</text>
+<rect class="d-cpp" x="20" y="186" width="56" height="24" rx="4"/><text class="d-m" x="48" y="203" text-anchor="middle">P3 큐</text>
+<rect class="d-ok" x="180" y="156" width="80" height="26" rx="4"/><text class="d-m" x="220" y="174" text-anchor="middle">소비자</text>
+<path class="d-line" d="M76,138 L178,164"/><path class="d-line" d="M76,168 L178,169"/><path class="d-line" d="M76,198 L178,174"/>
+<text class="d-m" x="280" y="146">생산자마다 작은 큐 → 서로 안 다툰다(빠르기로 유명)</text>
+<text class="d-wt" x="280" y="168">주의: 순서는 같은 생산자 안에서만 지켜진다</text>
+<text class="d-m" x="280" y="186">예) A가 X를 넣고 B에게 알림 → B가 Y를 넣음 → Y가 X보다 먼저 실행될 수 있다</text>
+<text class="d-m" x="280" y="204">지금 Lane(mutex)은 항상 X 다음 Y. 이런 순서에 기대는 코드가 없는지 확인 필요</text>
+
+<text class="d-t" x="20" y="250" font-weight="600">C. 묶어 넣기(lock-free 없이, A·B와 같이 쓸 수 있음)</text>
+<rect class="d-cpp" x="20" y="266" width="140" height="28" rx="4"/><text class="d-m" x="90" y="285" text-anchor="middle">생산자: Lane별로 모으기</text>
+<rect class="d-warn" x="230" y="266" width="120" height="28" rx="4"/><text class="d-m" x="290" y="285" text-anchor="middle">잠금 1번에 32개</text>
+<path class="d-line" d="M160,280 L228,280"/>
+<text class="d-m" x="370" y="278">잠금·캐시 줄 왕복이 1/32. IOCP 완료를 모아 내보내는 곳에 맞다</text>
+<text class="d-m" x="370" y="294">하나씩 바로 보내는 곳(타이머, Lane끼리)은 그대로. 모으는 동안 지연이 조금 생긴다</text>
+</svg>
+</div>
+<p>끝나면 사례 8에 "어떻게 고쳤고 얼마가 됐는지"를 더한다.</p>
+</div>
+
+<div class="card plan">
+<div class="case-head"><h3>C. BufferPool 빠른 길 인라인</h3><span class="tag plan">사례 5</span></div>
+<p>① 빠른 길(내 캐시)을 헤더 <code>inline</code>으로 ② 소멸자 없는 스레드 캐시로 MSVC <code>thread_local</code> 초기화 검사 없애기 ③ 등급 계산을 <code>std::bit_width</code>(CPU 명령 한 번)로. 하나씩 바꾸며 재서 어느 것이 얼마나 효과가 있는지 남긴다.</p>
+</div>
+
+<div class="card plan">
+<div class="case-head"><h3>D. 직렬화 필드 비용 줄이기</h3><span class="tag plan">Network 전 · 사례 10</span></div>
+<div class="diagram">
+<svg viewBox="0 0 900 150" role="img" aria-label="지금은 필드 180개를 하나씩 쓰고, 바꾸면 빈틈 없는 칸 배열을 memcpy 한 번으로 쓴다">
+<text class="d-wt" x="20" y="22">지금: 칸 60개 × 필드 3개 = 함수 호출 180번</text>
+<g>
+<rect class="d-warn" x="20" y="36" width="22" height="22" rx="3"/><rect class="d-warn" x="46" y="36" width="22" height="22" rx="3"/><rect class="d-warn" x="72" y="36" width="22" height="22" rx="3"/>
+<rect class="d-warn" x="104" y="36" width="22" height="22" rx="3"/><rect class="d-warn" x="130" y="36" width="22" height="22" rx="3"/><rect class="d-warn" x="156" y="36" width="22" height="22" rx="3"/>
+<rect class="d-warn" x="188" y="36" width="22" height="22" rx="3"/><rect class="d-warn" x="214" y="36" width="22" height="22" rx="3"/><rect class="d-warn" x="240" y="36" width="22" height="22" rx="3"/>
+<text class="d-m" x="272" y="52">… (필드마다 WriteBytes 호출 + vector::insert) ≈ 765ns</text>
+</g>
+<text class="d-ot" x="20" y="96">바꾸면: 빈틈 없는 구조체 배열은 memcpy 한 번(960B)</text>
+<rect class="d-ok" x="20" y="108" width="242" height="22" rx="3"/><text class="d-m" x="141" y="123" text-anchor="middle">Slot[60] 메모리 그대로</text>
+<text class="d-m" x="272" y="123">조건: 빈틈 없음(has_unique_object_representations) + 리틀 엔디안. 컴파일 때 검사</text>
+</svg>
+</div>
+<p class="muted">C#도 같다: <code>CollectionsMarshal.AsSpan(list)</code> + <code>MemoryMarshal.AsBytes</code>로 한 번에 복사할 수 있다.</p>
+</div>
+
+<div class="card plan">
+<div class="case-head"><h3>E. C# GC 공부 + 설정별 측정</h3><span class="tag plan">면접 준비</span></div>
+<p>GC 설정은 컴파일 옵션이 아니라 <strong>런타임 설정</strong>이다. csproj에 적으면 빌드 때 <code>runtimeconfig.json</code>에 들어가고, 실행 때 환경 변수(<code>DOTNET_gcServer=1</code> 등)로도 바꿀 수 있다. 아래 표는 공부할 목록이다. <strong>이름과 기본값은 측정할 때 공식 문서(learn.microsoft.com의 GC 런타임 구성 옵션)와 하나씩 대조해서 확정</strong>하고, 같은 벤치마크를 설정마다 재서 숫자를 붙인다.</p>
+<div class="table-wrap"><table>
+<tr><th>분류</th><th>항목</th><th>무엇을 보나</th></tr>
+<tr><td>GC 종류</td><td>Workstation vs Server(<code>ServerGarbageCollector</code>)</td><td>코어마다 힙·전용 GC 스레드. 처리량, 멈춤, 메모리</td></tr>
+<tr><td></td><td>백그라운드 GC(<code>ConcurrentGarbageCollection</code>)</td><td>Gen2를 백그라운드로. 끄면 멈춤이 어떻게 바뀌나</td></tr>
+<tr><td></td><td>DATAS(동적 힙 수 조정)</td><td>부하에 따라 Server GC 힙 수를 늘리고 줄인다. 메모리 vs 처리량</td></tr>
+<tr><td>힙</td><td>힙 개수·상한·메모리 아끼기</td><td>Server GC 메모리 사용량 조절</td></tr>
+<tr><td>큰 객체</td><td>LOH(85,000B 이상), POH(<code>GC.AllocateArray(pinned: true)</code>)</td><td>큰 버퍼 단편화, 소켓 버퍼 고정</td></tr>
+<tr><td>실행 중</td><td><code>GCSettings.LatencyMode</code>, <code>GC.TryStartNoGCRegion</code></td><td>틱 중 멈춤 피하기</td></tr>
+<tr><td>측정</td><td><code>GC.GetTotalPauseDuration()</code>, <code>GC.GetGCMemoryInfo()</code>, <code>dotnet-counters</code></td><td>멈춘 총시간, 세대별 크기</td></tr>
+<tr><td>코드</td><td><code>struct</code>, <code>Span&lt;T&gt;</code>, <code>ArrayPool</code>, 클로저·박싱 피하기</td><td>할당 자체를 줄이기(사례 9가 좋은 예)</td></tr>
+</table></div>
+</div>
+
+<div class="card plan">
+<div class="case-head"><h3>F. C++ vs C# 부하 테스트: 평균이 아니라 꼬리</h3><span class="tag plan">봇 부하 테스트 때</span></div>
+<p>마이크로 벤치마크는 메시지가 곧 죽어서 C# GC 비용이 안 보인다(Gen0만 돈다). 실제 서버는 오래 사는 객체(플레이어, 아이템)가 많아 Gen2가 커진다. 그래서 같은 봇·같은 시나리오로 <strong>틱 지연 p99·최댓값, GC 멈춤 시간, 메모리</strong>를 두 언어 나란히 잰다. "C++이 낫다"는 이 측정으로 말한다.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 140" role="img" aria-label="평균은 비슷해도 가끔 긴 멈춤이 p99를 끌어올린다">
+<text class="d-t" x="20" y="22" font-weight="600">틱 시간(예시 그림, 실측 아님)</text>
+<line class="d-axis" x1="20" y1="110" x2="880" y2="110"/>
+<g>
+<rect class="d-cpp" x="30" y="80" width="14" height="30"/><rect class="d-cpp" x="54" y="78" width="14" height="32"/><rect class="d-cpp" x="78" y="82" width="14" height="28"/><rect class="d-cpp" x="102" y="79" width="14" height="31"/><rect class="d-cpp" x="126" y="81" width="14" height="29"/><rect class="d-cpp" x="150" y="80" width="14" height="30"/><rect class="d-cpp" x="174" y="78" width="14" height="32"/><rect class="d-cpp" x="198" y="82" width="14" height="28"/><rect class="d-cpp" x="222" y="80" width="14" height="30"/><rect class="d-cpp" x="246" y="79" width="14" height="31"/>
+</g>
+<text class="d-ct" x="30" y="130">C++: 고르게</text>
+<g>
+<rect class="d-cs" x="470" y="82" width="14" height="28"/><rect class="d-cs" x="494" y="80" width="14" height="30"/><rect class="d-cs" x="518" y="81" width="14" height="29"/><rect class="d-cs" x="542" y="36" width="14" height="74"/><rect class="d-cs" x="566" y="80" width="14" height="30"/><rect class="d-cs" x="590" y="82" width="14" height="28"/><rect class="d-cs" x="614" y="79" width="14" height="31"/><rect class="d-cs" x="638" y="81" width="14" height="29"/><rect class="d-cs" x="662" y="80" width="14" height="30"/><rect class="d-cs" x="686" y="82" width="14" height="28"/>
+</g>
+<text class="d-wt" x="560" y="32">Gen2 멈춤</text>
+<text class="d-st" x="470" y="130">C#: 평균은 비슷해도 가끔 긴 멈춤 → p99·최댓값이 커질 수 있다</text>
+</svg>
+</div>
+</div>
+
+<!-- ===================== 면접 ===================== -->
+<h2 id="talk">면접용 정리</h2>
+<div class="table-wrap"><table>
+<tr><th>질문이 오면</th><th>꺼낼 사례</th><th>핵심 한 줄</th></tr>
+<tr><td>성능 문제를 어떻게 찾았나</td><td>1, 8</td><td>기준선(Noop, 큐만)부터 재고, CPU를 user·kernel로 나눠 잠금 대기인지 깨우기인지 가른다</td></tr>
+<tr><td>멀티스레드 최적화 경험</td><td>2, 3, 8</td><td>공유 자원(mutex, 캐시 줄)을 스레드별로 나누고, 공유는 묶음 단위로만 만나게</td></tr>
+<tr><td>false/true sharing을 아나</td><td>1</td><td>같은 캐시 줄을 여러 코어가 쓰면 줄이 코어 사이를 오가 수십~100ns씩 든다</td></tr>
+<tr><td>C++과 C#의 차이</td><td>4, 8, 9, F</td><td>C# <code>new</code>는 싸지만 GC 비용이 나중에 꼬리 지연으로 온다. 구조가 같으면 언어보다 설계가 차이를 만든다</td></tr>
+<tr><td>벤치마크를 믿을 수 있나</td><td>1, 6, 9</td><td>두 언어 같은 틀, Noop 기준선, 할당량까지 본다. 리뷰로 측정 틀의 버그를 찾았다</td></tr>
+<tr><td>틀린 가정을 어떻게 바로잡았나</td><td>8</td><td>"C#은 lock-free라 빠르다"고 적었다가 .NET 소스를 직접 읽고 바로잡았다. 추측은 소스나 측정으로 확인한다</td></tr>
+<tr><td>설계 결정을 어떻게 했나</td><td>3, 7</td><td>후보를 같은 조건으로 재고, 얻은 것·잃은 것·결론이 깨지는 조건을 결정 기록으로 남긴다</td></tr>
+</table></div>
+
+</main>
+</body>
+</html>

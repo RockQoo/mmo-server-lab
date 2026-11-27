@@ -76,7 +76,10 @@ A가 빠르고, 메시지가 클수록 차이가 커진다. A는 크기와 상�
 ## 결론
 
 1. **같은 프로세스 안은 객체로 넘긴다(가설대로).** 두 언어 모두 큰 메시지에서 바이트가 3~13배 느리다. 작은 메시지에서는 큐 비용에 묻혀 차이가 작다. 직렬화는 프로세스 밖으로 나갈 때(패킷, 서버 사이, 존 이동)만 쓴다. C++은 객체를 ObjectPool로 만든다(`new`보다 1.1~2.5배 빠르다. 스레드를 건너가는 `new`/`delete`는 할당기 경합이 크다).
-2. **C++ `Lane` 큐가 N:M에서 병목이다.** Lane이 늘수록 느려진다(큐만 1:1 34ns → 4:4 69ns). 생산자가 4:4에서 한 번도 기다리지 않았는데 모든 스레드가 user CPU를 가득 썼다(메시지당 user 약 490ns, kernel 38ns): 메시지마다 다른 Lane의 mutex를 잡으며 기다리고, 큐 vector의 캐시 줄이 코어 사이를 오간다. C# `Channel`(lock-free)은 생산자 4개에서 소비자가 늘수록 빨라져(4:1 104 → 4:2 71 → 4:4 47ns, C++은 47 → 87 → 69ns) N:M에서 C++을 앞선다. 이것은 언어가 아니라 지금 Lane 큐 구조의 문제다.
+2. **C++ `Lane` 큐가 N:M에서 병목이다.** Lane이 늘수록 느려진다(큐만 1:1 34ns → 4:4 69ns). 생산자가 4:4에서 한 번도 기다리지 않았는데 모든 스레드가 user CPU를 가득 썼다(메시지당 user 약 490ns, kernel 38ns): 깨우기(kernel)보다 잠금 경합과 캐시 줄 왕복 쪽이다. C# `Channel`은 생산자 4개에서 소비자가 늘수록 빨라져(4:1 104 → 4:2 71 → 4:4 47ns, C++은 47 → 87 → 69ns) N:M에서 C++을 앞선다.
+   - **바로잡음(2026-11-27)**: 처음에는 "C# `Channel`은 lock-free라서"라고 적었다. .NET 소스(`SingleConsumerUnboundedChannel.cs`)를 확인하니 `SingleReader = true` 채널도 **쓰기(`TryWrite`)마다 `lock`을 잡고** 잠금 안에서 `SingleProducerSingleConsumerQueue<T>`에 넣는다. 잠금이 없는 것은 읽기 빠른 길뿐이다. 두 언어 모두 넣을 때마다 잠금을 잡으므로 차이는 잠금 안에서 하는 일에 있다.
+   - 가설(Lane 개선 단위 첫 단계에서 하나씩 확인): ① `Post`가 잠금 안에서 `_thread.get_stop_token()`을 불러 stop 상태 공유 참조 카운트를 원자적으로 올리고 내린다 ② 일 하나가 `std::move_only_function` 64B(C#은 `Envelope` 24B) ③ Lane이 swap할 때 생산자와 같은 mutex를 잡는다(C#은 읽기에 잠금 없음) ④ `std::mutex` + `condition_variable_any` vs `Monitor`.
+   - 언어가 아니라 지금 Lane 구현의 문제다.
 3. **C++ Lane의 목표선**: 4:4·8:4에서 C# `Channel` 수준(메시지당 약 45ns, 초당 약 22M) 이상, 1:1은 지금(34ns) 이하. Lane 큐 개선 단위의 합격선으로 쓴다.
 4. **직렬화가 필드마다 4~5ns다**(두 언어 모두 Inventory 쓰기·읽기 각 약 1µs). C++은 `WriteBytes`/`ReadBytes`가 .cpp에 있어 필드마다 함수 호출 + `vector::insert`다. 결론 1은 바뀌지 않지만(잘 만든 직렬화도 복사가 두 번) 패킷 경로에는 그대로 쓰이므로 Network 전에 줄인다.
 

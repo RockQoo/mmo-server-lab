@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개발일지: 메시지 큐</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+.d-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+.d-wt { fill: var(--warn); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-ot { fill: var(--ok); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-buf { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.d-hot { stroke: var(--warn); stroke-width: 2; fill: none; marker-end: url(#arrowWarn); }
+.d-cold { stroke: var(--ok); stroke-width: 2; fill: none; stroke-dasharray: 6 4; marker-end: url(#arrowOk); }
+.bar { height: 14px; border-radius: 3px; background: var(--accent); display: inline-block; vertical-align: middle; }
+.bar.warn { background: var(--warn); }
+.bar.cs { background: var(--cs); }
+.bar.muted { background: var(--muted); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+@media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+.step { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; background: var(--card); }
+.step b { display: block; font-size: 12px; margin-bottom: 2px; }
+.step.s1 { border-top: 3px solid var(--warn); } .step.s1 b { color: var(--warn); }
+.step.s2 { border-top: 3px solid var(--cs); } .step.s2 b { color: var(--cs); }
+.step.s3 { border-top: 3px solid var(--accent); } .step.s3 b { color: var(--accent); }
+.step.s4 { border-top: 3px solid var(--ok); } .step.s4 b { color: var(--ok); }
+.talk { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 8px 12px; border-radius: 6px; margin: 10px 0 4px; font-size: 14px; }
+.talk b { color: var(--accent); }
+.case-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.case-head h3 { margin: 0; }
+.date { color: var(--muted); font-size: 13px; }
+.card.plan { border-style: dashed; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.plan { background: var(--code); color: var(--muted); }
+.toc { columns: 2; column-gap: 28px; padding-left: 20px; }
+@media (max-width: 760px) { .toc { columns: 1; } }
+.d-axis { stroke: var(--line); stroke-width: 1; }
+.d-cppl { stroke: var(--cpp); stroke-width: 2.5; fill: none; }
+.d-csl { stroke: var(--cs); stroke-width: 2.5; fill: none; }
+.d-target { stroke: var(--ok); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.d-cppdot { fill: var(--cpp); } .d-csdot { fill: var(--cs); }
+.d-ct { fill: var(--cpp); font-size: 11.5px; font-weight: 600; font-family: inherit; }
+.d-st { fill: var(--cs); font-size: 11.5px; font-weight: 600; font-family: inherit; }
+</style>
+</head>
+<body>
+<main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker>
+<marker id="arrowWarn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--warn)"/></marker>
+<marker id="arrowOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--ok)"/></marker>
+</defs>
+</svg>
+
+<h1>개발일지 · 메시지 큐</h1>
+<p class="sub">Messaging · 2026-11-27 · 큐에 객체를 넣을까 직렬화한 바이트를 넣을까, 생산자 N → 소비자 M에서 C++ <code>Lane</code> vs C# <code>Channel&lt;T&gt;</code></p>
+
+<div class="card">
+<p><strong>한 줄 요약.</strong> 같은 프로세스 안에서는 <strong>객체를 넘긴다</strong>(C++은 ObjectPool과 함께). 바이트는 큰 메시지에서 3~13배 느렸다. 그런데 실무 모양(N:M)으로 재 보니 진짜 문제는 메시지가 아니라 <strong>C++ <code>Lane</code> 큐</strong>였다. Lane이 늘수록 느려져서 C# <code>Channel</code>보다 약 1.5배 느렸다. 두 큐 모두 넣을 때마다 잠금을 잡으므로(.NET 소스로 확인), 차이는 잠금 안에서 하는 일에 있다. 다음 단위에서 원인을 하나씩 확정하고 고친다(합격선 45ns).</p>
+<p class="muted">결정 기록: <a href="../decisions/002-message-queue-object-vs-bytes.md">002</a> · 모음: <a href="performance.html#c7">최적화·결정 노트 사례 7~10</a> · 코드: <code>server-cpp/Bench/MessageQueueBench.cpp</code>, <code>server-cs/Bench/MessageQueueBench.cs</code></p>
+</div>
+
+<h2>질문: 큐에 무엇을 넣나</h2>
+<div class="diagram">
+<svg viewBox="0 0 900 200" role="img" aria-label="A 객체는 포인터 하나를 넘기고, B 바이트는 객체를 바이트로 쓰고 받는 쪽에서 다시 객체로 읽는다">
+<text class="d-ot" x="20" y="22">A. 객체: 포인터 하나를 move</text>
+<rect class="d-cpp" x="20" y="36" width="110" height="40" rx="6"/><text class="d-t" x="75" y="61" text-anchor="middle">생산자 객체</text>
+<rect class="d-box" x="200" y="42" width="130" height="28" rx="6"/><text class="d-m" x="265" y="61" text-anchor="middle">큐: 포인터 8B</text>
+<rect class="d-ok" x="400" y="36" width="110" height="40" rx="6"/><text class="d-t" x="455" y="61" text-anchor="middle">Lane이 바로 씀</text>
+<path class="d-line" d="M130,56 L198,56"/><path class="d-line" d="M330,56 L398,56"/>
+<text class="d-m" x="530" y="52">복사: 원본 → 객체 1번(풀이면 용량 재사용)</text>
+<text class="d-m" x="530" y="68">위험: 넘긴 뒤 보낸 쪽이 만지면 데이터 경쟁(C++은 move로 막는다)</text>
+<text class="d-wt" x="20" y="112">B. 바이트: 쓰고 → 넘기고 → 다시 읽는다</text>
+<rect class="d-cpp" x="20" y="126" width="110" height="40" rx="6"/><text class="d-t" x="75" y="151" text-anchor="middle">생산자 객체</text>
+<rect class="d-warn" x="160" y="132" width="110" height="28" rx="6"/><text class="d-m" x="215" y="151" text-anchor="middle">ByteWriter</text>
+<rect class="d-box" x="300" y="132" width="110" height="28" rx="6"/><text class="d-m" x="355" y="151" text-anchor="middle">큐: 버퍼</text>
+<rect class="d-warn" x="440" y="132" width="110" height="28" rx="6"/><text class="d-m" x="495" y="151" text-anchor="middle">ByteReader</text>
+<rect class="d-ok" x="580" y="126" width="110" height="40" rx="6"/><text class="d-t" x="635" y="151" text-anchor="middle">새 객체</text>
+<path class="d-line" d="M130,146 L158,146"/><path class="d-line" d="M270,146 L298,146"/><path class="d-line" d="M410,146 L438,146"/><path class="d-line" d="M550,146 L578,146"/>
+<text class="d-m" x="20" y="190">복사 최소 2번 + 필드마다 쓰기·읽기. 장점: 공유가 전혀 없고, 같은 바이트를 소켓·다른 서버에도 보낼 수 있다</text>
+</svg>
+</div>
+
+<h2>측정 틀: 실무 모양을 흉내 내기</h2>
+<p>처음에는 생산자 1·4개 → Lane 1개만 쟀다. "1:4는 실무 데이터가 아니다, 경합이 훨씬 많을 것"이라는 지적을 받고 <strong>생산자 N → 소비자 M</strong>으로 바꿨다. 조합은 1:1, 4:1, 2:2, 4:2, 4:4, 8:4다(8:4는 12스레드라 물리 8코어보다 많다).</p>
+<div class="diagram">
+<svg viewBox="0 0 900 240" role="img" aria-label="생산자 넷이 메시지마다 키로 Lane을 골라 넣는다. 흐름 제어 카운터는 생산자와 Lane 쌍마다 따로 있다">
+<rect class="d-cpp" x="20" y="30" width="80" height="30" rx="5"/><text class="d-t" x="60" y="50" text-anchor="middle">생산자0</text>
+<rect class="d-cpp" x="20" y="80" width="80" height="30" rx="5"/><text class="d-t" x="60" y="100" text-anchor="middle">생산자1</text>
+<rect class="d-cpp" x="20" y="130" width="80" height="30" rx="5"/><text class="d-t" x="60" y="150" text-anchor="middle">생산자2</text>
+<rect class="d-cpp" x="20" y="180" width="80" height="30" rx="5"/><text class="d-t" x="60" y="200" text-anchor="middle">생산자3</text>
+<rect class="d-box" x="150" y="95" width="120" height="50" rx="6"/><text class="d-t" x="210" y="117" text-anchor="middle">IndexFor(키)</text><text class="d-m" x="210" y="134" text-anchor="middle">키 = 메시지마다 바뀜</text>
+<path class="d-line" d="M100,45 L148,105"/><path class="d-line" d="M100,95 L148,115"/><path class="d-line" d="M100,145 L148,125"/><path class="d-line" d="M100,195 L148,135"/>
+<rect class="d-ok" x="340" y="30" width="80" height="30" rx="5"/><text class="d-t" x="380" y="50" text-anchor="middle">Lane0</text>
+<rect class="d-ok" x="340" y="80" width="80" height="30" rx="5"/><text class="d-t" x="380" y="100" text-anchor="middle">Lane1</text>
+<rect class="d-ok" x="340" y="130" width="80" height="30" rx="5"/><text class="d-t" x="380" y="150" text-anchor="middle">Lane2</text>
+<rect class="d-ok" x="340" y="180" width="80" height="30" rx="5"/><text class="d-t" x="380" y="200" text-anchor="middle">Lane3</text>
+<path class="d-line" d="M270,110 L338,45"/><path class="d-line" d="M270,115 L338,95"/><path class="d-line" d="M270,125 L338,145"/><path class="d-line" d="M270,130 L338,195"/>
+<text class="d-t" x="470" y="40" font-weight="600">흐름 제어 카운터: 쌍마다 하나(4 × 4 = 16개)</text>
+<g>
+<rect class="d-buf" x="470" y="54" width="44" height="24" rx="3"/><rect class="d-buf" x="520" y="54" width="44" height="24" rx="3"/><rect class="d-buf" x="570" y="54" width="44" height="24" rx="3"/><rect class="d-buf" x="620" y="54" width="44" height="24" rx="3"/>
+<rect class="d-buf" x="470" y="84" width="44" height="24" rx="3"/><rect class="d-buf" x="520" y="84" width="44" height="24" rx="3"/><rect class="d-buf" x="570" y="84" width="44" height="24" rx="3"/><rect class="d-buf" x="620" y="84" width="44" height="24" rx="3"/>
+<rect class="d-buf" x="470" y="114" width="44" height="24" rx="3"/><rect class="d-buf" x="520" y="114" width="44" height="24" rx="3"/><rect class="d-buf" x="570" y="114" width="44" height="24" rx="3"/><rect class="d-buf" x="620" y="114" width="44" height="24" rx="3"/>
+<rect class="d-buf" x="470" y="144" width="44" height="24" rx="3"/><rect class="d-buf" x="520" y="144" width="44" height="24" rx="3"/><rect class="d-buf" x="570" y="144" width="44" height="24" rx="3"/><rect class="d-buf" x="620" y="144" width="44" height="24" rx="3"/>
+</g>
+<text class="d-m" x="680" y="70">행 = 생산자, 열 = Lane</text>
+<text class="d-m" x="680" y="88">칸마다 쓰는 스레드가 Lane 하나뿐</text>
+<text class="d-m" x="680" y="106">→ 원자적 더하기 없이 store</text>
+<text class="d-m" x="680" y="124">칸 사이 128B(같은 캐시 줄 X)</text>
+<text class="d-m" x="470" y="196">처리 안 된 게 1024개를 넘으면 생산자가 기다린다</text>
+<text class="d-m" x="470" y="214">(없으면 큐가 끝없이 쌓여 메모리 측정이 된다)</text>
+<text class="d-wt" x="470" y="232">카운터를 Lane 넷이 같이 쓰면 틀이 경합을 만든다</text>
+</svg>
+</div>
+<ul>
+<li><strong>끝 확인:</strong> C++은 Lane마다 "표시 일"을 마지막에 넣고 기다린다(넣은 순서대로 처리하므로 그게 끝나면 앞의 것도 끝). C# <code>Channel</code>에는 일을 넣을 수 없어 카운터가 보낸 수와 같아질 때까지 기다린다.</li>
+<li><strong>생산자 스레드:</strong> 두 언어 모두 <code>ThreadTeam</code>(미리 만든 스레드 + barrier, 사례 6).</li>
+<li><strong>처리:</strong> 모든 필드를 읽어 합친다. 네 방식이 같은 함수를 쓴다.</li>
+</ul>
+
+<h2>결과 1: 바이트는 큰 메시지에서 비싸다</h2>
+<p>큐를 빼고 한 스레드에서 "보내기 + 받기"만 이은 CPU 비용이다. 큐를 거친 값에는 깨우기 비용이 섞이므로(아래 "측정 함정"), 메시지 하나의 비용은 이 표로 본다.</p>
+<div class="table-wrap"><table>
+<tr><th>C++, 메시지 하나</th><th class="num">ns</th><th style="width:55%"></th></tr>
+<tr><td>Move 24B · Pool</td><td class="num">6</td><td><span class="bar" style="width:0.4%"></span></td></tr>
+<tr><td>Move 24B · 바이트</td><td class="num">72</td><td><span class="bar warn" style="width:4.1%"></span></td></tr>
+<tr><td>Chat 106B · Pool</td><td class="num">30</td><td><span class="bar" style="width:1.7%"></span></td></tr>
+<tr><td>Chat 106B · 바이트</td><td class="num">112</td><td><span class="bar warn" style="width:6.4%"></span></td></tr>
+<tr><td>Inventory 970B · Pool</td><td class="num">25</td><td><span class="bar" style="width:1.4%"></span></td></tr>
+<tr><td>Inventory 970B · 바이트</td><td class="num">1,751</td><td><span class="bar warn" style="width:100%"></span></td></tr>
+</table></div>
+<p>Inventory 바이트를 나눠 보면 쓰기 765ns + 읽기 946ns다. 필드 약 180개라 <strong>필드 하나에 4~5ns</strong>다. C#도 Inventory 바이트가 1:1에서 927ns로 비슷했다. 직렬화기를 아무리 다듬어도 복사가 두 번이라 객체보다 싸질 수는 없어서 결론은 바뀌지 않는다. 다만 패킷에는 그대로 쓰이니 따로 줄인다(<a href="performance.html#c10">사례 10</a>).</p>
+
+<h2 id="nm">결과 2: N:M에서 C++ Lane이 진다</h2>
+<div class="table-wrap"><table>
+<tr><th>큐만, ns/메시지</th><th class="num">1:1</th><th class="num">4:1</th><th class="num">2:2</th><th class="num">4:2</th><th class="num">4:4</th><th class="num">8:4</th></tr>
+<tr><td class="cpp">C++ <code>Lane</code></td><td class="num"><strong>34</strong></td><td class="num"><strong>47</strong></td><td class="num">72</td><td class="num">87</td><td class="num">69</td><td class="num">69</td></tr>
+<tr><td class="cs">C# <code>Channel</code></td><td class="num">50</td><td class="num">104</td><td class="num"><strong>67</strong></td><td class="num"><strong>71</strong></td><td class="num"><strong>47</strong></td><td class="num"><strong>45</strong></td></tr>
+<tr><td class="cs">C# 우리 <code>Lane</code>(<code>Channel&lt;Action&gt;</code>)</td><td class="num">48</td><td class="num">105</td><td class="num">60</td><td class="num">66</td><td class="num">47</td><td class="num">45</td></tr>
+</table></div>
+<p>생산자 4개로 고정하고 소비자를 늘려 보면 차이가 분명하다. C++은 47 → 87 → 69ns로 나빠지고, C#은 104 → 71 → 47ns로 좋아진다. 메시지를 실어도 비슷하다(4:4 Move: C++ Pool 78ns, C# <code>new</code> 49ns).</p>
+
+<h3>왜 C++ Lane이 막히나</h3>
+<div class="diagram">
+<svg viewBox="0 0 900 230" role="img" aria-label="C++ Lane은 생산자가 mutex를 잡고 vector에 넣고 Lane이 통째로 바꿔 간다. 여러 생산자가 같은 mutex와 vector 줄을 다툰다. C# Channel도 쓰기마다 lock을 잡지만 안에서 하는 일이 작고, 읽기는 잠금이 없다">
+<text class="d-wt" x="20" y="22">C++ Lane: mutex + 두 vector 교체</text>
+<rect class="d-cpp" x="20" y="40" width="80" height="28" rx="4"/><text class="d-t" x="60" y="59" text-anchor="middle">생산자0</text>
+<rect class="d-cpp" x="20" y="78" width="80" height="28" rx="4"/><text class="d-t" x="60" y="97" text-anchor="middle">생산자1</text>
+<rect class="d-cpp" x="20" y="116" width="80" height="28" rx="4"/><text class="d-t" x="60" y="135" text-anchor="middle">생산자2</text>
+<rect class="d-warn" x="160" y="70" width="90" height="44" rx="6"/><text class="d-t" x="205" y="90" text-anchor="middle">mutex</text><text class="d-m" x="205" y="106" text-anchor="middle">한 번에 하나</text>
+<rect class="d-buf" x="290" y="76" width="100" height="32" rx="4"/><text class="d-m" x="340" y="96" text-anchor="middle">_pending</text>
+<rect class="d-ok" x="290" y="150" width="100" height="32" rx="4"/><text class="d-m" x="340" y="170" text-anchor="middle">Lane: swap</text>
+<path class="d-hot" d="M100,54 L158,82"/><path class="d-hot" d="M100,92 L158,92"/><path class="d-hot" d="M100,130 L158,102"/>
+<path class="d-line" d="M250,92 L288,92"/><path class="d-line" d="M340,148 L340,110"/>
+<text class="d-m" x="20" y="198">잠금 안: stop 확인 + 일 64B move + vector 추가</text>
+<text class="d-m" x="20" y="214">Lane도 swap 때 같은 mutex를 잡는다</text>
+<text class="d-ot" x="480" y="22">C# Channel(SingleReader): 쓰기 lock, 읽기 무잠금</text>
+<rect class="d-cs" x="480" y="40" width="80" height="28" rx="4"/><text class="d-t" x="520" y="59" text-anchor="middle">생산자0</text>
+<rect class="d-cs" x="480" y="78" width="80" height="28" rx="4"/><text class="d-t" x="520" y="97" text-anchor="middle">생산자1</text>
+<rect class="d-cs" x="480" y="116" width="80" height="28" rx="4"/><text class="d-t" x="520" y="135" text-anchor="middle">생산자2</text>
+<rect class="d-buf" x="640" y="62" width="40" height="32" rx="3"/><rect class="d-buf" x="684" y="62" width="40" height="32" rx="3"/><rect class="d-buf" x="728" y="62" width="40" height="32" rx="3"/><rect class="d-buf" x="772" y="62" width="40" height="32" rx="3"/>
+<rect class="d-warn" x="580" y="66" width="44" height="26" rx="4"/><text class="d-m" x="602" y="84" text-anchor="middle">lock</text>
+<text class="d-m" x="726" y="54" text-anchor="middle">SPSC 큐(24B 구조체)</text>
+<path class="d-hot" d="M560,54 L578,72"/><path class="d-hot" d="M560,92 L578,82"/><path class="d-hot" d="M560,130 L578,88"/><path class="d-line" d="M624,79 L638,79"/>
+<rect class="d-ok" x="680" y="150" width="100" height="32" rx="4"/><text class="d-m" x="730" y="170" text-anchor="middle">async 소비자</text>
+<path class="d-line" d="M730,148 L730,96"/>
+<text class="d-m" x="480" y="198">잠금 안: 닫힘 확인 + 24B 넣기(소비자가 기다리면 깨울 대상만 꺼냄)</text>
+<text class="d-m" x="480" y="214">소비자는 잠금 없이 꺼낸다(큐가 빌 때만 잠금)</text>
+</svg>
+</div>
+<p>정말 잠금 대기인지 확인하려고 프로세스 전체의 CPU 시간을 user와 kernel로 나눠 쟀다(<code>GetProcessTimes</code>). kernel이 크면 깨우기(OS 호출)가 원인이고, user가 크면 잠금을 잡으려고 도는 시간과 캐시 줄 대기가 원인이다.</p>
+<div class="table-wrap"><table>
+<tr><th>C++ 큐만, 메시지당 CPU(모든 스레드 합)</th><th class="num">user</th><th class="num">kernel</th><th class="num">생산자가 기다린 횟수</th></tr>
+<tr><td>1:1</td><td class="num">64ns</td><td class="num">5ns</td><td class="num">1.3만</td></tr>
+<tr><td>4:4</td><td class="num">490ns</td><td class="num">38ns</td><td class="num">0</td></tr>
+<tr><td>8:4</td><td class="num">738ns</td><td class="num">58ns</td><td class="num">59</td></tr>
+</table></div>
+<p>4:4에서 생산자는 한 번도 기다리지 않았는데(Lane이 충분히 따라옴) 모든 스레드가 user CPU를 가득 썼다. <strong>깨우기가 아니라 잠금 경합과 캐시 줄 왕복</strong> 쪽이다.</p>
+<div class="card" style="border-left:3px solid var(--warn)">
+<h3>바로잡음: "C#은 lock-free라서 빠르다"는 틀렸다</h3>
+<p>처음에는 C# <code>Channel</code>이 lock-free라서 빠르다고 적었다. .NET 소스(dotnet/runtime의 <code>SingleConsumerUnboundedChannel.cs</code>)를 확인해 보니 <code>SingleReader = true</code> 채널은 <strong>쓰기(<code>TryWrite</code>)마다 <code>lock (SyncObj)</code>를 잡고</strong>, 잠금 안에서 단일 생산자·단일 소비자 큐(<code>SingleProducerSingleConsumerQueue&lt;T&gt;</code>)에 넣는다. 잠금이 없는 것은 읽기(<code>TryRead</code>)의 빠른 길뿐이다. 두 언어 모두 넣을 때마다 잠금을 잡으므로, 차이는 <strong>잠금 안에서 하는 일과 주고받는 데이터</strong>에 있다.</p>
+<p>C++ <code>Lane::Post</code>를 다시 보고 세운 가설이다. 다음 단위(Lane 개선)의 첫 단계에서 하나씩 바꿔 재서 확정한다.</p>
+<div class="table-wrap"><table>
+<tr><th>가설</th><th>C++ Lane</th><th>C# Channel</th></tr>
+<tr><td>① 잠금 안의 원자 연산</td><td><code>_thread.get_stop_token()</code>이 stop 상태의 공유 참조 카운트를 원자적으로 올리고 내린다. 모든 생산자와 Lane이 같은 줄을 쓴다</td><td>닫힘 확인은 필드 하나 읽기</td></tr>
+<tr><td>② 일 하나의 크기</td><td><code>std::move_only_function</code> 64B(캐시 줄 하나)</td><td><code>Envelope</code> 구조체 24B</td></tr>
+<tr><td>③ 소비자의 잠금</td><td>swap할 때 생산자와 같은 mutex를 잡는다</td><td>읽기 빠른 길은 잠금 없음</td></tr>
+<tr><td>④ 잠금 종류</td><td><code>std::mutex</code> + <code>condition_variable_any</code></td><td><code>Monitor</code>(짧게 돌다가 잠든다)</td></tr>
+</table></div>
+</div>
+
+<h2>측정 함정 두 가지</h2>
+<div class="grid2">
+<div class="card">
+<h3>① 일이 많은데 더 빨랐다(깨우기 비용)</h3>
+<p>첫 측정(생산자 1 → Lane 1)에서 Chat Pool(46ns)이 Move Pool(75ns)보다 빨랐다. Chat이 처리할 일이 더 많은데도 그렇다.</p>
+<p>Lane이 빨리 끝내 큐가 비면 잠들고, 생산자는 다음에 넣을 때 깨워야 한다(<code>notify_one</code>). 처리가 느린 쪽은 큐가 덜 비어 깨우기가 줄어든다. 그래서 큐를 거친 값은 <strong>같은 조합 안의 순위</strong>로만 보고, 메시지 하나의 비용은 큐 없이 잰 값으로 본다.</p>
+</div>
+<div class="card">
+<h3>② C# 람다 캡처가 몰래 할당했다</h3>
+<p>클로저를 쓰지 않는 <code>Channel</code> 경로인데도 메시지마다 48B가 할당됐다. 같은 반복 안에 지역 변수를 캡처하는 람다가 <strong>있기만 해도</strong> 컴파일러가 반복마다 캡처 객체를 만든다. 람다를 함수로 빼서 고쳤다(Codex 리뷰 R1). C# 큐만 1:1이 65 → 50ns가 됐다. 자세한 코드: <a href="performance.html#c9">사례 9</a>.</p>
+</div>
+</div>
+
+<h2>결정과 다음</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>결정</th><th>이유</th></tr>
+<tr><td>같은 프로세스 메시지</td><td>객체를 move(C++은 ObjectPool)</td><td>복사 한 번, 크기와 상관없이 포인터 하나. C++은 <code>unique_ptr</code>/<code>PooledPtr</code> move로 소유권을 넘겨 데이터 경쟁을 막는다</td></tr>
+<tr><td>프로세스 밖</td><td>직렬화(<code>ByteWriter</code>)</td><td>패킷, 서버 사이, 존 이동. 방송(여러 곳에 보내기)은 Network에서 따로 잰다</td></tr>
+<tr><td>C++ Lane</td><td>큐를 고친다(다음 단위)</td><td>N:M에서 C# Channel보다 1.5배 느리다. 합격선: 4:4·8:4에서 45ns 이하, 1:1 34ns 이하</td></tr>
+<tr><td>비교하지 않은 것</td><td>예전 개인 프로젝트의 큐(mutex + swap)</td><td>지금 Lane과 같은 계열이라 같은 병목이 나올 것이라 새로 알 것이 적다(2026-11-27 결정)</td></tr>
+<tr><td>C# GC</td><td>부하 테스트 때 잰다</td><td>이 측정은 메시지가 곧 죽어 Gen0만 돈다. C# <code>new</code>는 메시지당 32~1,080B를 할당하고, 그 값은 실제 서버에서 꼬리 지연으로 돌아온다</td></tr>
+</table></div>
+
+</main>
+</body>
+</html>
