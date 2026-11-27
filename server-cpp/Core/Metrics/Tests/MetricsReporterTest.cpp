@@ -26,9 +26,9 @@ TEST(MetricsReporter, ReportsEachIntervalInRegistrationOrder)
     Metrics::MetricCounter received;
     received.Add(999); // 등록 전에 늘어난 양은 세지 않는다
 
-    MetricsReporter reporter{start};
+    MetricsReporter reporter;
     reporter.Add("tick", tick);
-    reporter.Add("received", received);
+    reporter.Add("received", received, start);
 
     for (auto i = int32_t{0}; i < 4; ++i)
     {
@@ -38,4 +38,19 @@ TEST(MetricsReporter, ReportsEachIntervalInRegistrationOrder)
     EXPECT_EQ(reporter.Report(start + 10s), "tick=[n=4 p50=1.00ms p99=1.00ms max=1.00ms] received=10/s");
     // 다음 구간: 아무것도 없었다
     EXPECT_EQ(reporter.Report(start + 20s), "tick=[n=0] received=0/s");
+}
+
+// 늦게 Add 한 카운터는 자기 Add 시각부터 센다(Codex 리뷰 R1: 공통 시작 시각이면 첫 초당 개수가 작게 나왔다)
+TEST(MetricsReporter, LateCounterStartsFromItsOwnAdd)
+{
+    const auto start = MetricsReporter::Clock::time_point{};
+    Metrics::MetricCounter early;
+    Metrics::MetricCounter late;
+    MetricsReporter reporter;
+    reporter.Add("early", early, start);
+    reporter.Add("late", late, start + 5s);
+
+    early.Add(100);
+    late.Add(100);
+    EXPECT_EQ(reporter.Report(start + 10s), "early=10/s late=20/s");
 }

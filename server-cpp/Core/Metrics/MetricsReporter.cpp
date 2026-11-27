@@ -9,13 +9,10 @@
 
 namespace Metrics
 {
-    MetricsReporter::MetricsReporter(const Clock::time_point start) : _lastReport(start)
+    void MetricsReporter::Add(std::string name, const MetricCounter& counter, const Clock::time_point now)
     {
-    }
-
-    void MetricsReporter::Add(std::string name, const MetricCounter& counter)
-    {
-        _entries.push_back(Entry{.name = std::move(name), .counter = &counter, .lastValue = counter.Value()});
+        _entries.push_back(
+            Entry{.name = std::move(name), .counter = &counter, .lastValue = counter.Value(), .lastTime = now});
     }
 
     void MetricsReporter::Add(std::string name, LatencyHistogram& histogram)
@@ -25,9 +22,6 @@ namespace Metrics
 
     std::string MetricsReporter::Report(const Clock::time_point now)
     {
-        const auto seconds = std::chrono::duration<double>(now - _lastReport).count();
-        _lastReport = now;
-
         std::string line;
         for (auto& entry : _entries)
         {
@@ -40,7 +34,9 @@ namespace Metrics
             {
                 const auto value = entry.counter->Value();
                 const auto delta = value - entry.lastValue;
+                const auto seconds = std::chrono::duration<double>(now - entry.lastTime).count();
                 entry.lastValue = value;
+                entry.lastTime = now;
                 // 시간이 흐르지 않았으면(같은 시각에 두 번) 초당 개수를 낼 수 없어 0 으로 쓴다
                 const auto perSecond = seconds > 0.0 ? static_cast<double>(delta) / seconds : 0.0;
                 std::format_to(out, "{}={:.0f}/s", entry.name, perSecond);

@@ -13,7 +13,7 @@ namespace Metrics;
 //     → tick.latency=[n=600 p50=812.0us p99=3.10ms max=12.00ms] packets.received=1200/s
 //
 // - 히스토그램은 SnapshotAndReset: 지난 Report 뒤 구간의 분포다(n=0 이면 그 구간에 기록이 없었다).
-// - 카운터는 지난 Report 뒤 늘어난 양을 그 사이 시간으로 나눈 초당 개수다. Add 하기 전에 늘어난 양은 세지 않는다.
+// - 카운터는 지난 Report 뒤 늘어난 양을 그 사이 시간으로 나눈 초당 개수다. 첫 구간은 Add 한 때부터다(그 전에 늘어난 양은 세지 않는다).
 // - 글만 만들고 로거는 모른다(카테고리와 출력은 서버가 정한다).
 // - 등록한 순서대로 쓴다. Add 는 Report 를 시작하기 전에 끝낸다. Report 는 한 곳(Lane 하나)에서만 부른다.
 //
@@ -25,21 +25,19 @@ public sealed class MetricsReporter
     private readonly MetricsCollector _collector;
     private readonly TimeProvider _time;
     private readonly List<Entry> _entries = [];
-    private long _lastReport; // TimeProvider 타임스탬프
 
-    // timeProvider 를 주지 않으면 TimeProvider.System(실제 시계). 첫 Report 의 초당 개수는 만든 때부터 잰다.
+    // timeProvider 를 주지 않으면 TimeProvider.System(실제 시계).
     public MetricsReporter(MetricsCollector collector, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(collector);
         _collector = collector;
         _time = timeProvider ?? TimeProvider.System;
-        _lastReport = _time.GetTimestamp();
     }
 
     public void AddCounter(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
-        _entries.Add(new Entry(name, isCounter: true) { LastValue = _collector.CounterValue(name) });
+        _entries.Add(new Entry(name, isCounter: true) { LastValue = _collector.CounterValue(name), LastTime = _time.GetTimestamp() });
     }
 
     public void AddHistogram(string name)
@@ -48,13 +46,10 @@ public sealed class MetricsReporter
         _entries.Add(new Entry(name, isCounter: false));
     }
 
-    // 지난 Report(처음이면 만든 때) 뒤 구간을 한 줄로
+    // 지난 Report(처음이면 Add 한 때) 뒤 구간을 한 줄로
     public string Report()
     {
         var now = _time.GetTimestamp();
-        var seconds = _time.GetElapsedTime(_lastReport, now).TotalSeconds;
-        _lastReport = now;
-
         var line = new StringBuilder();
         foreach (var entry in _entries)
         {
@@ -66,7 +61,9 @@ public sealed class MetricsReporter
             {
                 var value = _collector.CounterValue(entry.Name);
                 var delta = value - entry.LastValue;
+                var seconds = _time.GetElapsedTime(entry.LastTime, now).TotalSeconds;
                 entry.LastValue = value;
+                entry.LastTime = now;
                 // 시간이 흐르지 않았으면(같은 시각에 두 번) 초당 개수를 낼 수 없어 0 으로 쓴다
                 var perSecond = seconds > 0 ? delta / seconds : 0;
                 line.Append(CultureInfo.InvariantCulture, $"{entry.Name}={perSecond:F0}/s");
@@ -97,6 +94,7 @@ public sealed class MetricsReporter
     {
         public string Name { get; } = name;
         public bool IsCounter { get; } = isCounter;
-        public long LastValue { get; set; } // 카운터의 지난 Report 때 값
+        public long LastValue { get; set; } // 카운터의 지난 Report(처음이면 Add) 때 값
+        public long LastTime { get; set; }  // 그때 TimeProvider 타임스탬프. 카운터마다 둬서 늦게 Add 한 카운터도 첫 구간이 맞다
     }
 }

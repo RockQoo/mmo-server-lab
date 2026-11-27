@@ -40,4 +40,24 @@ public sealed class MetricsReporterTest
         time.Advance(TimeSpan.FromSeconds(10));
         Assert.Equal("tick=[n=0] received=0/s", reporter.Report());
     }
+
+    // 늦게 Add 한 카운터는 자기 Add 시각부터 센다(Codex 리뷰 R1, C++ 테스트와 같은 값)
+    [Fact]
+    public void LateCounterStartsFromItsOwnAdd()
+    {
+        using var meter = new Meter(nameof(LateCounterStartsFromItsOwnAdd));
+        var early = meter.CreateCounter<long>("early");
+        var late = meter.CreateCounter<long>("late");
+        using var collector = new MetricsCollector(meter.Name);
+        var time = new FakeTimeProvider();
+        var reporter = new MetricsReporter(collector, time);
+        reporter.AddCounter("early");
+        time.Advance(TimeSpan.FromSeconds(5));
+        reporter.AddCounter("late");
+
+        early.Add(100);
+        late.Add(100);
+        time.Advance(TimeSpan.FromSeconds(5));
+        Assert.Equal("early=10/s late=20/s", reporter.Report());
+    }
 }
