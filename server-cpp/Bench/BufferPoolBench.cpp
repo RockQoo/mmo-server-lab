@@ -1,7 +1,5 @@
 #include <benchmark/benchmark.h>
 
-#include <array>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -9,15 +7,17 @@
 #include <vector>
 
 #include "Memory/BufferPool.h"
+#include "RentReturnGrid.h"
 
 // 버퍼 풀 측정 두 가지. 결과는 docs/journal/bufferpool.html, docs/decisions/ 에 정리한다.
 //
 // 1) SameThread: 버퍼 하나를 빌려 한 바이트 쓰고 바로 돌려준다. 같은 스레드가 빌리고 반납한다.
-// 2) CrossThread: 스레드를 둘씩 짝짓는다. 짝수 스레드는 빌리기만 하고(Lane이 송신 패킷을 만드는 쪽), 홀수 스레드는
-//    반납만 한다(IOCP 스레드가 송신 완료 후 버리는 쪽). 64개씩 묶어 넘긴다(넘기는 비용을 64개로 나눠 작게 한다).
+// 2) RentReturn: 빌리는 스레드 N개(Lane이 송신 패킷을 만드는 쪽 등) → 반납하는 스레드 M개(IOCP 스레드가 송신 완료 후
+//    버리는 쪽 등). 64개씩 블록으로 넘긴다. 틀은 Bench/RentReturnGrid.h(ThreadTeam, 쌍마다 우편함). 2026-11-27 예전
+//    CrossThread(독립된 1:1 쌍)를 이것으로 바꿨다. 예전 수치는 docs/journal/bufferpool.html 에 남아 있다.
 //
-// 측정 방법: 한 번 측정할 때마다 스레드 N개를 띄워 전체 TotalOps 번을 나눠 하고, 모두 끝날 때까지의 시간을 잰다.
-// C# Bench/ArrayPoolBench(Parallel.For 로 전체 횟수를 나눔)와 같은 방법이다.
+// 측정 방법(SameThread, Noop): 한 번 측정할 때마다 스레드 N개를 띄워 전체 TotalOps 번을 나눠 하고, 모두 끝날 때까지의
+// 시간을 잰다(ThreadTeam 으로 옮기는 것은 PROGRESS 후순위).
 //
 // 결과 해석: items_per_second = 모든 스레드를 합친 초당 (빌리기 + 반납) 횟수. 크면 좋다. 스레드 시작 비용은
 // TotalOps 가 커서 전체의 몇 % 안 된다. Noop(아무 일도 하지 않는 반복)은 측정 틀의 기준이다: Noop 이 스레드 수만큼
@@ -139,90 +139,24 @@ namespace
         state.SetItemsProcessed(state.iterations() * TotalOps);
     }
 
-    // ---- 2) 빌리는 스레드와 반납하는 스레드가 다르다
-
-    constexpr auto BlockSize = 64;
+    // ---- 2) 빌리는 스레드 N개 → 반납하는 스레드 M개(Bench/RentReturnGrid.h)
 
     template <typename Renter>
-    struct Pair
+    void RentReturn(benchmark::State& state)
     {
-        using Block = std::array<typename Renter::Buffer, BlockSize>;
-
-        Pair() = default;
-        ~Pair() = default;
-        Pair(const Pair&) = delete; // atomic 을 들고 있어 옮길 수 없다
-        Pair& operator=(const Pair&) = delete;
-        Pair(Pair&&) = delete;
-        Pair& operator=(Pair&&) = delete;
-
-        std::array<Block, 2> blocks{}; // 빌리는 쪽이 번갈아 채운다
-        std::atomic<Block*> mailbox{}; // 비었으면 nullptr
-    };
-
-    // 빌리는 쪽: 블록 하나를 채우고, 우편함이 비면(반납하는 쪽이 이전 블록을 다 버리면) 넣는다.
-    // 우편함이 비었다는 것은 이전에 넣은 블록을 다 버렸다는 뜻이라, 블록 두 개를 번갈아 쓰면 안전하다.
-    template <typename Renter>
-    void Producer(Pair<Renter>& pair, const std::size_t size, const std::int64_t ops)
-    {
-        auto next = std::size_t{0};
-        for (auto done = std::int64_t{0}; done < ops; done += BlockSize)
-        {
-            auto& block = pair.blocks[next];
-            for (auto& buffer : block)
-            {
-                buffer = Renter::Rent(size);
-                buffer.Data()[0] = std::byte{1};
-            }
-            while (pair.mailbox.load(std::memory_order_acquire) != nullptr)
-            {
-                std::this_thread::yield();
-            }
-            pair.mailbox.store(&block, std::memory_order_release);
-            next ^= 1;
-        }
-    }
-
-    // 반납하는 쪽: 우편함의 블록을 받아 모두 버리고 우편함을 비운다.
-    template <typename Renter>
-    void Consumer(Pair<Renter>& pair, const std::int64_t ops)
-    {
-        for (auto done = std::int64_t{0}; done < ops; done += BlockSize)
-        {
-            typename Pair<Renter>::Block* block{};
-            while ((block = pair.mailbox.load(std::memory_order_acquire)) == nullptr)
-            {
-                std::this_thread::yield();
-            }
-            for (auto& buffer : *block)
-            {
-                buffer.Reset();
-            }
-            pair.mailbox.store(nullptr, std::memory_order_release);
-        }
-    }
-
-    template <typename Renter>
-    void CrossThread(benchmark::State& state)
-    {
-        const auto threads = static_cast<int>(state.range(0));
-        const auto size = static_cast<std::size_t>(state.range(1));
+        const auto renters = static_cast<int>(state.range(0));
+        const auto returners = static_cast<int>(state.range(1));
+        const auto size = static_cast<std::size_t>(state.range(2));
+        Bench::RentReturnGrid<typename Renter::Buffer> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
         for (auto iteration : state)
         {
-            const auto pairs = std::make_unique<Pair<Renter>[]>(static_cast<std::size_t>(threads / 2));
-            // 스레드마다 TotalOps/threads 를 받는다. 짝 하나(빌리기 + 반납)가 2배를 맡아야 전체가 TotalOps 다.
-            RunOnThreads(threads,
-                         [&pairs, size](const int t, const std::int64_t ops)
-                         {
-                             auto& pair = pairs[static_cast<std::size_t>(t / 2)];
-                             if (t % 2 == 0)
-                             {
-                                 Producer(pair, size, ops * 2);
-                             }
-                             else
-                             {
-                                 Consumer(pair, ops * 2);
-                             }
-                         });
+            grid.Run(TotalOps,
+                     [size]
+                     {
+                         auto buffer = Renter::Rent(size);
+                         buffer.Data()[0] = std::byte{1};
+                         return buffer;
+                     });
         }
         state.SetItemsProcessed(state.iterations() * TotalOps);
     }
@@ -240,14 +174,20 @@ BENCHMARK(SameThread<PoolRenter>)
     ->ArgsProduct({{1, 2, 4, 8}, {256, 4096}})
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
-// 짝이 맞아야 해서 스레드 2, 4, 8. 크기마다 캐시 개수·묶음이 달라(256B·1KB 64·32, 4KB 16·8) 셋 다 잰다.
-BENCHMARK(CrossThread<NewDeleteRenter>)
-    ->Name("CrossThread/NewDelete")
-    ->ArgsProduct({{2, 4, 8}, {256, 1024, 4096}})
-    ->UseRealTime()
-    ->Unit(benchmark::kMillisecond);
-BENCHMARK(CrossThread<PoolRenter>)
-    ->Name("CrossThread/BufferPoolV2")
-    ->ArgsProduct({{2, 4, 8}, {256, 1024, 4096}})
-    ->UseRealTime()
-    ->Unit(benchmark::kMillisecond);
+// 인자: {빌리는 스레드 N, 반납하는 스레드 M, 크기}. 1:1 은 기준선(건너가기만, 다툼 거의 없음). 8:4·4:8(12스레드),
+// 8:8(16스레드)은 물리 8코어보다 스레드가 많다. 크기마다 캐시 개수·묶음이 달라(256B·1KB 64·32, 4KB 16·8) 셋 다 잰다.
+#define RENT_RETURN_BENCH(renter, name)                                                                                \
+    BENCHMARK(RentReturn<renter>)                                                                                      \
+        ->Name(name)                                                                                                   \
+        ->ArgNames({"renters", "returners", "size"})                                                                   \
+        ->ArgsProduct({{1}, {1}, {256, 1024, 4096}})                                                                   \
+        ->ArgsProduct({{4}, {1}, {256, 1024, 4096}})                                                                   \
+        ->ArgsProduct({{1}, {4}, {256, 1024, 4096}})                                                                   \
+        ->ArgsProduct({{4}, {4}, {256, 1024, 4096}})                                                                   \
+        ->ArgsProduct({{8}, {4}, {256, 1024, 4096}})                                                                   \
+        ->ArgsProduct({{4}, {8}, {256, 1024, 4096}})                                                                   \
+        ->ArgsProduct({{8}, {8}, {256, 1024, 4096}})                                                                   \
+        ->UseRealTime()                                                                                                \
+        ->Unit(benchmark::kMillisecond)
+RENT_RETURN_BENCH(NewDeleteRenter, "BufferRentReturn/NewDelete");
+RENT_RETURN_BENCH(PoolRenter, "BufferRentReturn/BufferPoolV2");

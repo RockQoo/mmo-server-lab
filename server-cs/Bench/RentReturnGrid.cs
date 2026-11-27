@@ -1,0 +1,132 @@
+using System.Runtime.InteropServices;
+
+namespace Bench;
+
+// 빌리는 스레드 N개 → 반납하는 스레드 M개 측정 틀(풀 벤치마크 공용, C++ Bench/RentReturnGrid.h 와 같은 방법).
+//
+// 실무 모양: 여러 스레드가 빌리고 다른 스레드가 반납한다(4:1, 1:4 등). 비율이 기울면 한쪽 스레드 캐시는 늘 넘치고 다른
+// 쪽은 늘 빈다. 넘기는 방법은 (빌리는 쪽, 반납하는 쪽) 쌍마다 우편함 하나: 빌리는 쪽은 BlockSize 개를 빌려 블록을 채우고
+// 반납하는 쪽을 차례로 바꿔 가며 넣는다. 반납하는 쪽은 자기 열의 우편함 N개를 돌며 블록을 받아 모두 반납한다.
+// 1:1 은 기준선(건너가기만, 다툼 거의 없음)이다.
+internal sealed class RentReturnGrid<T> : IDisposable where T : class
+{
+    private const int BlockSize = 64;
+
+    private readonly int _renters;
+    private readonly int _returners;
+    private readonly RentReturnCell[] _cells;
+    private readonly ThreadTeam _team;
+
+    public RentReturnGrid(int renters, int returners)
+    {
+        _renters = renters;
+        _returners = returners;
+        _cells = new RentReturnCell[renters * returners];
+        for (var i = 0; i < _cells.Length; ++i)
+        {
+            _cells[i] = new RentReturnCell(new T?[BlockSize], new T?[BlockSize]);
+        }
+        _team = new ThreadTeam(renters + returners);
+    }
+
+    // 전체 totalOps 개를 빌리고 반납할 때까지 돌린다. totalOps 는 N * M * BlockSize 로 나누어떨어져야 한다.
+    public void Run(int totalOps, Func<T> rent, Action<T> giveBack)
+    {
+        if (totalOps % (_renters * _returners * BlockSize) != 0)
+        {
+            throw new ArgumentException("totalOps must be divisible by renters * returners * 64", nameof(totalOps));
+        }
+        var blocksPerPair = totalOps / (_renters * _returners * BlockSize);
+        _team.RunEach(t =>
+        {
+            if (t < _renters)
+            {
+                RunRenter(t, blocksPerPair, rent);
+            }
+            else
+            {
+                RunReturner(t - _renters, blocksPerPair, giveBack);
+            }
+        });
+    }
+
+    public void Dispose() => _team.Dispose();
+
+    private RentReturnCell CellAt(int renter, int returner) => _cells[renter * _returners + returner];
+
+    private void RunRenter(int renter, int blocksPerPair, Func<T> rent)
+    {
+        var next = new int[_returners]; // 쌍마다 다음에 채울 블록(0, 1 번갈아)
+        var blocks = blocksPerPair * _returners;
+        for (var b = 0; b < blocks; ++b)
+        {
+            var returner = b % _returners; // 반납하는 쪽을 차례로 바꾼다
+            var cell = CellAt(renter, returner);
+            var block = (T?[])(next[returner] == 0 ? cell.Block0 : cell.Block1);
+            for (var i = 0; i < block.Length; ++i)
+            {
+                block[i] = rent();
+            }
+            // 우편함이 비었다 = 이전에 넣은 블록을 다 반납했다. 그래서 블록 두 개를 번갈아 쓰면 겹치지 않는다
+            while (Volatile.Read(ref cell.Mailbox) is not null)
+            {
+                Thread.Yield();
+            }
+            Volatile.Write(ref cell.Mailbox, block);
+            next[returner] ^= 1;
+        }
+    }
+
+    private void RunReturner(int returner, int blocksPerPair, Action<T> giveBack)
+    {
+        var expected = blocksPerPair * _renters;
+        var received = 0;
+        while (received < expected)
+        {
+            var progressed = false;
+            for (var renter = 0; renter < _renters; ++renter)
+            {
+                var cell = CellAt(renter, returner);
+                if (Volatile.Read(ref cell.Mailbox) is not T?[] block)
+                {
+                    continue;
+                }
+                for (var i = 0; i < block.Length; ++i)
+                {
+                    giveBack(block[i]!);
+                    block[i] = null;
+                }
+                Volatile.Write(ref cell.Mailbox, null);
+                ++received;
+                progressed = true;
+            }
+            if (!progressed)
+            {
+                Thread.Yield();
+            }
+        }
+    }
+
+}
+
+// RentReturnGrid 의 쌍 하나. 객체들이 힙에 붙어 놓이므로 우편함을 64B 이상 띄워 이웃 쌍과 같은 캐시 줄에 놓이지 않게
+// 한다. 제네릭 타입(제네릭 클래스 안의 중첩 타입 포함)은 명시적 레이아웃을 쓸 수 없어 밖에 두고, 블록을 object 로 들고
+// 꺼낼 때 T?[] 로 바꾼다(블록 하나에 한 번).
+[StructLayout(LayoutKind.Explicit, Size = 192)]
+internal sealed class RentReturnCell
+{
+    [FieldOffset(64)]
+    public object? Mailbox; // 비었으면 null
+
+    [FieldOffset(128)]
+    public readonly object Block0;
+
+    [FieldOffset(136)]
+    public readonly object Block1;
+
+    public RentReturnCell(object block0, object block1)
+    {
+        Block0 = block0;
+        Block1 = block1;
+    }
+}

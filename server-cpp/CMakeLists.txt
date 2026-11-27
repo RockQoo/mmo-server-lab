@@ -145,6 +145,7 @@ add_executable(Bench
     Bench/BufferPoolBench.cpp
     Bench/MessageQueueBench.cpp
     Bench/ObjectPoolBench.cpp
+    Bench/RentReturnGrid.h
     Bench/ThreadTeam.h
 )
 target_link_libraries(Bench PRIVATE Memory Messaging Base benchmark::benchmark benchmark::benchmark_main)

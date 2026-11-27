@@ -1,14 +1,12 @@
 #include <benchmark/benchmark.h>
 
-#include <array>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <thread>
 #include <vector>
 
 #include "Memory/ObjectPool.h"
+#include "RentReturnGrid.h"
 #include "ThreadTeam.h"
 
 // 객체 풀 측정. 결과는 docs/journal/objectpool.html 에 정리한다. 여러 스레드는 ThreadTeam(미리 만든 스레드 N개가 같이
@@ -16,7 +14,8 @@
 // BufferPoolBench.cpp 주석 "DoNotOptimize" 와 같은 이유다.
 //
 // 1) SameThread: 객체 하나를 빌려 값을 쓰고 바로 반납한다. C# Bench/ObjectPoolBench 와 같은 일이다.
-// 2) CrossThread: 빌리는 스레드와 반납하는 스레드가 다르다(64개씩 묶어 넘김, BufferPoolBench 와 같은 모양).
+// 2) RentReturn: 빌리는 스레드 N개 → 반납하는 스레드 M개(64개씩 블록으로 넘김, Bench/RentReturnGrid.h). 2026-11-27
+//    예전 CrossThread(독립된 1:1 쌍)를 이것으로 바꿨다. 예전 수치는 docs/journal/objectpool.html 에 남아 있다.
 //
 // 객체 두 가지
 //   Plain     값만 있다(id 하나). 풀 자체의 비용을 본다
@@ -127,87 +126,23 @@ namespace
         state.SetItemsProcessed(state.iterations() * TotalOps);
     }
 
-    // ---- 2) 빌리는 스레드와 반납하는 스레드가 다르다
-
-    constexpr auto BlockSize = 64;
+    // ---- 2) 빌리는 스레드 N개 → 반납하는 스레드 M개(Bench/RentReturnGrid.h)
 
     template <typename Renter>
-    struct Pair
+    void RentReturn(benchmark::State& state)
     {
-        using Block = std::array<typename Renter::Handle, BlockSize>;
-
-        Pair() = default;
-        ~Pair() = default;
-        Pair(const Pair&) = delete;
-        Pair& operator=(const Pair&) = delete;
-        Pair(Pair&&) = delete;
-        Pair& operator=(Pair&&) = delete;
-
-        std::array<Block, 2> blocks{};
-        std::atomic<Block*> mailbox{};
-    };
-
-    template <typename Renter>
-    void Producer(Pair<Renter>& pair, const std::int64_t ops)
-    {
-        auto next = std::size_t{0};
-        for (auto done = std::int64_t{0}; done < ops; done += BlockSize)
-        {
-            auto& block = pair.blocks[next];
-            for (auto& object : block)
-            {
-                object = Renter::Rent();
-                object->Use(done);
-            }
-            while (pair.mailbox.load(std::memory_order_acquire) != nullptr)
-            {
-                std::this_thread::yield();
-            }
-            pair.mailbox.store(&block, std::memory_order_release);
-            next ^= 1;
-        }
-    }
-
-    template <typename Renter>
-    void Consumer(Pair<Renter>& pair, const std::int64_t ops)
-    {
-        for (auto done = std::int64_t{0}; done < ops; done += BlockSize)
-        {
-            typename Pair<Renter>::Block* block{};
-            while ((block = pair.mailbox.load(std::memory_order_acquire)) == nullptr)
-            {
-                std::this_thread::yield();
-            }
-            for (auto& object : *block)
-            {
-                object.reset();
-            }
-            pair.mailbox.store(nullptr, std::memory_order_release);
-        }
-    }
-
-    template <typename Renter>
-    void CrossThread(benchmark::State& state)
-    {
-        const auto threads = static_cast<int>(state.range(0));
-        const auto ops = TotalOps / threads;
-        Bench::ThreadTeam team(threads);
+        const auto renters = static_cast<int>(state.range(0));
+        const auto returners = static_cast<int>(state.range(1));
+        Bench::RentReturnGrid<typename Renter::Handle> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
         for (auto iteration : state)
         {
-            const auto pairs = std::make_unique<Pair<Renter>[]>(static_cast<std::size_t>(threads / 2));
-            team.Run(
-                [&pairs, ops](const int t)
-                {
-                    auto& pair = pairs[static_cast<std::size_t>(t / 2)];
-                    if (t % 2 == 0)
-                    {
-                        Producer(pair, ops * 2);
-                    }
-                    else
-                    {
-                        Consumer(pair, ops * 2);
-                    }
-                });
+            grid.Run(TotalOps,
+                     []
+                     {
+                         auto object = Renter::Rent();
+                         object->Use(1);
+                         return object;
+                     });
         }
         state.SetItemsProcessed(state.iterations() * TotalOps);
     }
@@ -247,17 +182,22 @@ BENCHMARK(SameThread<PoolRenter<WithList>>)
     ->Arg(8)
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
-BENCHMARK(CrossThread<NewDeleteRenter<WithList>>)
-    ->Name("ObjectCrossThread/NewDelete/WithList")
-    ->Arg(2)
-    ->Arg(4)
-    ->Arg(8)
-    ->UseRealTime()
-    ->Unit(benchmark::kMillisecond);
-BENCHMARK(CrossThread<PoolRenter<WithList>>)
-    ->Name("ObjectCrossThread/ObjectPool/WithList")
-    ->Arg(2)
-    ->Arg(4)
-    ->Arg(8)
-    ->UseRealTime()
-    ->Unit(benchmark::kMillisecond);
+// 인자: {빌리는 스레드 N, 반납하는 스레드 M}. 1:1 은 기준선(건너가기만, 다툼 거의 없음). 8:4·4:8(12스레드),
+// 8:8(16스레드)은 물리 8코어보다 스레드가 많다.
+#define RENT_RETURN_BENCH(renter, name)                                                                                \
+    BENCHMARK(RentReturn<renter>)                                                                                      \
+        ->Name(name)                                                                                                   \
+        ->ArgNames({"renters", "returners"})                                                                           \
+        ->Args({1, 1})                                                                                                 \
+        ->Args({4, 1})                                                                                                 \
+        ->Args({1, 4})                                                                                                 \
+        ->Args({4, 4})                                                                                                 \
+        ->Args({8, 4})                                                                                                 \
+        ->Args({4, 8})                                                                                                 \
+        ->Args({8, 8})                                                                                                 \
+        ->UseRealTime()                                                                                                \
+        ->Unit(benchmark::kMillisecond)
+RENT_RETURN_BENCH(NewDeleteRenter<Plain>, "ObjectRentReturn/NewDelete/Plain");
+RENT_RETURN_BENCH(PoolRenter<Plain>, "ObjectRentReturn/ObjectPool/Plain");
+RENT_RETURN_BENCH(NewDeleteRenter<WithList>, "ObjectRentReturn/NewDelete/WithList");
+RENT_RETURN_BENCH(PoolRenter<WithList>, "ObjectRentReturn/ObjectPool/WithList");
