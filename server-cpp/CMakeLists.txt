@@ -130,15 +130,18 @@ if(MSVC)
 endif()
 gtest_discover_tests(MessagingTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
-# ---- Scheduling: 예약 실행. TimerHeap(시각 순서 약속 목록, 시계·스레드 없음). 다음: Scheduler(타이머 스레드 + Lane Post)
+# ---- Scheduling: 예약 실행. TimerHeap(시각 순서 약속 목록, 시계·스레드 없음), Scheduler(타이머 스레드 + Lane Post)
 add_library(Scheduling STATIC
+    Core/Scheduling/Scheduler.cpp
+    Core/Scheduling/Scheduler.h
     Core/Scheduling/TimerHeap.cpp
     Core/Scheduling/TimerHeap.h
 )
-target_link_libraries(Scheduling PUBLIC Base)
+target_link_libraries(Scheduling PUBLIC Base Messaging)
 set_target_properties(Scheduling PROPERTIES FOLDER Core/Scheduling)
 
 add_executable(SchedulingTests
+    Core/Scheduling/Tests/SchedulerTest.cpp
     Core/Scheduling/Tests/TimerHeapTest.cpp
 )
 target_link_libraries(SchedulingTests PRIVATE Scheduling GTest::gtest_main)
