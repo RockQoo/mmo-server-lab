@@ -84,12 +84,21 @@ public static class Logger
 
     // 끝까지 썼으면 true
     // Fatal 도 시간 제한 안에 넣는다: blockWhenFull 이라 sink 가 막혀 큐가 차 있으면 Fatal 자체가 기다린다(Codex 리뷰 R1).
-    internal static bool OnCrash(Exception? exception, TimeSpan timeout) =>
-        Task.Run(() =>
+    // 스레드 풀(Task.Run)이 아니라 새 스레드: 풀이 막혀 있으면 제한 안에 시작도 못 한다(2차 리뷰 R1). 줄의 T 는 크래시 난
+    // 스레드 번호로 남긴다(ThreadIdEnricher 는 이미 있는 속성을 덮지 않는다, 2차 리뷰 R2).
+    internal static bool OnCrash(Exception? exception, TimeSpan timeout)
+    {
+        var crashedThreadId = Environment.CurrentManagedThreadId;
+        var writer = new Thread(() =>
         {
-            Serilog.Log.ForContext("Category", "Crash").Fatal(exception, "unhandled exception");
+            Serilog.Log.ForContext("Category", "Crash").ForContext("ThreadId", crashedThreadId)
+                .Fatal(exception, "unhandled exception");
             Shutdown();
-        }).Wait(timeout);
+        })
+        { IsBackground = true, Name = "LogCrashFlush" };
+        writer.Start();
+        return writer.Join(timeout);
+    }
 
     // 카테고리가 붙은 로거. Initialize 뒤에 부른다: Serilog 의 ForContext 는 그때의 로거에 묶이므로 앞에서 부르면 영원히
     // 아무것도 쓰지 않는 로거가 된다(조용한 실수를 막으려고 확인한다).

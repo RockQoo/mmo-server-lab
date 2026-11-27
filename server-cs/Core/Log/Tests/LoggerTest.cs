@@ -74,6 +74,7 @@ public sealed class LoggerTest : IDisposable
         Assert.Equal(Lines + 1, slow.Lines.Count);
         Assert.Contains("[FTL] [Crash] unhandled exception", slow.Lines[^1], StringComparison.Ordinal);
         Assert.Contains("boom", slow.Lines[^1], StringComparison.Ordinal);
+        Assert.Contains($"(T{Environment.CurrentManagedThreadId})", slow.Lines[^1], StringComparison.Ordinal); // 크래시 난 스레드
     }
 
     // sink 가 끝나지 않아도 시간 제한 뒤 돌아온다(런타임이 덤프를 쓰고 끝낼 수 있게)
