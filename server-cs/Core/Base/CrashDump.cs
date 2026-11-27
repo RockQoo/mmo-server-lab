@@ -13,10 +13,11 @@ public enum DumpKind
 // 덤프 파일(.dmp). C++ Base::CrashDump 와 같은 역할이고, C# 은 런타임과 MS 공식 도구를 쓴다.
 //
 // 자동(크래시): 코드가 아니라 런타임 설정이다. 런타임은 시작할 때만 읽으므로 서버를 띄우는 쪽(실행 스크립트, 서비스
-//   설정)이 환경 변수를 준다. 이름 규칙은 C++ 과 같게(%e 프로세스 이름, %p pid, %t 시각):
+//   설정)이 환경 변수를 준다. 이름은 C++ 과 비슷하게만 된다(%e 실행 파일 이름, .exe 까지 붙는다. %p pid. %t 시각인데
+//   날짜가 아니라 1970년부터 센 초다. createdump 에 날짜 형식이 없다. 2026-11-27 실제 덤프로 확인):
 //     DOTNET_DbgEnableMiniDump=1
 //     DOTNET_DbgMiniDumpType=2            (2 = 관리 힙 포함 = Mini, 4 = Full)
-//     DOTNET_DbgMiniDumpName=dumps/%e_%t_pid%p_crash.dmp
+//     DOTNET_DbgMiniDumpName=dumps/%e_%t_pid%p_crash.dmp   → Gateway.exe_1795774681_pid1234_crash.dmp
 // 수동(살아 있는 서버): Write(kind, reason). 서버는 계속 돈다. MS 공식 Microsoft.Diagnostics.NETCore.Client 로 자기
 //   프로세스에 덤프를 요청한다(dotnet-dump collect 와 같은 경로: 런타임이 createdump 를 띄워 쓴다).
 public static class CrashDump
