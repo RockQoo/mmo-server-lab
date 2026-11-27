@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- C++ SchedulingTests(gtest)와 같은 자리. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Scheduling.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scheduling.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- FakeTimeProvider: 시간을 직접 넘겨 타이머를 기다리지 않고 시험한다(MS 공식, 테스트 전용) -->
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.v3" Version="4.0.3" />
+  </ItemGroup>
+</Project>

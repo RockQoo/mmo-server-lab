@@ -7,7 +7,9 @@
                                       "Core\\Log\\Log.csproj",
                                       "Core\\Log\\Tests\\Log.Tests.csproj",
                                       "Core\\Messaging\\Messaging.csproj",
-                                      "Core\\Messaging\\Tests\\Messaging.Tests.csproj"
+                                      "Core\\Messaging\\Tests\\Messaging.Tests.csproj",
+                                      "Core\\Scheduling\\Scheduling.csproj",
+                                      "Core\\Scheduling\\Tests\\Scheduling.Tests.csproj"
                                   ]
                  }
 }

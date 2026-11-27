@@ -4,7 +4,8 @@
                      "projects":  [
                                       "Core\\Base\\Base.csproj",
                                       "Core\\Log\\Log.csproj",
-                                      "Core\\Messaging\\Messaging.csproj"
+                                      "Core\\Messaging\\Messaging.csproj",
+                                      "Core\\Scheduling\\Scheduling.csproj"
                                   ]
                  }
 }

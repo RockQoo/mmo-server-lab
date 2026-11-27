@@ -35,6 +35,7 @@ vcpkg·NuGet에 있다는 것은 "빌드가 된다"는 확인일 뿐 코드 품�
 | Serilog.Sinks.Async | 로그 비동기(부른 스레드는 큐에 넣기만, C++ 로그 Lane 과 같은 구조) | ✓ | 2026-11-27 (2.1.0) | 2.46억 다운로드, 2016~, Apache-2.0, 최근 커밋 09-05 (11-27) | Serilog File sink 는 부른 스레드가 직접 쓰고 flush 한다. 큐가 차면 기다림(blockWhenFull, 기본은 버림) |
 | Microsoft.Diagnostics.NETCore.Client | 살아 있는 프로세스 덤프(`Base.CrashDump.Write`, C++ `CrashDump::Write` 과 같은 역할) | ✓ | 2026-11-27 (0.2.750501) | MS 공식(1.45억 다운로드) (11-27) | dotnet-dump 가 쓰는 MS 공식 진단 클라이언트. 자기 프로세스 덤프를 런타임에 요청한다 |
 | Microsoft.Extensions.ObjectPool | 객체 풀(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>`). 지금은 `server-cs/Bench`만(C++ `ObjectPool<T>`와 비교), 쓰는 곳이 생기면 그 프로젝트에 추가 | ✗(지금은) | 2026-11-26 | MS 공식 | MS 공식(ASP.NET Core가 쓰는 것). C#에 직접 만들지 않는다(docs/naming.md) |
+| Microsoft.Extensions.TimeProvider.Testing | 가짜 시계 `FakeTimeProvider`(`Advance`로 시간을 직접 넘겨 타이머를 기다리지 않고 시험). `Core/Scheduling/Tests`만 | ✗(테스트 전용) | 2026-11-28 (11.0.1) | MS 공식(dotnet/extensions, 소유자 확인), 6,894만 다운로드, 2023-05~, MIT, 최근 릴리스 11-21 (11-28). 외부 기준(1억, 5년)에는 못 미치지만 MS 공식이라 그 기준 대상이 아니다 | BCL `TimeProvider`의 공식 테스트 짝. 직접 만들면 타이머 흉내(`CreateTimer`)까지 길어진다 |
 
 ## 계획(아직 설치 안 함)
 
