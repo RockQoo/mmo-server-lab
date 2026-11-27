@@ -37,7 +37,7 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 | 4 | CrashDump | Base | 네트워크 개발 중 크래시 덤프. ✅ 1조각(2026-11-27: C++ 덤프 전용 스레드·처리기·수동 Write, C# 수동 Write). 2조각: Full 스냅샷(1GB 멈춤 513 → 21ms). 3조각: 덤프 뒤 로그 flush(afterCrash, 시간 제한). C# `Write`는 일부 복사 실패(`ERROR_PARTIAL_COPY`)면 한 번 다시 쓴다(2026-11-28). 수동 덤프 명령은 관리 콘솔(Network 뒤) |
 | 5 | Timer(예약 실행, 고정 틱 루프) | Scheduling | 틱 R&D(노트 계획 G), ZoneServer 바탕. Network와 순서 바꿔도 된다. ✅ 2026-11-28: C++ `TimerHeap`·`Scheduler`(타이머 스레드 + Lane `Post`), C# `Scheduler`(BCL `TimeProvider.CreateTimer` + `Lane.TryPost`), `Base::SetCurrentThreadName`. 힙 vs 휠 벤치 → `TimerHeap` 유지(performance.html 사례 15). namespace는 C# `System.Threading.Timer`와 겹쳐 `Scheduling`. 고정 틱 루프는 ZoneServer 때(`Scheduler::Every`로 충분한지). 다음: 리뷰 |
 | 6 | Metrics(카운터, 지연 히스토그램) | Metrics | 부하 테스트의 틱 지연 p99, GC 비교(노트 계획 F). ✅ 2026-11-28: C++ `MetricCounter`(칸 16개)·`LatencyHistogram`(528칸)·`ScopedTimer`·`MetricsReporter`, C# BCL `Meter` 기록 + `MetricsCollector`(`MeterListener`, 칸 16개)·같은 528칸·`ScopedTimer`·`MetricsReporter`. 칸 나누기로 16스레드 C++ 25배, C# 15배(performance.html 사례 16). 측정 비용: 시계 18/16ns, 기록 8.5/7.3ns. 다음: 리뷰 |
-| 7 | 직렬화 필드 비용(노트 계획 D) | Base | 패킷마다 쓰인다 |
+| 7 | 직렬화 필드 비용(노트 계획 D) | Base | 패킷마다 쓰인다. ✅ 2026-11-28: ① C++ `WriteBytes`·`ReadBytes` 인라인 + 쓰기 `resize`·`memcpy` ② 통째 복사(C++ `Base::Blittable` 컴파일 검사, C# `Blittable<T, TCodec>` 처음 한 번 비교) → Inventory 쓰기 C++ 789 → 12.9ns, C# 208 → 10.5ns(performance.html 사례 10). 다음: 리뷰 |
 | 8 | CodeGen | 도구 | 프로토콜보다 먼저(규칙) |
 | 9 | Config | Base | 포트·IOCP·Lane 수를 재빌드 없이 바꾸는 틀. 값은 1단계 봇 부하 테스트로 정한다. 처음 읽는 곳이 Network·ZoneServer `main`이라 Network 바로 앞(2026-11-27 순서 변경). nlohmann/json 설치 확인 |
 | 10 | Network | Network | 1단계의 핵심. BufferPool 3판, 수신 단위 묶어 넣기(결정 004) |
