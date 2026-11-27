@@ -106,9 +106,9 @@ ul{padding-left:20px;margin:6px 0}
 
 <!-- Log -->
 <tr><td class="mod" rowspan="1">Log</td>
-<td><code>Logger</code><br><span class="b warn">제안</span></td><td>비동기 로그(게임 스레드는 넣기만)</td>
-<td><span class="b impl">직접 만듦</span>로그 전용 Lane + 파일, <code>std::format</code></td>
-<td><span class="b cs">MS·대중 라이브러리</span><b>Serilog</b>(비동기 파일 출력, 2026-11-26 결정, NuGet 설치는 Log 단위 때 확인)</td><td class="st">⬜ ⬜</td></tr>
+<td><code>Logger</code><br><span class="b bcl">확정</span></td><td>비동기 로그(게임 스레드는 넣기만). 카테고리 enum + 키·값, 날짜별 파일(11-27)</td>
+<td><span class="b impl">직접 만듦</span>로그 전용 Lane, <code>Log::Info(cat, "...").KV(k, v)</code>, 카테고리 이름은 magic_enum. spdlog 검토 후 안 씀</td>
+<td><span class="b cs">MS·대중 라이브러리</span><b>Serilog</b> + Sinks.Console·File(11-27 설치). <code>Logger.For(cat)</code> → <code>ILogger</code></td><td class="st">🔨 🔨</td></tr>
 
 <!-- Metrics -->
 <tr><td class="mod" rowspan="2">Metrics</td>

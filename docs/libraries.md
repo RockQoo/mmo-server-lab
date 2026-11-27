@@ -31,6 +31,7 @@ vcpkg·NuGet에 있다는 것은 "빌드가 된다"는 확인일 뿐 코드 품�
 | xunit.v3, xunit.runner.visualstudio | 단위 테스트 | ✗ | 2026-11-23 | 11.7억 다운로드, 2013~ (11-27) | .NET 테스트에서 가장 많이 쓰는 프레임워크. VS 테스트 탐색기 연동 |
 | Microsoft.NET.Test.Sdk | 테스트 실행 | ✗ | 2026-11-23 | MS 공식 | `dotnet test`와 VS가 테스트를 찾고 실행하는 데 필요 |
 | BenchmarkDotNet | 마이크로 벤치마크(`server-cs/Bench`) | ✗ | 2026-11-26 | 9,162만 다운로드, 2013~, MIT (11-27). 사용량 선(1억)에 조금 못 미치지만 .NET 런타임 팀도 쓰는 사실상 표준이고 벤치 전용이라 유지 | .NET 벤치마크의 사실상 표준. JIT 워밍업·GC 영향을 걸러 내고 할당량(MemoryDiagnoser)을 잰다 |
+| Serilog, Serilog.Sinks.Console, Serilog.Sinks.File | 로그(`Core/Log`, C++ `Log` 과 같은 역할) | ✓ | 2026-11-27 (4.4.0, 6.1.1, 7.0.0) | 36.9억 / 13.3억 / 13.4억 다운로드, 2013~, Apache-2.0 (11-27) | .NET 구조화 로그의 사실상 표준. 카테고리(`ForContext`)·속성·날짜별 파일이 C++ 설계와 같은 개념이다. MS 공식 `ILogger` 층은 호스트(ASP.NET 등)가 없어 두지 않았다 |
 | Microsoft.Extensions.ObjectPool | 객체 풀(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>`). 지금은 `server-cs/Bench`만(C++ `ObjectPool<T>`와 비교), 쓰는 곳이 생기면 그 프로젝트에 추가 | ✗(지금은) | 2026-11-26 | MS 공식 | MS 공식(ASP.NET Core가 쓰는 것). C#에 직접 만들지 않는다(docs/naming.md) |
 
 ## 계획(아직 설치 안 함)
@@ -38,7 +39,6 @@ vcpkg·NuGet에 있다는 것은 "빌드가 된다"는 확인일 뿐 코드 품�
 | 라이브러리 | 언어 | 단위 | 수치(2026-11-27) |
 |---|---|---|---|
 | ~~spdlog (+ fmt)~~ | C++ | Log | ★ 2.98만, 2014~. **쓰지 않음(2026-11-27)**: C# Serilog 와 같은 기능(카테고리 enum + 키·값)을 Lane 위에 직접 만들었다(`Core/Log`) |
-| Serilog | C# | Log | 36.9억 다운로드, 2013~, Apache-2.0 |
 | nlohmann/json | C++ | Config | ★ 5.1만, 2013~, MIT |
 | Dapper | C# | DB(4단계) 후보 | 8.5억 다운로드, Apache-2.0 |
 | Quill | C++ | Log 대안 | ★ 3.1천, 2020~ — 사용량 선 미달. spdlog가 느릴 때만 다시 본다 |

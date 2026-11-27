@@ -2,7 +2,9 @@
 
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <format>
+#include <fstream>
 #include <iterator>
 #include <memory>
 #include <source_location>
@@ -75,6 +77,39 @@ namespace Log
     public:
         void Write(const LogEvent& event, std::string_view line) override;
         void Flush() override;
+    };
+
+    // 날짜별 파일(Serilog File sink 의 rollingInterval: Day 와 같은 이름 규칙). "logs/zone-.log" 를 주면
+    // logs/zone-20261127.log 에 쓰고, 날짜(현지 시각)가 바뀌면 새 파일을 연다. 폴더가 없으면 만든다.
+    // 줄마다 flush 한다(Serilog 기본 buffered: false 와 같다. 크래시 직전 줄까지 남는다). 로그 Lane 스레드가 쓰므로
+    // 게임 스레드는 기다리지 않는다.
+    class FileSink final : public LogSink
+    {
+    public:
+        explicit FileSink(std::filesystem::path pathTemplate);
+        ~FileSink() override = default;
+        FileSink(const FileSink&) = delete;
+        FileSink& operator=(const FileSink&) = delete;
+        FileSink(FileSink&&) = delete;
+        FileSink& operator=(FileSink&&) = delete;
+
+        void Write(const LogEvent& event, std::string_view line) override;
+        void Flush() override;
+
+        // 지금 쓰고 있는 파일(아직 한 줄도 안 썼으면 빈 경로)
+        [[nodiscard]] const std::filesystem::path& CurrentPath() const noexcept
+        {
+            return _currentPath;
+        }
+
+    private:
+        void Open(std::chrono::local_days day);
+
+        std::filesystem::path _pathTemplate;
+        const std::chrono::time_zone* _zone;
+        std::chrono::local_days _day{};
+        std::filesystem::path _currentPath{};
+        std::ofstream _file{};
     };
 
     struct LogOptions

@@ -1,8 +1,12 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <format>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -140,4 +144,41 @@ TEST(LogWithoutLogger, DoesNothing)
     EXPECT_FALSE(Log::IsEnabled(Log::Level::Fatal));
     Log::Fatal(TestCategory::System, "dropped").KV("x", 1); // 로거가 없으면 버린다(크래시 없음)
     Log::Flush();
+}
+
+namespace
+{
+    // 현지 시각 날짜·시·분으로 로그 한 줄 정보를 만든다(FileSink 가 날짜를 현지 시각으로 나누는지 본다)
+    Log::LogEvent EventAt(const std::chrono::year_month_day date, const std::chrono::hours hour,
+                          const std::chrono::minutes minute)
+    {
+        const auto local = std::chrono::local_days{date} + hour + minute;
+        Log::LogEvent event;
+        event.time = std::chrono::current_zone()->to_sys(local);
+        return event;
+    }
+
+    std::string ReadAll(const std::filesystem::path& path)
+    {
+        std::ifstream in{path, std::ios::binary};
+        return {std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    }
+} // namespace
+
+TEST(FileSink, WritesOneFilePerLocalDay)
+{
+    using namespace std::chrono_literals;
+    const auto dir = std::filesystem::temp_directory_path() / "mmo-server-lab-FileSink";
+    std::filesystem::remove_all(dir);
+    {
+        Log::FileSink sink{dir / "zone-.log"};
+        sink.Write(EventAt(2026y / 11 / 27, 23h, 59min), "a");
+        sink.Write(EventAt(2026y / 11 / 28, 0h, 0min), "b");
+        sink.Write(EventAt(2026y / 11 / 28, 12h, 0min), "c");
+        EXPECT_EQ(sink.CurrentPath(), dir / "zone-20261128.log");
+    } // 닫는다
+
+    EXPECT_EQ(ReadAll(dir / "zone-20261127.log"), "a\n");
+    EXPECT_EQ(ReadAll(dir / "zone-20261128.log"), "b\nc\n");
+    std::filesystem::remove_all(dir);
 }

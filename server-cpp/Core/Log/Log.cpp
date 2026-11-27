@@ -111,6 +111,53 @@ namespace Log
         static_cast<void>(std::fflush(stdout));
     }
 
+    FileSink::FileSink(std::filesystem::path pathTemplate)
+        : _pathTemplate(std::move(pathTemplate)), _zone(std::chrono::current_zone())
+    {
+    }
+
+    void FileSink::Write(const LogEvent& event, const std::string_view line)
+    {
+        const auto day = std::chrono::floor<std::chrono::days>(_zone->to_local(event.time));
+        if (_currentPath.empty() || day != _day) // 열기에 실패했으면 그날은 다시 시도하지 않는다
+        {
+            Open(day);
+        }
+        _file.write(line.data(), static_cast<std::streamsize>(line.size()));
+        _file.put('\n');
+        _file.flush();
+    }
+
+    void FileSink::Flush()
+    {
+        _file.flush();
+    }
+
+    void FileSink::Open(const std::chrono::local_days day)
+    {
+        _file.close();
+        _day = day;
+        // "zone-.log" → "zone-20261127.log"
+        auto name = _pathTemplate.stem().wstring();
+        name += std::format(L"{:%Y%m%d}", day);
+        name += _pathTemplate.extension().wstring();
+        _currentPath = _pathTemplate.parent_path() / name;
+
+        if (_currentPath.has_parent_path())
+        {
+            std::error_code error;
+            std::filesystem::create_directories(_currentPath.parent_path(), error); // 실패하면 아래 열기가 실패한다
+        }
+        _file.open(_currentPath, std::ios::binary | std::ios::app);
+        if (!_file.is_open())
+        {
+            // 로그 파일을 못 열어도 서버는 계속 돈다. 표준 오류에 한 번 알린다(이 날짜 동안 쓰기는 아무 일 안 함)
+            const auto path = _currentPath.u8string(); // 한글 경로도 그대로(string()은 변환 실패 때 예외)
+            std::println(stderr, "Log: cannot open {}",
+                         std::string_view{reinterpret_cast<const char*>(path.data()), path.size()});
+        }
+    }
+
     void Initialize(const LogOptions& options, std::vector<std::unique_ptr<LogSink>> sinks)
     {
         ASSERT(g_owner == nullptr, "Log::Initialize called twice");
