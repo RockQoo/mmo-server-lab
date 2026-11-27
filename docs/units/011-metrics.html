@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>011 Metrics 지표</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>011 · Metrics: 카운터, 지연 히스토그램, 로그 한 줄</h1>
+<p class="sub">C++ · C# · 2026-11-28 · 커밋 <code>b82f54d</code> ~ <code>d8321a4</code></p>
+
+<div class="card">
+<p><strong>무엇을 했나.</strong> 서버가 돌면서 계속 재는 숫자(받은 패킷 수, 틱 지연 p99)를 두 언어로 만들었다. 여러 스레드가 같이 올리는 <strong>카운터</strong>, 평균이 아니라 꼬리(p99)를 보는 <strong>지연 히스토그램</strong>, 블록 시간을 재는 <code>ScopedTimer</code>, 그리고 서버가 10초마다 로그에 한 줄 남기게 해 주는 <code>MetricsReporter</code>다. 부하 테스트(노트 계획 F)에서 C++과 C# 서버의 틱 지연 p99를 같은 칸으로 비교하는 바탕이다.</p>
+<p>C#은 BCL <code>System.Diagnostics.Metrics</code>(<code>Meter</code>, <code>Counter&lt;long&gt;</code>, <code>Histogram&lt;long&gt;</code>)로 기록하고, C#에만 있는 <code>MetricsCollector</code>(<code>MeterListener</code>)가 C++과 같은 칸에 모은다. 함께 한 것: 카운터 칸 나누기 벤치(<code>performance.html</code> 사례 16), C++ <code>Lane::Stop</code> 동시 호출 안전(<code>704e2ad</code>).</p>
+</div>
+
+<h2>정한 것</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>결정</th><th>이유</th></tr>
+<tr><td>카운터 이름</td><td>C++ <code>MetricCounter</code></td><td>BCL <code>Counter&lt;T&gt;</code>와 겹치지 않게(이름이 겹치면 C++ 쪽을 바꾼다는 규칙)</td></tr>
+<tr><td>카운터 구조</td><td>캐시 줄(64B)마다 띄운 칸 16개에 나눠 더하고, 읽을 때 모두 더한다</td><td>atomic 하나는 16스레드에서 1스레드의 절반으로 느려졌다. 칸 16개로 C++ 25배, C# 15배(사례 16). 카운터 하나에 1KB</td></tr>
+<tr><td>칸 고르기</td><td>C++ 스레드마다 정한 번호(<code>thread_local</code>), C# 지금 CPU 번호(<code>Thread.GetCurrentProcessorId</code>)</td><td>C++은 표준만으로, C#은 BCL에 있는 것으로. 같은 CPU에서 도는 스레드는 동시에 돌지 않아 다투지 않는다</td></tr>
+<tr><td>히스토그램 칸</td><td>16 미만은 정확, 그 위는 2의 거듭제곱 구간마다 16칸. 2^36ns(약 69초)까지 528칸, 오차 6.25% 이하</td><td>칸 번호를 비트 연산으로 바로 구해 기록이 8ns 안팎. 배열 하나(약 4KB)라 정렬·할당이 없다</td></tr>
+<tr><td>백분위 값</td><td>순위 ceil(q×count)가 든 칸의 위 경계, 단 max를 넘으면 max</td><td>"p99는 이 값 이하"라고 말할 수 있다(작게 말하지 않음). 마지막 칸은 max로</td></tr>
+<tr><td>구간</td><td><code>SnapshotAndReset</code>이 칸마다 <code>exchange(0)</code></td><td>10초 구간마다 분포를 본다. 그 사이 다른 스레드가 넣은 값도 잃지 않는다(테스트로 확인)</td></tr>
+<tr><td>C# 기록 방법</td><td>BCL <code>Meter</code>로 기록, <code>MetricsCollector</code>가 같은 528칸에 모음</td><td>MS 도구(<code>dotnet-counters</code>)로 밖에서 바로 본다. BCL은 서버 안에서 합·p99를 내 주지 않는다</td></tr>
+<tr><td>두 언어 같은 칸</td><td>같은 값 → 같은 칸 번호(100만 ns → 270번)</td><td>두 언어의 p99를 그대로 비교한다. 두 언어 테스트에 같은 값과 번호를 넣었다</td></tr>
+<tr><td>로그 출력</td><td><code>MetricsReporter</code>는 글 한 줄만 만든다. 서버가 <code>Scheduler.Every(10s)</code>로 불러 자기 카테고리로 남긴다</td><td>로그 카테고리는 게임 레이어 enum이라 Core가 모른다. Metrics는 Base에만 기댄다</td></tr>
+</table></div>
+
+<h2>흐름</h2>
+<div class="diagram">
+<svg viewBox="0 0 1000 330" role="img" aria-label="C++은 코드가 MetricCounter와 LatencyHistogram에 직접 기록하고, C#은 BCL 계기에 기록하면 MetricsCollector가 같은 칸에 모은다. 두 언어 모두 Scheduler가 10초마다 MetricsReporter를 불러 로그에 한 줄 남긴다">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+  <text class="d-t" x="20" y="28" font-weight="600">C++ Metrics</text>
+  <rect class="d-box" x="20" y="44" width="190" height="64" rx="8"/>
+  <text class="d-t" x="115" y="70" text-anchor="middle">IOCP·존 스레드</text>
+  <text class="d-m" x="115" y="90" text-anchor="middle">Add() / ScopedTimer</text>
+  <path class="d-line" d="M210,76 L250,76"/>
+  <rect class="d-cpp" x="250" y="44" width="230" height="64" rx="8"/>
+  <text class="d-t" x="365" y="70" text-anchor="middle">MetricCounter · LatencyHistogram</text>
+  <text class="d-m" x="365" y="90" text-anchor="middle">칸 16개 · 528칸(atomic)</text>
+
+  <text class="d-t" x="20" y="178" font-weight="600">C# Metrics</text>
+  <rect class="d-box" x="20" y="194" width="190" height="64" rx="8"/>
+  <text class="d-t" x="115" y="220" text-anchor="middle">아무 스레드</text>
+  <text class="d-m" x="115" y="240" text-anchor="middle">Counter.Add / ScopedTimer</text>
+  <path class="d-line" d="M210,226 L250,226"/>
+  <rect class="d-cs" x="250" y="194" width="110" height="64" rx="8"/>
+  <text class="d-t" x="305" y="220" text-anchor="middle">BCL 계기</text>
+  <text class="d-m" x="305" y="240" text-anchor="middle">dotnet-counters</text>
+  <path class="d-line" d="M360,226 L380,226"/>
+  <rect class="d-cs" x="380" y="194" width="150" height="64" rx="8"/>
+  <text class="d-t" x="455" y="220" text-anchor="middle">MetricsCollector</text>
+  <text class="d-m" x="455" y="240" text-anchor="middle">콜백, 칸 16개 · 528칸</text>
+
+  <rect class="d-ok" x="600" y="119" width="170" height="64" rx="8"/>
+  <text class="d-t" x="685" y="145" text-anchor="middle">MetricsReporter</text>
+  <text class="d-m" x="685" y="165" text-anchor="middle">Report() → 글 한 줄</text>
+  <path class="d-line" d="M480,76 L600,140"/>
+  <path class="d-line" d="M530,226 L600,165"/>
+  <path class="d-line" d="M770,151 L810,151"/>
+  <rect class="d-box" x="810" y="119" width="170" height="64" rx="8"/>
+  <text class="d-t" x="895" y="145" text-anchor="middle">서버 로그</text>
+  <text class="d-m" x="895" y="165" text-anchor="middle">Log::Info / Serilog</text>
+  <path class="d-dash" d="M685,119 L685,70"/>
+  <text class="d-m" x="685" y="60" text-anchor="middle">Scheduler.Every(10s, lane)가 부른다</text>
+  <text class="d-m" x="500" y="300" text-anchor="middle">tick.latency=[n=600 p50=812.0us p99=3.10ms max=12.00ms] packets.received=1200/s (두 언어 같은 줄)</text>
+</svg>
+</div>
+
+<h2>클래스</h2>
+<div class="table-wrap"><table>
+<tr><th>클래스</th><th>하는 일</th><th>주요 함수</th></tr>
+<tr><td><code>MetricCounter</code> <span class="tag cpp">C++</span></td><td>늘기만 하는 횟수. 칸 16개(64B 간격), 스레드마다 처음 한 번 정한 칸(전역 차례 % 16)에 <code>fetch_add(relaxed)</code>. 복사·이동 금지</td><td><code>Add(delta = 1)</code>, <code>Value()</code></td></tr>
+<tr><td><code>LatencyHistogram</code> <span class="tag cpp">C++</span> <span class="tag cs">C#</span></td><td>ns 지연 분포 528칸 + 합 + 최대. 어느 스레드에서 넣어도 된다. 음수는 0, 범위를 넘으면 마지막 칸(max는 정확)</td><td><code>Record</code>, <code>Snapshot</code>, <code>SnapshotAndReset</code>, <code>BucketOf</code>, <code>UpperBoundOf</code></td></tr>
+<tr><td><code>HistogramSnapshot</code> <span class="tag cpp">C++</span> <span class="tag cs">C#</span></td><td>구간 결과: count, sum, p50, p90, p99, p999, max(ns). C#은 <code>readonly record struct</code></td><td>-</td></tr>
+<tr><td><code>ScopedTimer</code> <span class="tag cpp">C++</span> <span class="tag cs">C#</span></td><td>블록 하나의 시간을 잰다. C++ <code>steady_clock</code> + 소멸자, C# <code>readonly struct</code> + <code>using</code>(<code>Stopwatch.GetTimestamp</code> 차이를 ns로, <code>TimeSpan</code>의 100ns 단위를 거치지 않음)</td><td>생성자(히스토그램)</td></tr>
+<tr><td><code>MetricsCollector</code> <span class="tag cs">C#</span></td><td>이름이 같은 <code>Meter</code>의 <code>Counter&lt;long&gt;</code>(합)과 <code>Histogram&lt;long&gt;</code>(528칸)을 <code>MeterListener</code>로 받는다. 계기마다 모을 곳을 state로 넘겨 값마다 이름을 찾지 않는다. 콜백은 기록한 스레드에서 바로(큐 없음). 나중에 만든 계기도 받는다</td><td><code>CounterValue(name)</code>, <code>Snapshot(name)</code>, <code>SnapshotAndReset(name)</code>, <code>Dispose</code></td></tr>
+<tr><td><code>MetricsReporter</code> <span class="tag cpp">C++</span> <span class="tag cs">C#</span></td><td>등록한 순서대로 한 줄: 카운터는 구간 초당 개수, 히스토그램은 <code>n p50 p99 max</code>(n=0이면 기록 없음). 시간 단위는 값에 맞게(ns, us, ms, s). 카운터마다 자기 시작 시각(리뷰 R1)</td><td>C++ <code>Add(name, 지표)</code>, <code>Report(now)</code> · C# <code>AddCounter</code>, <code>AddHistogram</code>, <code>Report()</code>, <code>FormatDuration</code></td></tr>
+</table></div>
+
+<h2>같은 역할, 다른 방법</h2>
+<div class="table-wrap"><table>
+<tr><th>역할</th><th>C++</th><th>C#</th></tr>
+<tr><td>기록하는 곳</td><td class="cpp">직접 만든 <code>MetricCounter</code>·<code>LatencyHistogram</code>에 바로</td><td class="cs">BCL 계기(<code>Counter&lt;long&gt;</code>, <code>Histogram&lt;long&gt;</code>) → <code>MetricsCollector</code> 콜백</td></tr>
+<tr><td>카운터 칸 고르기</td><td class="cpp"><code>thread_local</code> 칸 번호</td><td class="cs"><code>Thread.GetCurrentProcessorId()</code>(1스레드에서 1ns 남짓 더 듦)</td></tr>
+<tr><td>밖에서 보기</td><td class="cpp">로그 줄(<code>MetricsReporter</code>)뿐</td><td class="cs">로그 줄 + MS 도구 <code>dotnet-counters</code></td></tr>
+<tr><td>Reporter 등록</td><td class="cpp"><code>Add</code> 하나(지표 타입으로 고름)</td><td class="cs"><code>AddCounter</code>·<code>AddHistogram</code>(이름만 받으니 종류를 따로 말한다)</td></tr>
+<tr><td>Reporter 시계</td><td class="cpp"><code>Report(now)</code>·<code>Add(.., now)</code> 인자(기본 <code>steady_clock::now()</code>)</td><td class="cs">생성자에서 <code>TimeProvider</code>(테스트 <code>FakeTimeProvider</code>)</td></tr>
+<tr><td>숫자 글</td><td class="cpp"><code>std::format</code></td><td class="cs"><code>CultureInfo.InvariantCulture</code>(PC 언어 설정과 상관없이 <code>.</code>)</td></tr>
+</table></div>
+<h3>한쪽에만 있는 것과 이유</h3>
+<ul>
+  <li><strong><code>MetricsCollector</code>(C#만)</strong>: C#은 BCL 계기로 기록해서 서버 안에서 값을 모을 곳이 필요하다. C++은 지표 객체에 바로 넣으니 필요 없다.</li>
+  <li><strong><code>MetricCounter</code>(C++만)</strong>: C#은 BCL <code>Counter&lt;long&gt;</code>가 같은 자리다. 칸 나누기는 <code>MetricsCollector</code> 안의 합에 있다.</li>
+</ul>
+
+<h2>벤치마크</h2>
+<p>카운터 칸 나누기의 그림, 표, 30초 답변은 <a href="../journal/performance.html#c16"><code>docs/journal/performance.html</code> 사례 16</a>.</p>
+<div class="table-wrap"><table>
+<tr><th>카운터, 백만 번/초</th><th>1</th><th>4</th><th>8</th><th>16 스레드</th></tr>
+<tr><td class="cpp">C++ atomic 하나</td><td>263</td><td>149</td><td>144</td><td>130</td></tr>
+<tr><td class="cpp"><strong>C++ <code>MetricCounter</code></strong></td><td>267</td><td>939</td><td>1818</td><td><strong>3321</strong></td></tr>
+<tr><td class="cs">C# <code>Interlocked</code> 하나(첫 판)</td><td>204</td><td>94</td><td>109</td><td>105</td></tr>
+<tr><td class="cs"><strong>C# <code>MetricsCollector</code></strong></td><td>164</td><td>625</td><td>1010</td><td><strong>1597</strong></td></tr>
+</table></div>
+<div class="table-wrap" style="margin-top:12px"><table>
+<tr><th>재는 비용(ns, 한 번)</th><th>C++</th><th>C#</th></tr>
+<tr><td>시계 한 번</td><td class="cpp"><code>steady_clock::now</code> 18</td><td class="cs"><code>Stopwatch.GetTimestamp</code> 15.7</td></tr>
+<tr><td>히스토그램에 값 하나</td><td class="cpp">8.5</td><td class="cs">7.3(BCL + 콜백 포함)</td></tr>
+<tr><td>빈 블록 재기(<code>ScopedTimer</code>)</td><td class="cpp">45</td><td class="cs">43</td></tr>
+</table></div>
+<ul>
+  <li>카운터 표는 PC 부하 10%에서 잰 값이다(C++ 3회 중앙값, C# <code>--job short</code>). Noop 기준선은 16스레드까지 늘었다.</li>
+  <li>재는 비용 표는 PC 부하 약 40%에서 잰 첫 측정이다. 틱 하나(수 ms)에 한두 번 재는 것은 무시할 만하고, 패킷마다 재도 50ns 안쪽이다. PC가 쉴 때 다시 잰다.</li>
+  <li>히스토그램 하나를 여러 스레드가 같이 넣으면 칸·합·최대를 다투어 처리량이 1스레드 1.19억/초 → 16스레드 0.78억/초로 준다(C++, 부하 42%). 히스토그램은 보통 존 스레드 하나가 쓰므로 칸 나누기를 하지 않았다.</li>
+</ul>
+
+<h2>함께 바꾼 것</h2>
+<h3>C++ <code>Lane::Stop</code> 동시 호출 안전(<code>704e2ad</code>)</h3>
+<ul>
+  <li>010 "나중에"에 적은 것. <code>Scheduler</code> R1과 같은 모양(joinable 확인과 join 사이에 잠금 없음)이라 <code>_stopMutex</code>로 하나씩 멈춘다. <code>LaneTest.ConcurrentStopIsSafe</code>는 잠금 없이 돌리면 실패하는 것을 확인했다.</li>
+</ul>
+<h3>문서</h3>
+<ul>
+  <li><code>performance.html</code> 사례 16, <code>naming.md</code>(Metrics 4행 + <code>MetricsCollector</code> C#만), <code>class-map.html</code>(Metrics 5행, ✅), <code>PROGRESS.md</code>. push가 끝난 Log·CrashDump·Scheduling 상태를 ✅로(<code>b82f54d</code>).</li>
+</ul>
+
+<h2>테스트</h2>
+<div class="table-wrap"><table>
+<tr><th>확인하는 것</th><th>C++ gtest</th><th>C# xUnit</th></tr>
+<tr><td>카운터: 0에서 시작해 더함, 여러 스레드가 올려도 하나도 안 빠짐</td><td>MetricCounter: StartsAtZeroAndAdds, CountsEveryAddFromManyThreads</td><td>SumsCountersFromBcl, KeepsEveryMeasurementFromManyThreads</td></tr>
+<tr><td>모든 값이 자기 칸 안, 칸 폭 ≤ 값/16, 칸 번호가 값 순서대로</td><td>BucketsCoverValuesWithinSixPercent</td><td>BucketsCoverValuesWithinSixPercent</td></tr>
+<tr><td>두 언어 같은 값 → 같은 칸 번호</td><td>BucketNumbersMatchCs</td><td>BucketNumbersMatchCpp(5개 값)</td></tr>
+<tr><td>빈 히스토그램, 작은 값은 정확, 음수·아주 큰 값</td><td>EmptySnapshotIsAllZero, SmallValuesAreExact, NegativeAndHugeValues</td><td>-</td></tr>
+<tr><td>드문 튐이 p99에 드러남(98번 1ms + 2번 50ms)</td><td>PercentilesShowRareSpikes</td><td>PercentilesShowRareSpikes</td></tr>
+<tr><td>구간마다 꺼내고 비움, 여러 스레드가 넣는 중에도 잃지 않음</td><td>SnapshotAndResetStartsNewInterval, KeepsEveryRecordAcrossConcurrentResets</td><td>CollectsHistogramIntoIntervals, KeepsEveryMeasurementFromManyThreads</td></tr>
+<tr><td>다른 Meter 값은 받지 않음</td><td>-</td><td>IgnoresOtherMeters</td></tr>
+<tr><td>블록 시간 재기</td><td>ScopedTimer: RecordsElapsedTimeOfBlock</td><td>ScopedTimerRecordsElapsedNanoseconds</td></tr>
+<tr><td>Reporter: 시간 단위 글, 구간마다 한 줄(등록 순서), 늦게 Add한 카운터는 자기 시각부터(R1)</td><td>MetricsReporter: FormatsDurationInReadableUnit, ReportsEachIntervalInRegistrationOrder, LateCounterStartsFromItsOwnAdd</td><td>같은 이름 3개(같은 값 → 같은 글)</td></tr>
+<tr><td>Lane을 여러 스레드가 같이 멈춤</td><td>LaneTest: ConcurrentStopIsSafe</td><td>-</td></tr>
+</table></div>
+
+<h2>결과</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> <code>Core/Metrics</code> 정적 라이브러리(Base에만 기댐) + <code>MetricsTests</code>. Release 경고 0, lint 0, gtest <strong>166개</strong> 통과(Metrics 14개). Bench: MetricCounterBench, LatencyHistogramBench</div>
+  <div class="card cs"><span class="tag cs">C#</span> <code>Core/Metrics</code> 프로젝트 + 테스트(NuGet <code>FakeTimeProvider</code>, 테스트만, Scheduling과 같은 패키지). xUnit <strong>91개</strong> 통과, lint OK. Bench: MetricsBench</div>
+</div>
+<p>기본 QA(qa.json 4단계: C++ release 빌드+테스트 166개, C++ lint 0, C# release 빌드+테스트, C# lint OK) 통과(<code>d8321a4</code>).</p>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap"><table>
+<tr><th>차수</th><th>범위</th><th>결과</th></tr>
+<tr><td>1차</td><td><code>40e50a1..66f0732</code>(커밋 9개, 파일 34개: C++ 16, C# 14, docs 4)</td><td>1건, <strong>동의, 수정</strong>(<code>d8321a4</code>).
+<ul>
+<li>R1(medium) <code>MetricsReporter</code>의 초당 개수를 공통 시작 시각(만든 때, 지난 Report)으로 나눠, reporter를 만든 뒤 늦게 등록한 카운터는 첫 값이 작게 나왔다 → 카운터마다 등록 시각·지난 Report 시각을 들고, 두 언어에 같은 값 테스트(5초 늦게 등록 → 20/s)</li>
+</ul></td></tr>
+<tr><td>2차</td><td><code>66f0732..d8321a4</code>(커밋 1개, 파일 5개: C++ 3, C# 2)</td><td>0건</td></tr>
+</table></div>
+
+<h2>나중에</h2>
+<ul>
+  <li>재는 비용과 TimerBench(010 R2 뒤)를 PC가 쉴 때 다시 잰다.</li>
+  <li>줄었다 늘었다 하는 값(접속 수, 큐 길이)은 Gauge로 따로 둔다. 쓰는 곳(Network, ZoneServer)이 생길 때 만든다.</li>
+  <li>여러 스레드가 같이 넣는 히스토그램이 필요해지면(IOCP 스레드의 패킷 처리 시간 등) 그때 칸 나누기를 잰다.</li>
+</ul>
+
+<h2>다음</h2>
+<p>PROGRESS 개발 순서의 다음 Core 단위(7 직렬화 필드 비용, 8 CodeGen, 9 Config). 남은 손볼 것: C++ 로그 큐 상한.</p>
+</main>
+</body>
+</html>
