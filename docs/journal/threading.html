@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개발일지: 스레드 구조</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+.d-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+.d-wt { fill: var(--warn); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-ot { fill: var(--ok); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-buf { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.d-hot { stroke: var(--warn); stroke-width: 2; fill: none; marker-end: url(#arrowWarn); }
+.d-cold { stroke: var(--ok); stroke-width: 2; fill: none; stroke-dasharray: 6 4; marker-end: url(#arrowOk); }
+.bar { height: 14px; border-radius: 3px; background: var(--accent); display: inline-block; vertical-align: middle; }
+.bar.warn { background: var(--warn); }
+.bar.cs { background: var(--cs); }
+.bar.muted { background: var(--muted); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+<marker id="arrowWarn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--warn)"/></marker>
+<marker id="arrowOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker>
+<marker id="arrowCpp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--cpp)"/></marker>
+</defs>
+</svg>
+<main>
+<h1>개발일지 · 스레드 구조</h1>
+<p class="sub">설계 논의 · 2026-11-27 · 서버 구조(결정 001: 분산 존) 위에서 프로세스 안 스레드를 어떻게 나누나. 초안이다. 확정되면 결정 005로 옮긴다</p>
+
+<div class="card">
+<p><strong>한 줄 요약.</strong> 스레드는 기능(전투, 길드, 브로드캐스트…)이 아니라 <strong>멈추는 성질</strong>로 세 풀만 둔다: <span class="tag ok">IO</span> 커널 대기, <span class="tag cpp">Logic</span> CPU만(멈추면 안 됨), <span class="tag" style="background:var(--warn-soft);color:var(--warn)">Blocking</span> DB·파일 대기. 기능은 스레드가 아니라 <strong>데이터의 주인(Lane)</strong>으로 나눈다. 게임 데이터는 주인 Lane 하나만 만지므로 lock이 없다.</p>
+</div>
+
+<h2>1. 원칙 네 가지</h2>
+<div class="table-wrap"><table>
+<tr><th>#</th><th>원칙</th><th>뜻</th></tr>
+<tr><td>①</td><td><strong>스레드는 멈추는 성질로 나눈다</strong></td><td>IO(소켓 완료를 기다림) · Logic(기다리지 않고 계산만) · Blocking(DB·파일을 기다림). 콘텐츠가 늘어도 풀은 세 개다</td></tr>
+<tr><td>②</td><td><strong>데이터마다 주인 Lane은 하나</strong></td><td>존의 월드와 그 존 플레이어 = 존 Lane. 길드 = 길드 Lane(ServiceServer). 다른 스레드는 주인에게 메시지로 부탁만 한다</td></tr>
+<tr><td>③</td><td><strong>결과는 항상 주인에게 다시 Post</strong></td><td>DB 저장 완료, 다른 서버의 답, 타이머 모두 주인 Lane으로 돌아온다. 콘텐츠 코드는 언제나 주인 스레드에서만 돈다</td></tr>
+<tr><td>④</td><td><strong>Logic 스레드는 절대 기다리지 않는다</strong></td><td>DB, 파일, sleep, 다른 Lane의 답을 기다리는 lock 금지. 기다릴 일은 Blocking 풀이나 다른 서버에 보내고 ③으로 결과를 받는다</td></tr>
+</table></div>
+
+<h2>2. ZoneServer 안 (8코어 예)</h2>
+<p>패킷은 IO 스레드가 받아 자르고 역직렬화한 뒤, 그 플레이어가 있는 <strong>존 Lane</strong>에 넣는다. 존 Lane이 틱과 콘텐츠를 모두 처리하고, 틱 끝에 보낼 패킷을 세션별로 묶어 IO에 넘긴다.</p>
+<div class="diagram">
+<svg viewBox="0 0 960 430" role="img" aria-label="ZoneServer 안의 IO 풀, Logic 풀, 특수 스레드와 메시지 흐름">
+<!-- 왼쪽: Gateway -->
+<rect class="d-box" x="10" y="170" width="110" height="70" rx="8"/>
+<text class="d-t" x="65" y="200" text-anchor="middle">Gateway</text>
+<text class="d-m" x="65" y="220" text-anchor="middle">(다른 프로세스)</text>
+
+<!-- IO 풀 -->
+<rect class="d-ok" x="160" y="40" width="210" height="330" rx="10" opacity="0.35"/>
+<text class="d-ot" x="265" y="62" text-anchor="middle">IO 풀 · IOCP 스레드 2개</text>
+<rect class="d-ok" x="180" y="80" width="170" height="110" rx="8"/>
+<text class="d-t" x="265" y="104" text-anchor="middle">IOCP-0</text>
+<text class="d-m" x="265" y="126" text-anchor="middle">받기 · 자르기 · 검사</text>
+<text class="d-m" x="265" y="144" text-anchor="middle">역직렬화</text>
+<text class="d-m" x="265" y="162" text-anchor="middle">→ PacketDispatcher</text>
+<text class="d-m" x="265" y="180" text-anchor="middle">보내기 완료 처리</text>
+<rect class="d-ok" x="180" y="210" width="170" height="110" rx="8"/>
+<text class="d-t" x="265" y="234" text-anchor="middle">IOCP-1</text>
+<text class="d-m" x="265" y="256" text-anchor="middle">(같은 일)</text>
+<text class="d-m" x="265" y="340" text-anchor="middle">게임 데이터를 만지지 않는다</text>
+
+<!-- Logic 풀 -->
+<rect class="d-cpp" x="420" y="20" width="310" height="390" rx="10" opacity="0.3"/>
+<text class="d-t" x="575" y="44" text-anchor="middle" style="font-weight:600">Logic 풀 · Lane 4개 (LaneGroup "Zone")</text>
+<rect class="d-cpp" x="440" y="60" width="270" height="70" rx="8"/>
+<text class="d-t" x="575" y="86" text-anchor="middle">Lane 0 · Zone 1, Zone 2</text>
+<text class="d-m" x="575" y="108" text-anchor="middle">틱 · 전투 · 이동 · 인벤토리 · 브로드캐스트</text>
+<rect class="d-cpp" x="440" y="145" width="270" height="70" rx="8"/>
+<text class="d-t" x="575" y="171" text-anchor="middle">Lane 1 · Zone 3, Zone 4</text>
+<text class="d-m" x="575" y="193" text-anchor="middle">(같은 일, 다른 존)</text>
+<rect class="d-warn" x="440" y="230" width="270" height="70" rx="8"/>
+<text class="d-t" x="575" y="256" text-anchor="middle">Lane 2 · Zone 5 (무거움, 혼자)</text>
+<text class="d-m" x="575" y="278" text-anchor="middle">사람이 몰리는 존은 Lane 하나를 혼자 쓴다</text>
+<rect class="d-cpp" x="440" y="315" width="270" height="70" rx="8"/>
+<text class="d-t" x="575" y="341" text-anchor="middle">Lane 3 · Zone 6, 7, 8</text>
+<text class="d-m" x="575" y="363" text-anchor="middle">한가한 존은 여럿이 같이</text>
+
+<!-- 특수 스레드 -->
+<rect class="d-cs" x="780" y="40" width="170" height="70" rx="8"/>
+<text class="d-t" x="865" y="66" text-anchor="middle">Scheduler</text>
+<text class="d-m" x="865" y="88" text-anchor="middle">50ms마다 Tick 메시지</text>
+<rect class="d-cs" x="780" y="130" width="170" height="60" rx="8"/>
+<text class="d-t" x="865" y="156" text-anchor="middle">Log Lane</text>
+<text class="d-m" x="865" y="176" text-anchor="middle">파일 쓰기</text>
+<rect class="d-cs" x="780" y="210" width="170" height="60" rx="8"/>
+<text class="d-t" x="865" y="236" text-anchor="middle">CrashDump</text>
+<text class="d-m" x="865" y="256" text-anchor="middle">평소엔 잠만 잠</text>
+<rect class="d-box" x="780" y="320" width="170" height="70" rx="8"/>
+<text class="d-t" x="865" y="346" text-anchor="middle">DbWriter · Service</text>
+<text class="d-m" x="865" y="368" text-anchor="middle">(다른 프로세스)</text>
+
+<!-- 화살표 -->
+<line class="d-line" x1="120" y1="195" x2="176" y2="140"/>
+<line x1="350" y1="120" x2="436" y2="95" stroke="var(--ok)" stroke-width="2" marker-end="url(#arrowOk)"/>
+<text class="d-ot" x="392" y="96" text-anchor="middle">Post</text>
+<line x1="436" y1="200" x2="354" y2="250" stroke="var(--cpp)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowCpp)"/>
+<text class="d-m" x="395" y="244" text-anchor="middle">묶음</text>
+<text class="d-m" x="395" y="258" text-anchor="middle">WSASend</text>
+<line x1="776" y1="80" x2="714" y2="95" stroke="var(--cs)" stroke-width="2" marker-end="url(#arrow)"/>
+<text class="d-m" x="745" y="76" text-anchor="middle">Tick</text>
+<line class="d-line" x1="714" y1="340" x2="776" y2="355"/>
+<text class="d-m" x="745" y="330" text-anchor="middle">저장·요청</text>
+</svg>
+</div>
+<ul>
+<li><strong>Logic 풀 = 존 Lane들.</strong> 존 수와 스레드 수를 따로 정한다. 존은 만들 때 <code>LaneGroup.At(index)</code>로 Lane 하나에 고정한다(존 이동이 없는 한 바뀌지 않는다).</li>
+<li><strong>IO 스레드는 게임 데이터를 만지지 않는다.</strong> 바이트를 메시지로 바꿔 주인 Lane에 넣는 데까지만 한다(결정 004).</li>
+<li><strong>Blocking 풀이 ZoneServer에는 없다.</strong> DB는 DbWriter 프로세스에 보낸다(원칙 ④).</li>
+</ul>
+
+<h2>3. 존 Lane 하나가 하는 일: 틱도 메시지다</h2>
+<p>존 Lane의 큐에는 패킷 메시지와 Scheduler가 50ms마다 넣는 <code>Tick</code> 메시지가 섞여 들어온다. 같은 스레드가 차례로 처리하므로 lock이 없다.</p>
+<div class="diagram">
+<svg viewBox="0 0 960 330" role="img" aria-label="존 Lane 큐에 패킷과 Tick 메시지가 섞여 들어오고, 월드 입력은 쌓았다가 Tick에서 적용한다">
+<text class="d-t" x="10" y="30" style="font-weight:600">Zone 1 의 Lane 큐 (왼쪽부터 처리)</text>
+<rect class="d-cpp" x="10" y="45" width="100" height="44" rx="6"/><text class="d-t" x="60" y="72" text-anchor="middle">이동 P1</text>
+<rect class="d-box" x="120" y="45" width="100" height="44" rx="6"/><text class="d-t" x="170" y="72" text-anchor="middle">인벤 P2</text>
+<rect class="d-cpp" x="230" y="45" width="100" height="44" rx="6"/><text class="d-t" x="280" y="72" text-anchor="middle">스킬 P3</text>
+<rect class="d-cs" x="340" y="45" width="100" height="44" rx="6"/><text class="d-t" x="390" y="72" text-anchor="middle">Tick #41</text>
+<rect class="d-box" x="450" y="45" width="100" height="44" rx="6"/><text class="d-t" x="500" y="72" text-anchor="middle">채팅 P1</text>
+<rect class="d-cpp" x="560" y="45" width="100" height="44" rx="6"/><text class="d-t" x="610" y="72" text-anchor="middle">이동 P2</text>
+<rect class="d-cs" x="670" y="45" width="100" height="44" rx="6"/><text class="d-t" x="720" y="72" text-anchor="middle">Tick #42</text>
+<text class="d-m" x="790" y="72">… 50ms마다</text>
+
+<!-- 월드 입력 vs 바로 처리 -->
+<rect class="d-cpp" x="10" y="130" width="300" height="80" rx="8"/>
+<text class="d-t" x="160" y="156" text-anchor="middle">월드 입력(이동, 스킬)</text>
+<text class="d-m" x="160" y="178" text-anchor="middle">바로 적용하지 않고 입력 목록에 쌓는다</text>
+<text class="d-m" x="160" y="196" text-anchor="middle">→ 모두가 같은 틱 시각으로 판정</text>
+<rect class="d-box" x="330" y="130" width="300" height="80" rx="8"/>
+<text class="d-t" x="480" y="156" text-anchor="middle">월드 밖 일(인벤토리, 채팅, 우편)</text>
+<text class="d-m" x="480" y="178" text-anchor="middle">도착하면 바로 처리</text>
+<text class="d-m" x="480" y="196" text-anchor="middle">→ 틱을 기다리지 않아 반응이 빠르다</text>
+<rect class="d-cs" x="650" y="130" width="300" height="80" rx="8"/>
+<text class="d-t" x="800" y="156" text-anchor="middle">Tick</text>
+<text class="d-m" x="800" y="178" text-anchor="middle">쌓인 입력 적용 → 시뮬레이션</text>
+<text class="d-m" x="800" y="196" text-anchor="middle">→ 브로드캐스트 묶음</text>
+
+<!-- 틱 단계 -->
+<text class="d-t" x="10" y="250" style="font-weight:600">Tick 한 번 (목표 50ms 안에 끝, 보통 몇 ms)</text>
+<rect class="d-cpp" x="10" y="262" width="180" height="40" rx="6"/><text class="d-t" x="100" y="287" text-anchor="middle">① 입력 적용</text>
+<rect class="d-cpp" x="200" y="262" width="180" height="40" rx="6"/><text class="d-t" x="290" y="287" text-anchor="middle">② 이동 · AI</text>
+<rect class="d-cpp" x="390" y="262" width="180" height="40" rx="6"/><text class="d-t" x="480" y="287" text-anchor="middle">③ 전투 · 버프 만료</text>
+<rect class="d-ok" x="580" y="262" width="190" height="40" rx="6"/><text class="d-t" x="675" y="287" text-anchor="middle">④ AOI 브로드캐스트</text>
+<rect class="d-ok" x="780" y="262" width="170" height="40" rx="6"/><text class="d-t" x="865" y="287" text-anchor="middle">⑤ IO에 넘김</text>
+<line class="d-line" x1="190" y1="282" x2="198" y2="282"/>
+<line class="d-line" x1="380" y1="282" x2="388" y2="282"/>
+<line class="d-line" x1="570" y1="282" x2="578" y2="282"/>
+<line class="d-line" x1="770" y1="282" x2="778" y2="282"/>
+<text class="d-m" x="480" y="322" text-anchor="middle">③의 버프 만료·리스폰은 존이 가진 TimerHeap 에서 PopDue(틱 시각)로 꺼낸다(Scheduler 를 거치지 않음)</text>
+</svg>
+</div>
+<div class="grid2">
+<div class="card"><h3 style="margin-top:0">브로드캐스트 스레드를 따로 두지 않는 이유</h3>
+<p>월드 상태의 주인은 존 스레드다. 다른 스레드가 브로드캐스트하려면 월드를 <strong>복사</strong>하거나 <strong>lock</strong>을 걸고 읽어야 한다. 틱 끝에 주인이 직접 세션별 묶음을 만들면 둘 다 필요 없다. 보내기 자체(<code>WSASend</code>)는 비동기라 존 스레드는 넘기고 바로 다음 일을 한다.</p></div>
+<div class="card"><h3 style="margin-top:0">틱 스레드를 따로 두지 않는 이유</h3>
+<p>틱이 메시지라서 존 수와 스레드 수가 묶이지 않는다. 존 100개를 Lane 8개에 나눠 담을 수 있다. 패킷 처리와 틱이 같은 스레드라 입력 목록에도 lock이 없다. 이 방식이 결정 004에 남겨 둔 "A. 틱을 Lane의 일로"이다.</p></div>
+</div>
+
+<h3 id="same-result">입력이 몇 번 와도 같은 처리: 전용 스레드 없이 어떻게 하나</h3>
+<p>전용 TICK·BROADCAST 스레드를 둔 서버에서 그 스레드들이 지켜 주던 것은 이것이다: <strong>클라이언트가 한 틱 사이에 입력을 몇 번 보내든, 처리는 틱마다 한 번, 같은 틱 시각으로, 브로드캐스트도 틱마다 한 번.</strong> 이 성질은 스레드가 아니라 <strong>"입력을 쌓았다가 틱에서 한 번에 처리"</strong>에서 나온다. 이번 구조는 그것을 존 Lane 하나 안에서 한다.</p>
+<div class="diagram">
+<svg viewBox="0 0 960 250" role="img" aria-label="한 틱 사이에 이동 입력이 다섯 번 와도 입력 목록에서 하나로 합쳐 틱에서 한 번 적용하고 한 번 브로드캐스트한다">
+<text class="d-t" x="10" y="26" style="font-weight:600">Tick #41 과 #42 사이에 P1 이 이동을 5번 보냄</text>
+<rect class="d-cpp" x="10" y="40" width="80" height="36" rx="6"/><text class="d-m" x="50" y="63" text-anchor="middle">이동 (1,0)</text>
+<rect class="d-cpp" x="100" y="40" width="80" height="36" rx="6"/><text class="d-m" x="140" y="63" text-anchor="middle">이동 (2,0)</text>
+<rect class="d-cpp" x="190" y="40" width="80" height="36" rx="6"/><text class="d-m" x="230" y="63" text-anchor="middle">이동 (3,0)</text>
+<rect class="d-cpp" x="280" y="40" width="80" height="36" rx="6"/><text class="d-m" x="320" y="63" text-anchor="middle">이동 (4,0)</text>
+<rect class="d-cpp" x="370" y="40" width="80" height="36" rx="6"/><text class="d-m" x="410" y="63" text-anchor="middle">이동 (5,0)</text>
+<line class="d-line" x1="230" y1="78" x2="230" y2="116"/>
+<rect class="d-box" x="90" y="120" width="290" height="60" rx="8"/>
+<text class="d-t" x="235" y="145" text-anchor="middle">입력 목록 (존 Lane 안, lock 없음)</text>
+<text class="d-m" x="235" y="166" text-anchor="middle">P1 이동: 마지막 것 (5,0) 하나만 남김(덮어쓰기)</text>
+<line class="d-line" x1="380" y1="150" x2="476" y2="150"/>
+<rect class="d-cs" x="480" y="120" width="210" height="60" rx="8"/>
+<text class="d-t" x="585" y="145" text-anchor="middle">Tick #42 (now = 틱 시각)</text>
+<text class="d-m" x="585" y="166" text-anchor="middle">속도 검사 후 한 번 적용</text>
+<line class="d-line" x1="690" y1="150" x2="756" y2="150"/>
+<rect class="d-ok" x="760" y="120" width="190" height="60" rx="8"/>
+<text class="d-t" x="855" y="145" text-anchor="middle">브로드캐스트 한 번</text>
+<text class="d-m" x="855" y="166" text-anchor="middle">주변에 P1 = (5,0)</text>
+<text class="d-m" x="10" y="215">입력이 1번이든 5번이든: 적용 1번 · 판정 시각 같음(틱 시각) · 브로드캐스트 1번 · 결과 같음</text>
+<text class="d-m" x="10" y="237">패킷 도착 순서·횟수가 판정에 끼지 않아 같은 입력이면 같은 결과가 나온다(재현·검증이 쉽다)</text>
+</svg>
+</div>
+<div class="table-wrap"><table>
+<tr><th>입력 종류</th><th>입력 목록에 쌓는 법</th><th>틱에서</th></tr>
+<tr><td>이동</td><td><strong>덮어쓰기</strong>: 플레이어마다 마지막 하나</td><td>지난 틱 위치 → 새 위치를 속도·지형으로 검사하고 한 번 적용</td></tr>
+<tr><td>스킬·공격</td><td><strong>차례로 쌓기</strong>: 행동 하나하나가 의미 있음</td><td>쿨타임·공용 쿨타임으로 거르고, 같은 틱 시각으로 판정</td></tr>
+<tr><td>같은 요청을 여러 번(연타, 재전송)</td><td>요청 번호로 <strong>중복 버리기</strong></td><td>한 번만 처리</td></tr>
+<tr><td>인벤토리·채팅처럼 월드 밖</td><td>쌓지 않음</td><td>도착하면 바로(틱과 상관없는 결과)</td></tr>
+</table></div>
+<p>정리하면 그 서버의 TICK 스레드가 하던 "모았다가 틱에서 한 번", BROADCAST 스레드가 하던 "틱마다 한 번 보내기"를 <strong>존 Lane 안의 입력 목록과 Tick 메시지의 ④단계</strong>가 한다. 성질은 같고, 다른 것은 스레드를 넘나들지 않는다는 점이다.</p>
+
+<h3 id="vs-dedicated">전용 틱·브로드캐스트 스레드와 비교 (나중에 실측)</h3>
+<div class="table-wrap"><table>
+<tr><th></th><th>이번 구조(존 Lane 하나)</th><th>전용 TICK + BROADCAST 스레드</th></tr>
+<tr><td>월드 상태를 만지는 스레드</td><td>하나</td><td>틱 스레드 + 읽으려는 브로드캐스트 스레드</td></tr>
+<tr><td>브로드캐스트가 월드를 읽는 법</td><td>주인이 직접(복사·lock 없음)</td><td>스냅샷 복사 또는 lock</td></tr>
+<tr><td>틱 시각</td><td>Lane 큐 순서라 패킷이 몰리면 <code>Tick</code>이 뒤에서 기다릴 수 있다</td><td><strong>패킷이 몰려도 제시간</strong></td></tr>
+<tr><td>브로드캐스트와 다음 틱</td><td>차례로(틱 안 ④단계)</td><td><strong>겹칠 수 있다</strong>(틱 N 보내는 동안 N+1 계산)</td></tr>
+<tr><td>스레드 수</td><td>존 수와 따로(존 100개 / Lane 8개)</td><td>존·역할마다 는다</td></tr>
+</table></div>
+<p class="muted">"한 주인으로 복사·lock을 없애는 것이 더 이득"이라는 가설이다. 같은 Core·같은 봇 시나리오로 서버 레이어만 바꿔 재 본다(PROGRESS "구조 비교 ①", 1단계 끝). 틱 시작 지연 p99나 브로드캐스트 비율이 기준을 넘으면 8장의 대책 → 전용 스레드 순으로 바꾼다.</p>
+
+<h2>4. 기다려야 하는 일: 결과는 주인에게 돌아온다</h2>
+<p>예: 아이템 구매(재화 = 즉시 트랜잭션). 존 Lane은 DB를 기다리지 않는다. 요청을 보내고 다음 일을 하다가, 결과가 오면 같은 Lane에서 이어서 처리한다.</p>
+<div class="diagram">
+<svg viewBox="0 0 960 300" role="img" aria-label="존 Lane이 DbWriter에 요청하고 결과를 다시 존 Lane으로 받는 순서">
+<text class="d-t" x="130" y="28" text-anchor="middle" style="font-weight:600">Zone 1 Lane (Logic)</text>
+<text class="d-t" x="480" y="28" text-anchor="middle" style="font-weight:600">IOCP 스레드 (IO)</text>
+<text class="d-t" x="830" y="28" text-anchor="middle" style="font-weight:600">DbWriter (Blocking, 다른 프로세스)</text>
+<line x1="130" y1="40" x2="130" y2="290" stroke="var(--cpp)" stroke-width="3"/>
+<line x1="480" y1="40" x2="480" y2="290" stroke="var(--ok)" stroke-width="3"/>
+<line x1="830" y1="40" x2="830" y2="290" stroke="var(--warn)" stroke-width="3"/>
+<line class="d-line" x1="130" y1="70" x2="826" y2="70"/>
+<text class="d-m" x="480" y="62" text-anchor="middle">① 구매 요청(요청 번호 77) 보냄 — 재화는 "예약"으로 잠가 둔다</text>
+<rect class="d-cpp" x="20" y="90" width="220" height="56" rx="6"/>
+<text class="d-t" x="130" y="114" text-anchor="middle">② 기다리지 않고 다음 일</text>
+<text class="d-m" x="130" y="134" text-anchor="middle">다른 패킷 · 다음 Tick</text>
+<rect class="d-warn" x="720" y="90" width="220" height="56" rx="6"/>
+<text class="d-t" x="830" y="114" text-anchor="middle">③ 트랜잭션 (수 ms)</text>
+<text class="d-m" x="830" y="134" text-anchor="middle">ODBC 연결을 쥔 스레드가 기다림</text>
+<line class="d-line" x1="826" y1="180" x2="484" y2="180"/>
+<text class="d-m" x="655" y="172" text-anchor="middle">④ 결과(요청 번호 77, 성공)</text>
+<line x1="476" y1="215" x2="134" y2="215" stroke="var(--ok)" stroke-width="2" marker-end="url(#arrowOk)"/>
+<text class="d-ot" x="305" y="207" text-anchor="middle">⑤ 주인 Lane 에 Post</text>
+<rect class="d-cpp" x="20" y="232" width="220" height="50" rx="6"/>
+<text class="d-t" x="130" y="262" text-anchor="middle">⑥ 예약 확정, 아이템 지급</text>
+</svg>
+</div>
+<p class="muted">기다리는 동안 그 플레이어의 다른 구매는 "진행 중"으로 막거나 차례로 쌓는다. 이 규칙은 콘텐츠마다 정한다. 다른 서버(ServiceServer의 길드)에 묻는 것도 같은 모양이다.</p>
+
+<h2>5. 프로세스마다 스레드 (8코어 예, 숫자는 봇 부하 테스트로 정한다)</h2>
+<div class="table-wrap"><table>
+<tr><th>프로세스</th><th>IO</th><th>Logic</th><th>Blocking</th><th>특수</th><th style="width:30%">비율</th></tr>
+<tr><td><strong>Gateway</strong></td><td class="num">6</td><td class="num">2</td><td class="num">0</td><td>Log, CrashDump, Scheduler(세션 타임아웃)</td><td><span class="bar" style="width:60%;background:var(--ok)"></span><span class="bar" style="width:20%"></span></td></tr>
+<tr><td><strong>ZoneServer</strong></td><td class="num">2</td><td class="num">6</td><td class="num">0</td><td>Log, CrashDump, Scheduler(Tick)</td><td><span class="bar" style="width:20%;background:var(--ok)"></span><span class="bar" style="width:60%"></span></td></tr>
+<tr><td><strong>ServiceServer</strong></td><td class="num">2</td><td class="num">4</td><td class="num">0</td><td>Log, CrashDump, Scheduler</td><td><span class="bar" style="width:20%;background:var(--ok)"></span><span class="bar" style="width:40%"></span></td></tr>
+<tr><td><strong>DbWriter</strong></td><td class="num">1</td><td class="num">1</td><td class="num">8~16</td><td>Log, CrashDump</td><td><span class="bar" style="width:10%;background:var(--ok)"></span><span class="bar" style="width:10%"></span><span class="bar warn" style="width:60%"></span></td></tr>
+</table></div>
+<ul>
+<li><strong>IO + Logic ≤ 코어 수</strong>(결정 004). 특수 스레드는 거의 잠만 자서 셈에 넣지 않는다.</li>
+<li><strong>Blocking은 코어보다 많아도 된다.</strong> 대부분 DB 응답을 기다리며 자고 있다. 개수 = DB 연결 수.</li>
+<li><strong>Logic 안의 Lane 고르기</strong>: Zone은 <code>At(index)</code>(존 고정), ServiceServer는 <code>LaneFor(guildId)</code>(키 해시).</li>
+</ul>
+
+<h2>6. 금지 목록 (리뷰 때 보는 것)</h2>
+<div class="table-wrap"><table>
+<tr><th>하면 안 되는 것</th><th>왜</th><th>대신</th></tr>
+<tr><td>Logic 스레드에서 DB·파일·sleep</td><td>그 Lane의 모든 존·플레이어가 같이 멈춘다</td><td>DbWriter·Blocking에 보내고 결과를 Post로 받기</td></tr>
+<tr><td>게임 데이터에 mutex</td><td>주인이 둘이라는 뜻. 데드락·경합의 시작</td><td>주인 Lane에 메시지</td></tr>
+<tr><td>IO 스레드에서 게임 상태 읽기·쓰기</td><td>존 스레드와 동시에 만진다</td><td>IO는 역직렬화까지만</td></tr>
+<tr><td>다른 Lane의 답을 기다리기(동기 호출)</td><td>A가 B를, B가 A를 기다리면 데드락(crashdump.html의 그림)</td><td>요청 + 결과 Post(4장)</td></tr>
+<tr><td>결과를 아무 스레드에서 처리</td><td>DB 완료 콜백 스레드에서 플레이어를 고치면 주인이 둘</td><td>원칙 ③: 주인 Lane으로</td></tr>
+</table></div>
+
+<h2>7. C#에서는</h2>
+<div class="grid2">
+<div class="card cpp"><span class="tag cpp">C++</span>
+<ul>
+<li>IO: IOCP 스레드 직접(<code>GetQueuedCompletionStatus</code>)</li>
+<li>Logic: <code>LaneGroup</code>(Lane = 전용 스레드)</li>
+<li>Blocking: 전용 스레드 + ODBC(DbWriter)</li>
+<li>Tick: <code>Scheduler::Every(50ms, zoneLane, …)</code></li>
+</ul></div>
+<div class="card cs"><span class="tag cs">C#</span>
+<ul>
+<li>IO: <code>Socket</code> 비동기 + <code>System.IO.Pipelines</code>(런타임 IOCP 스레드 풀)</li>
+<li>Logic: 우리 <code>LaneGroup</code>(<code>Channel</code> + 전용 스레드). 스레드 풀이 아니라 전용 스레드라 틱이 풀 혼잡에 밀리지 않는다</li>
+<li>Blocking: 필요 없음. DB는 <code>async</code>(Dapper + <code>await</code>)라 기다리는 스레드가 없다</li>
+<li><strong>주의</strong>: <code>await</code> 뒤 코드는 아무 풀 스레드에서 이어진다. 원칙 ③을 지키려면 이어지는 곳을 주인 Lane으로 돌려야 한다(Lane용 <code>SynchronizationContext</code> 또는 결과를 Post). 만들 때 정한다</li>
+</ul></div>
+</div>
+
+<h2>8. 대가와 깨지는 조건</h2>
+<div class="table-wrap"><table>
+<tr><th>약점</th><th>보이는 증상(측정)</th><th>대책</th></tr>
+<tr><td>같은 Lane의 무거운 존이 옆 존 틱을 늦춘다</td><td>틱 시작 지연 p99, 틱 시간</td><td>존 배치 바꾸기, 무거운 존은 Lane 혼자. 그래도 안 되면 Lane을 "가벼운 큐"로 바꿔 한가한 스레드가 가져가게(strand 방식)</td></tr>
+<tr><td>브로드캐스트가 틱을 많이 먹는다</td><td>틱 안 ④단계 시간</td><td>④를 AOI 셀별로 Logic 풀에 잠깐 펼쳤다 모으기(fork-join). 스레드 그룹은 늘리지 않는다</td></tr>
+<tr><td>한 존이 스레드 하나로 모자람</td><td>Lane 혼자인데도 틱 50ms 초과</td><td>존을 쪼갠다(채널 존). 정말 한 맵이어야 하면 그 전장만 공간 분할(결정 001)</td></tr>
+<tr><td>요청-결과 방식이라 코드가 길어진다</td><td>콘텐츠 코드 리뷰</td><td>C++ 코루틴이나 C# <code>await</code>로 "보내고 이어서"를 한 함수처럼 쓰기(이어지는 곳은 주인 Lane)</td></tr>
+</table></div>
+
+<h2>9. 지금 코드와 앞으로 만들 것</h2>
+<div class="table-wrap"><table>
+<tr><th>부품</th><th>상태</th><th>이 구조에서의 자리</th></tr>
+<tr><td><code>Messaging::Lane</code>, <code>LaneGroup</code></td><td>✅ 있음</td><td>Logic 풀과 주인 Lane 그 자체</td></tr>
+<tr><td><code>Log</code>, <code>CrashDump</code></td><td>✅ 있음</td><td>특수 스레드</td></tr>
+<tr><td><code>Scheduling::TimerHeap</code>, <code>Scheduler</code></td><td>다음 차례</td><td>존 안 타이머(TimerHeap), Tick·주기 작업(Scheduler)</td></tr>
+<tr><td>Network(IOCP), <code>PacketDispatcher</code></td><td>Network 단계</td><td>IO 풀</td></tr>
+<tr><td><code>MessageRouter</code>(종류 → 그룹 → Lane)</td><td>2단계(존 이동)</td><td>주인 Lane 찾기</td></tr>
+<tr><td>스레드 풀 구성(Init에서 IO·Logic·Blocking 개수)</td><td>ZoneServer Init</td><td>이 문서가 확정되면 결정 005</td></tr>
+</table></div>
+</main>
+</body>
+</html>

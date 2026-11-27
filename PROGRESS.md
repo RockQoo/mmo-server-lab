@@ -85,6 +85,8 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 | Base | **직렬화 필드 비용**: `WriteBytes`/`ReadBytes` 빠른 길을 헤더 `inline`으로, 쓰기 전 `reserve` | 필드 하나에 4~5ns(Inventory 970B 쓰기 765ns, 읽기 946ns, decisions/002). 패킷 경로에 그대로 쓰인다 | Network 전 |
 | Bench | **기존 여러 스레드 벤치를 N:M으로**: ObjectPool·BufferPool CrossThread는 독립된 1:1 쌍 여러 개일 뿐이다. 생산자 N → 소비자 M(키로 섞어 보내기)을 넣는다 | 실무는 여러 스레드가 빌리고 여러 스레드가 반납해 전역 묶음 mutex·할당기 경합이 더 크다(2026-11-27 사용자 지적) | Lane 큐 개선 전 |
 | C# | **GC 비용 측정**: 틱 지연 p99·최댓값, `GC.GetTotalPauseDuration()`, 메모리, Workstation vs Server GC | 마이크로 벤치마크는 메시지가 곧 죽어 Gen0만 돈다. C# `new`는 메시지당 32~1080B 할당(decisions/002). 평균 처리량만으로 언어 비교 결론을 내지 않는다 | 봇 부하 테스트 |
+| 구조 비교 | **① 존 안 스레드**: 틱 = 존 Lane 메시지 + 틱 끝 브로드캐스트(지금 방향) vs 전용 틱 스레드 + 스냅샷 + 브로드캐스트 스레드. 틱 시작 지연 p99, 틱 시간, 브로드캐스트 시간, CPU, 프로세스당 최대 동접 | 한 주인 스레드로 복사·lock을 없애는 것이 이득이라는 가설(journal/threading). 전용 스레드는 패킷이 몰려도 틱 시각을 지키고 브로드캐스트를 다음 틱과 겹칠 수 있다. 같은 Core·봇·시나리오, 서버 레이어만 다르게(2026-11-27 사용자 제안) | 1단계 끝(Gateway + Zone + 봇) |
+| 구조 비교 | **② 서버 구조**: 분산 존(결정 001 A) vs World 캐시형(결정 001 C 홈 서버: World가 DB + 메모리 캐시, Zone은 콘텐츠). 처리량, 응답 지연 p50·p99, 존 이동 시간, DB 부하, Zone이 죽었을 때 잃는 데이터, 동기화 코드 양 | 결정 001을 실측으로 검증. 비교하려다 Core를 고쳐야 하면 Core가 구조를 가정했다는 뜻이라 일반화한다. 이름은 일반 이름만 | 4단계(DbWriter) 뒤 |
 
 자세한 고민 과정: `docs/journal/bufferpool.html`, `docs/journal/objectpool.html`, 측정 주의: `docs/journal/benchmark.html`.
 

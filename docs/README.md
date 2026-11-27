@@ -29,6 +29,7 @@
 | [benchmark.html](journal/benchmark.html) | 벤치마크 측정 방법: 첫 측정에서 `benchmark::DoNotOptimize`(MSVC가 전역 변수에 씀)가 여러 스레드 결과를 왜곡한 일, true/false sharing, 벤치마크 확인 목록 |
 | [bufferpool.html](journal/bufferpool.html) | BufferPool 1판(등급마다 mutex)이 왜 느린가, 2판(스레드별 캐시 + 전역 풀) 설계, 송신·수신 버퍼, 3판 후보(Lane 자체 풀) |
 | [objectpool.html](journal/objectpool.html) | ObjectPool: BufferPool과의 관계(형제, 포함), 반납 때 소멸 vs `Reset()`, Reset을 한 줄로 못 쓰는 이유, C++ 풀 vs C# `DefaultObjectPool` vs `new` 측정 |
+| [threading.html](journal/threading.html) | 스레드 구조(초안): 멈추는 성질로 나눈 IO·Logic·Blocking 풀, 데이터마다 주인 Lane 하나, 틱 = 존 Lane 메시지와 틱 끝 브로드캐스트, 입력이 몇 번 와도 같은 처리, DB 결과는 주인에게 Post, 금지 목록, 전용 틱·브로드캐스트 스레드와 비교 |
 | [crashdump.html](journal/crashdump.html) | 덤프 분석: WinDbg(cdb)로 C++·C# 덤프를 열어 콜스택 확인, 심볼(pdb) 경로, release pdb가 없던 문제, 데드락 찾는 법(`~*kn`, `!syncblk`), 서버가 죽거나 멈췄을 때 순서 |
 | [messagequeue.html](journal/messagequeue.html) | 메시지 큐: 객체 vs 직렬화한 바이트, 생산자 N → 소비자 M 측정 틀, N:M에서 C++ Lane이 C# Channel보다 느린 이유(가설), "C# Channel은 lock-free"를 소스로 바로잡은 일 |
 
