@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -14,6 +15,62 @@ public interface IByteCodec<T>
 {
     static abstract void Write(ref ByteWriter writer, T value);
     static abstract T Read(ref ByteReader reader);
+}
+
+// ---- 통째 복사(blittable) 판별. C++ Base::Blittable 자리 ----
+
+// 코덱이 필드마다 쓴 바이트가 T 의 메모리 그대로와 같은지(true 면 배열·List 를 memcpy 한 번으로 쓰고 읽는다).
+// C# 은 코덱이 필드를 쓰는 순서를 컴파일할 때 알 수 없어서, 타입마다 처음 한 번 실제로 써 보고 비교한다:
+// T 의 메모리를 서로 다른 바이트(2, 3, 4 ...)로 채우고 코덱으로 쓴 결과·코덱으로 읽은 결과가 그 메모리와 같은지.
+// 순서가 다르거나, 빈틈·빠진 필드가 있거나, bool(1 로 바꿔 쓴다)이 있으면 달라서 false 다. 2 부터 채우는 것은 bool 자리에
+// 0·1 이 와서 우연히 같아지지 않게, 무늬 두 개(주기 200, 199)는 멀리 떨어진 같은 크기 필드가 바뀐 것도 잡으려는 것이다.
+// 참조가 있는 타입(클래스, string 이 든 struct)은 늘 false. 결과는 static readonly 라 JIT 가 상수로 접는다.
+public static class Blittable<T, TCodec> where TCodec : IByteCodec<T>
+{
+    public static readonly bool IsBlittable = Check();
+
+    private static bool Check() =>
+        !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && Matches(period: 200) && Matches(period: 199);
+
+    private static bool Matches(int period)
+    {
+        var size = Unsafe.SizeOf<T>();
+        var pattern = new byte[size];
+        for (var i = 0; i < size; i++)
+        {
+            pattern[i] = (byte)((i % period) + 2);
+        }
+
+        var output = new ArrayBufferWriter<byte>(size);
+        var writer = new ByteWriter(output);
+        TCodec.Write(ref writer, Unsafe.ReadUnaligned<T>(ref pattern[0]));
+        if (!writer.IsValid || !output.WrittenSpan.SequenceEqual(pattern))
+        {
+            return false;
+        }
+
+        var reader = new ByteReader(pattern);
+        var read = TCodec.Read(ref reader);
+        if (!reader.IsValid || reader.Remaining != 0)
+        {
+            return false;
+        }
+        var back = new byte[size];
+        Unsafe.WriteUnaligned(ref back[0], read);
+        return back.AsSpan().SequenceEqual(pattern);
+    }
+}
+
+// Blittable 이 true 인 타입의 span 을 바이트로 본다(복사 없음)
+internal static class BlittableBytes
+{
+    public static ReadOnlySpan<byte> Of<T>(ReadOnlySpan<T> items) =>
+        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(items)),
+                                         items.Length * Unsafe.SizeOf<T>());
+
+    public static Span<byte> Of<T>(Span<T> items) =>
+        MemoryMarshal.CreateSpan(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(items)),
+                                 items.Length * Unsafe.SizeOf<T>());
 }
 
 // ---- 기본형 ----
@@ -128,6 +185,18 @@ public readonly struct ArrayCodec<T, TCodec> : IByteCodec<T[]> where TCodec : IB
 
     public static T[] Read(ref ByteReader reader)
     {
+        if (Blittable<T, TCodec>.IsBlittable)
+        {
+            // 원소 크기까지 계산해 배열을 만들기 전에 거짓 개수를 막는다(IntegerArrayCodec 과 같다)
+            var blockCount = reader.ReadCount(Unsafe.SizeOf<T>());
+            if (!reader.IsValid)
+            {
+                return [];
+            }
+            var block = new T[blockCount];
+            return reader.ReadBytes(BlittableBytes.Of(block.AsSpan())) ? block : [];
+        }
+
         var count = reader.ReadCount();
         var items = new T[count];
         for (var i = 0; i < count && reader.IsValid; i++)
@@ -142,6 +211,11 @@ public readonly struct ArrayCodec<T, TCodec> : IByteCodec<T[]> where TCodec : IB
     {
         if (!writer.WriteCount(items.Length))
         {
+            return;
+        }
+        if (Blittable<TItem, TItemCodec>.IsBlittable)
+        {
+            writer.WriteBytes(BlittableBytes.Of(items)); // 원소마다 쓰지 않고 한 번에(바이트는 같다)
             return;
         }
         foreach (var item in items)
@@ -166,6 +240,18 @@ public readonly struct ListCodec<T, TCodec> : IByteCodec<List<T>> where TCodec :
 
     public static List<T> Read(ref ByteReader reader)
     {
+        if (Blittable<T, TCodec>.IsBlittable)
+        {
+            var blockCount = reader.ReadCount(Unsafe.SizeOf<T>());
+            if (!reader.IsValid)
+            {
+                return [];
+            }
+            var block = new List<T>(blockCount);
+            CollectionsMarshal.SetCount(block, blockCount);
+            return reader.ReadBytes(BlittableBytes.Of(CollectionsMarshal.AsSpan(block))) ? block : [];
+        }
+
         var count = reader.ReadCount();
         var items = new List<T>(count);
         for (var i = 0; i < count && reader.IsValid; i++)
