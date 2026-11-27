@@ -2,7 +2,9 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <future>
+#include <latch>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -132,6 +134,38 @@ TEST(Lane, RejectsAfterStop)
     lane.Stop(); // 두 번 불러도 된다
 
     EXPECT_FALSE(lane.Post([] {}));
+}
+
+// 여러 스레드가 동시에 Stop 해도 같은 스레드를 두 번 join 하지 않고, 넣은 일은 모두 처리된다
+TEST(Lane, ConcurrentStopIsSafe)
+{
+    constexpr auto Rounds = int32_t{50};
+    constexpr auto Stoppers = int32_t{4};
+    for (auto round = int32_t{0}; round < Rounds; ++round)
+    {
+        Lane lane;
+        auto ran = int32_t{0}; // Lane 스레드만 쓴다. Stop(join) 뒤에 읽는다
+        for (auto i = int32_t{0}; i < 100; ++i)
+        {
+            ASSERT_TRUE(lane.Post([&ran] { ++ran; }));
+        }
+        std::latch start{Stoppers};
+        std::vector<std::jthread> stoppers;
+        stoppers.reserve(Stoppers);
+        for (auto i = int32_t{0}; i < Stoppers; ++i)
+        {
+            stoppers.emplace_back(
+                [&]
+                {
+                    start.arrive_and_wait();
+                    lane.Stop();
+                });
+        }
+        stoppers.clear(); // 모두 join
+
+        EXPECT_EQ(ran, 100);
+        EXPECT_FALSE(lane.Post([] {}));
+    }
 }
 
 TEST(Lane, RejectsEmptyJob)

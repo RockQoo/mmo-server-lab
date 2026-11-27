@@ -44,7 +44,8 @@ namespace Messaging
         [[nodiscard]] bool Post(Job job);
 
         // 새 일을 막고, 이미 넣은 일을 모두 처리한 뒤 스레드가 끝날 때까지 기다린다. 두 번 불러도 된다.
-        // 소유자 스레드에서만 부른다. Lane 자기 스레드에서 부르면 자기를 기다리게 되어 ASSERT로 멈춘다.
+        // 다른 스레드 여럿이 동시에 불러도 된다(크래시 때 덤프 스레드의 로그 flush와 메인 종료가 겹치는 경우 등).
+        // Lane 자기 스레드에서 부르면 자기를 기다리게 되어 ASSERT로 멈춘다.
         void Stop();
 
         // 지금 이 코드가 이 Lane 스레드에서 도는가. "이 데이터는 이 Lane에서만" 확인(ASSERT)에 쓴다.
@@ -62,6 +63,8 @@ namespace Messaging
         bool _stopping{};                // _mutex가 지킨다. Stop이 켠다(Post가 보고 넣지 않는다)
         std::condition_variable _wake{}; // 일이 들어오거나 _stopping이 켜지면 깨운다
         std::array<std::byte, 64> _paddingAfter{};
+        // Stop 을 한 번에 하나만(같은 스레드를 두 번 join 하지 않게). 자주 도는 길(위 패딩 사이)과 떨어뜨린다
+        std::mutex _stopMutex{};
         std::string _name{};    // 스레드 이름(UTF-8). 스레드 시작 전에 정해진다
         std::jthread _thread{}; // 생성자 본문에서 시작, Stop()에서 join
     };

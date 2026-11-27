@@ -66,6 +66,9 @@ namespace Messaging
     void Lane::Stop()
     {
         ASSERT(!IsInLane(), "Lane::Stop called from its own thread");
+        // 동시에 부르면 뒤에 온 쪽은 앞쪽 join 이 끝난 뒤 joinable 이 false 라 바로 돌아간다(Scheduler::Stop 과 같다).
+        // _mutex 를 쓰지 않는 이유: join 하는 동안 잡고 있으면 Run 이 일을 꺼내지 못해 교착한다.
+        const std::scoped_lock stopLock{_stopMutex};
         if (!_thread.joinable())
         {
             return;
