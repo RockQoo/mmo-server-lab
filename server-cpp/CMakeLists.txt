@@ -127,6 +127,24 @@ if(MSVC)
 endif()
 gtest_discover_tests(MessagingTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
+# ---- Scheduling: 예약 실행. TimerHeap(시각 순서 약속 목록, 시계·스레드 없음). 다음: Scheduler(타이머 스레드 + Lane Post)
+add_library(Scheduling STATIC
+    Core/Scheduling/TimerHeap.cpp
+    Core/Scheduling/TimerHeap.h
+)
+target_link_libraries(Scheduling PUBLIC Base)
+set_target_properties(Scheduling PROPERTIES FOLDER Core/Scheduling)
+
+add_executable(SchedulingTests
+    Core/Scheduling/Tests/TimerHeapTest.cpp
+)
+target_link_libraries(SchedulingTests PRIVATE Scheduling GTest::gtest_main)
+set_target_properties(SchedulingTests PROPERTIES FOLDER Core/Scheduling/Tests)
+if(MSVC)
+    target_compile_options(SchedulingTests PRIVATE /wd6326) # BaseTests와 같은 gtest 오탐
+endif()
+gtest_discover_tests(SchedulingTests EXTRA_ARGS --gtest_catch_exceptions=0)
+
 # ---- Memory: 버퍼 재사용(BufferPool, 빌린 버퍼 핸들 PooledBuffer), 객체 재사용(ObjectPool, 핸들 PooledPtr)
 add_library(Memory STATIC
     Core/Memory/BufferPool.cpp
