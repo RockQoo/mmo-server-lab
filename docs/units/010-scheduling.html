@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>010 Scheduling Scheduler</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>010 · Scheduling: TimerHeap, Scheduler</h1>
+<p class="sub">C++ · C# · 2026-11-28 · 커밋 <code>d5846e0</code> ~ <code>70def23</code></p>
+
+<div class="card">
+<p><strong>무엇을 했나.</strong> "몇 초 뒤", "몇 초마다" 일을 담당 Lane에서 돌려 주는 <code>Scheduler</code>를 두 언어로 만들었다. C++은 시각 순서 약속 목록 <code>TimerHeap</code>(우선순위 큐 + 해시)과 타이머 스레드 하나로, C#은 BCL <code>TimeProvider.CreateTimer</code>(런타임 타이머)로 만들었다. 두 언어 모두 일은 타이머 스레드가 아니라 <strong>등록할 때 넘긴 Lane</strong>에서 돈다. 그래서 그 Lane의 데이터를 락 없이 만진다.</p>
+<p>함께 한 것: 흔히 더 빠르다고 하는 타이머 휠과 힙을 비교하는 벤치마크(힙 유지, <code>performance.html</code> 사례 15), 스레드 이름 붙이기 공용 함수 <code>Base::SetCurrentThreadName</code>, 코딩 규칙 "정수는 모두 고정 폭"과 lint 검사, C# <code>CrashDump.Write</code> 재시도 한 번.</p>
+</div>
+
+<h2>정한 것</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>결정</th><th>이유</th></tr>
+<tr><td>namespace</td><td><code>Scheduling</code>(C++·C# 같음)</td><td><code>Timer</code>로 하면 C# <code>System.Threading.Timer</code>와 겹친다</td></tr>
+<tr><td>일이 도는 곳</td><td>등록할 때 넘긴 Lane(타이머는 <code>Post</code>만)</td><td>버프 만료, 리스폰 같은 일이 존 데이터를 만진다. 타이머 스레드에서 돌리면 락이 필요해진다(<code>docs/journal/threading.html</code>)</td></tr>
+<tr><td>C++ 시각 목록</td><td><code>TimerHeap</code>(<code>priority_queue</code> + <code>unordered_map</code>). 타이머 휠은 Bench에만</td><td>휠이 2~3배 빠르지만 10만 개 존에서 힙도 50ms 틱당 약 75µs(코어 0.15%). 휠은 최대 1ms 늦고 같은 칸 안 순서가 없다(사례 15)</td></tr>
+<tr><td><code>TimerHeap</code>을 따로 둔 이유</td><td>시계도 스레드도 없는 클래스. 부르는 쪽이 "지금"을 넘긴다</td><td>존 틱이 틱 시각으로 직접 부를 수 있고(Post 없음), 테스트는 기다리지 않고 시각을 넣는다</td></tr>
+<tr><td>같은 시각</td><td>넣은 순서대로</td><td>결과가 늘 같아 테스트와 재현이 쉽다</td></tr>
+<tr><td>주기 일</td><td>고정 간격(다음 = 이전 예정 + 주기). 여러 칸을 놓치면 한 번만 돌고 다음 칸으로 건너뜀</td><td>늦어도 칸이 밀리지 않고, 몰아서 실행해 틱을 터뜨리지 않는다</td></tr>
+<tr><td><code>Cancel</code>이 true면</td><td>그 뒤로 새로 시작하지 않는다. 시각이 돼 Lane에 이미 넣었지만 아직 안 돈 회차도 막는다</td><td>"버프 만료 직전 해제"에서 만료 처리가 한 번 더 도는 일을 막는다. 회차와 등록이 같은 표시(원자 변수)를 나눠 본다</td></tr>
+<tr><td>C# 테스트 시계</td><td>NuGet <code>Microsoft.Extensions.TimeProvider.Testing</code>(<code>FakeTimeProvider</code>, 테스트만)</td><td>MS 공식. 기다리지 않고 시간을 넘긴다(<code>docs/libraries.md</code>)</td></tr>
+</table></div>
+
+<h2>흐름</h2>
+<div class="diagram">
+<svg viewBox="0 0 1000 330" role="img" aria-label="C++은 타이머 스레드가 TimerHeap에서 시각이 된 일을 꺼내 Lane에 Post하고, C#은 런타임 타이머 콜백이 Lane에 TryPost한다. 두 언어 모두 일은 Lane에서 돈다">
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+  <text class="d-t" x="20" y="28" font-weight="600">C++ Scheduling::Scheduler</text>
+  <rect class="d-box" x="20" y="44" width="170" height="64" rx="8"/>
+  <text class="d-t" x="105" y="70" text-anchor="middle">After / Every</text>
+  <text class="d-m" x="105" y="90" text-anchor="middle">아무 스레드, _mutex 안</text>
+  <path class="d-line" d="M190,76 L225,76"/>
+  <rect class="d-cpp" x="225" y="44" width="170" height="64" rx="8"/>
+  <text class="d-t" x="310" y="70" text-anchor="middle">TimerHeap</text>
+  <text class="d-m" x="310" y="90" text-anchor="middle">더 이르면 notify_one</text>
+  <path class="d-line" d="M395,76 L430,76"/>
+  <rect class="d-cpp" x="430" y="44" width="170" height="64" rx="8"/>
+  <text class="d-t" x="515" y="70" text-anchor="middle">타이머 스레드</text>
+  <text class="d-m" x="515" y="90" text-anchor="middle">wait_until(NextDue) → RunDue</text>
+  <path class="d-line" d="M600,76 L635,76"/>
+  <rect class="d-box" x="635" y="44" width="150" height="64" rx="8"/>
+  <text class="d-t" x="710" y="70" text-anchor="middle">Lane.Post(회차)</text>
+  <text class="d-m" x="710" y="90" text-anchor="middle">멈추는 중이면 버림</text>
+  <path class="d-line" d="M785,76 L820,76"/>
+  <rect class="d-ok" x="820" y="44" width="160" height="64" rx="8"/>
+  <text class="d-t" x="900" y="70" text-anchor="middle">Lane 스레드</text>
+  <text class="d-m" x="900" y="90" text-anchor="middle">canceled 확인 → job()</text>
+
+  <text class="d-t" x="20" y="178" font-weight="600">C# Scheduling.Scheduler</text>
+  <rect class="d-box" x="20" y="194" width="170" height="64" rx="8"/>
+  <text class="d-t" x="105" y="220" text-anchor="middle">After / Every</text>
+  <text class="d-m" x="105" y="240" text-anchor="middle">아무 스레드, _lock 안</text>
+  <path class="d-line" d="M190,226 L225,226"/>
+  <rect class="d-cs" x="225" y="194" width="170" height="64" rx="8"/>
+  <text class="d-t" x="310" y="220" text-anchor="middle">TimeProvider.CreateTimer</text>
+  <text class="d-m" x="310" y="240" text-anchor="middle">런타임 TimerQueue</text>
+  <path class="d-line" d="M395,226 L430,226"/>
+  <rect class="d-cs" x="430" y="194" width="170" height="64" rx="8"/>
+  <text class="d-t" x="515" y="220" text-anchor="middle">타이머 콜백 Fire</text>
+  <text class="d-m" x="515" y="240" text-anchor="middle">스레드 풀(테스트: Advance 안)</text>
+  <path class="d-line" d="M600,226 L635,226"/>
+  <rect class="d-box" x="635" y="194" width="150" height="64" rx="8"/>
+  <text class="d-t" x="710" y="220" text-anchor="middle">Lane.TryPost(회차)</text>
+  <text class="d-m" x="710" y="240" text-anchor="middle">닫혔으면 버림(+ 정리)</text>
+  <path class="d-line" d="M785,226 L820,226"/>
+  <rect class="d-ok" x="820" y="194" width="160" height="64" rx="8"/>
+  <text class="d-t" x="900" y="220" text-anchor="middle">Lane 루프</text>
+  <text class="d-m" x="900" y="240" text-anchor="middle">claimed 확인 → job()</text>
+
+  <path class="d-dash" d="M900,108 L900,140"/>
+  <path class="d-dash" d="M900,194 L900,162"/>
+  <text class="d-m" x="888" y="155" text-anchor="end">Cancel: 같은 표시를 먼저 바꾼 쪽이 이긴다</text>
+  <text class="d-m" x="500" y="300" text-anchor="middle">두 언어 모두 일은 등록할 때 넘긴 Lane에서 돈다. 타이머 쪽은 회차를 넣기만 하고 게임 데이터를 만지지 않는다</text>
+</svg>
+</div>
+<p class="muted">C++ 락 순서는 Scheduler → Lane 하나뿐이다(Lane은 일을 자기 락 밖에서 돌리고, 회차는 Scheduler를 모른다). Lane에 남은 회차는 <code>Entry</code>를 <code>shared_ptr</code>로 따로 들고 있어 Scheduler보다 늦게 돌아도 안전하다.</p>
+
+<h2>클래스</h2>
+<div class="table-wrap"><table>
+<tr><th>클래스</th><th>하는 일</th><th>주요 함수</th></tr>
+<tr><td><code>TimerHeap</code> <span class="tag cpp">C++</span></td><td>시각 순서 약속 목록. 시계·스레드 없음, 한 스레드만 쓴다. 힙 칸은 시각과 id만, 일은 해시에. <code>Cancel</code>은 해시에서만 지우고 힙 칸은 꺼낼 때 버린다. 지운 칸이 남은 일의 2배를 넘으면 힙을 다시 만든다(긴 버프를 많이 지울 때 힙이 커지는 것을 막음). 일 안에서 <code>Add</code>·<code>Cancel</code>(자기 자신 포함) 가능</td><td><code>Add(due, job, period)</code>, <code>Cancel(id)</code>, <code>RunDue(now)</code>, <code>NextDue()</code>, <code>Size()</code></td></tr>
+<tr><td><code>Scheduler</code> <span class="tag cpp">C++</span></td><td>타이머 스레드(<code>std::jthread</code>) 하나 + <code>TimerHeap</code>. 시각이 되면 회차를 Lane에 <code>Post</code>. <code>id → weak_ptr&lt;Entry&gt;</code>로 Lane에 이미 넣은 회차까지 막는다. 끝난 등록은 크기가 두 배가 될 때마다 치운다. 표준(std)만 쓴다</td><td><code>After</code>, <code>Every</code>, <code>Cancel</code>, <code>Stop</code></td></tr>
+<tr><td><code>Scheduler</code> <span class="tag cs">C#</span></td><td>등록마다 <code>ITimer</code> 하나(<code>TimeProvider.CreateTimer</code>). 콜백은 <code>Lane.TryPost</code>만. 한 번짜리는 Lane에서 돈 뒤(또는 닫힌 Lane이 거절했을 때) 목록에서 지운다. 시계를 <code>TimeProvider</code>로 받아 테스트는 <code>FakeTimeProvider</code></td><td><code>After</code>, <code>Every</code>, <code>Cancel</code>, <code>Dispose</code></td></tr>
+<tr><td><code>TimerId</code> <span class="tag cpp">C++</span> <span class="tag cs">C#</span></td><td>발급 번호. 1부터, 0 = 없음(멈춘 뒤 등록하면 0)</td><td>C++ <code>Base::StrongId&lt;TimerTag, uint64_t&gt;</code>, C# <code>readonly record struct TimerId(ulong Value)</code></td></tr>
+<tr><td><code>SetCurrentThreadName</code> <span class="tag cpp">C++</span></td><td>지금 스레드에 UTF-8 이름. 표준에 없어 OS 함수(<code>SetThreadDescription</code>)를 <code>Base/ThreadName.cpp</code> 한 곳에만 둔다(Linux로 옮기면 이 파일만). 덤프(WinDbg <code>~</code>), VS 스레드 창에 보인다. Mini 덤프에 이름이 남는 것을 확인. Lane·Scheduler·CrashDump 전용 스레드가 쓴다</td><td><code>bool SetCurrentThreadName(std::string_view)</code>(빈 이름은 true, 깨진 UTF-8은 false)</td></tr>
+</table></div>
+
+<h2>같은 역할, 다른 방법</h2>
+<div class="table-wrap"><table>
+<tr><th>역할</th><th>C++ (<code>Scheduling::Scheduler</code>)</th><th>C# (<code>Scheduling.Scheduler</code>)</th></tr>
+<tr><td>시각 순서 관리</td><td class="cpp">직접 만든 <code>TimerHeap</code></td><td class="cs">런타임 <code>TimerQueue</code>(BCL <code>TimeProvider.CreateTimer</code>)</td></tr>
+<tr><td>깨우는 스레드</td><td class="cpp">전용 타이머 스레드 하나(<code>condition_variable::wait_until</code>)</td><td class="cs">없음. 런타임 타이머 스레드가 스레드 풀에 콜백을 넘긴다</td></tr>
+<tr><td>일이 도는 곳</td><td class="cpp">등록할 때 넘긴 Lane(<code>Post</code>)</td><td class="cs">등록할 때 넘긴 Lane(<code>TryPost</code>)</td></tr>
+<tr><td>Lane에 이미 넣은 회차 막기</td><td class="cpp"><code>Entry::canceled</code>(<code>std::atomic&lt;bool&gt;</code>)</td><td class="cs"><code>Entry._claimed</code>(<code>Interlocked.Exchange</code>)</td></tr>
+<tr><td>주기 일이 주기보다 늦었을 때</td><td class="cpp">한 번 돌고 <strong>다음 칸으로 건너뛴다</strong>(원래 칸 격자를 지킴)</td><td class="cs">런타임 규칙: <strong>1ms 뒤 한 번 더 돌고 거기서 다시 센다</strong>(칸이 옮겨짐). 늦음이 주기보다 작으면 C++과 같다(다음 = 이전 예정 + 주기)</td></tr>
+<tr><td>테스트 시계</td><td class="cpp">Scheduler는 실제 시계(짧은 ms, 2초 제한). <code>TimerHeap</code>은 시각을 직접 넣는다</td><td class="cs"><code>FakeTimeProvider.Advance</code>. 주의: 한 번에 주기 여러 개를 넘기면 <strong>놓친 주기마다 한 번씩</strong> 연달아 부른다(실제 런타임과 다름). 지금 테스트는 한 주기씩 넘겨 영향 없음</td></tr>
+<tr><td>멈춤</td><td class="cpp"><code>Stop()</code>/소멸자: 타이머 스레드 join, 남은 일은 버림. 여러 스레드가 같이 불러도 됨(리뷰 R1)</td><td class="cs"><code>Dispose()</code>: 남은 <code>ITimer</code>를 모두 Dispose</td></tr>
+<tr><td>스레드 이름</td><td class="cpp"><code>"Scheduler"</code>(생성자 인자)</td><td class="cs">없음</td></tr>
+</table></div>
+<h3>C#에 없는 것과 이유</h3>
+<ul>
+  <li><strong><code>TimerHeap</code></strong>: 런타임 <code>TimerQueue</code>가 시각 순서 관리와 깨우기를 이미 한다. 같은 일을 하는 목록을 다시 만들 이유가 없다. 존 틱 안 타이머의 C# 자리는 ZoneServer 단위 때 정한다(후보 BCL <code>PriorityQueue&lt;TElement, TPriority&gt;</code>, 아직 정하지 않음).</li>
+  <li><strong>스레드 이름(<code>SetCurrentThreadName</code>)</strong>: C# Lane과 Scheduler는 전용 스레드 없이 스레드 풀에서 돈다. 풀 스레드는 일마다 바뀌어 이름을 붙여도 뜻이 없다. 전용 스레드가 필요하면 BCL <code>Thread.Name</code>이 있다.</li>
+  <li>주기 늦음 규칙을 C++처럼 맞추지 않았다: 차이는 주기보다 길게 늦었을 때만 보이고, 런타임 규칙도 몰아서 실행하지 않는다는 점은 같다. .NET 소스(<code>TimeProvider.cs</code>, <code>Timer.cs</code>의 <code>FireNextTimers</code>)로 확인한 내용은 사례 15에 있다.</li>
+</ul>
+
+<h2>벤치마크: TimerHeap vs TimerWheel</h2>
+<p>비교용 한 단계 타이머 휠(1ms × 4096칸)을 Bench에만 만들어 같은 모양으로 쟀다(release, 한 스레드). 자세한 표, 막대 차트, 30초 답변은 <a href="../journal/performance.html#c15"><code>docs/journal/performance.html</code> 사례 15</a>.</p>
+<div class="table-wrap"><table>
+<tr><th>10만 개, 연산 하나(ns)</th><th>넣기</th><th>지우기</th><th>실행</th><th>섞어 쓰기</th></tr>
+<tr><td class="cpp"><strong>TimerHeap</strong></td><td class="num">75~84</td><td class="num">56~58</td><td class="num">89~93</td><td class="num">107</td></tr>
+<tr><td class="cpp">TimerWheel(Bench만)</td><td class="num">52</td><td class="num">11~16</td><td class="num">30~34</td><td class="num">36~47</td></tr>
+</table></div>
+<ul>
+  <li>휠이 2~3배 빠르고 지우기에서 차이가 가장 크다. 100만 개면 둘 다 메모리에 묶여 차이가 줄어든다(섞어 쓰기 213~235 vs 142~201ns).</li>
+  <li>10만 개 존의 50ms 틱 하나(약 700연산)는 힙 약 75µs, 휠 약 25~33µs. 둘 다 틱의 0.15% 이하라 <strong>결과가 늘 같은 힙</strong>을 둔다.</li>
+  <li>리뷰 R2(주기 일 노드 재사용) 뒤 다시 잰 값은 PC 부하로 흔들려(한 번짜리만 쓰는 실행 측정도 전보다 느리게 나옴) 위 표를 바꾸지 않았다. PC가 쉴 때 다시 잰다.</li>
+</ul>
+
+<h2>함께 바꾼 것</h2>
+<h3>코딩 규칙: 정수는 모두 고정 폭(C++)</h3>
+<ul>
+  <li>카운터·인덱스·테스트 값까지 <code>int</code> 대신 <code>int32_t</code>. <code>int</code>·<code>unsigned</code>·<code>long</code>·<code>short</code>는 쓰지 않는다. 고정 폭 정수는 <code>std::</code> 없이(<code>int32_t</code>). <code>auto i = 0;</code>은 <code>int</code>라 <code>auto i = int32_t{0};</code>.</li>
+  <li>예외는 바깥이 모양을 정한 함수뿐이다(<code>int main()</code>, signal·CRT 처리기). 바로 윗줄에 "바깥 API 모양" 주석.</li>
+  <li><code>server-cpp/lint.ps1</code>이 검사한다(문자열·주석은 지우고 대소문자 구분: Windows <code>LONG</code>은 잡지 않음). 기존 코드(Bench, Base, Log, Memory·Messaging 테스트, Lane)를 모두 고쳤다(<code>902f96a</code>, <code>057896e</code>). <code>docs/coding-style.md</code>.</li>
+</ul>
+<h3>C# <code>CrashDump.Write</code> 재시도 한 번(<code>eed9add</code>)</h3>
+<ul>
+  <li>살아 있는 프로세스를 덤프하는 동안 다른 스레드가 메모리를 바꾸면 createdump가 일부만 읽고 실패할 수 있다(<code>ERROR_PARTIAL_COPY</code>, 테스트에서 10번에 한 번쯤).</li>
+  <li><code>ServerErrorException</code>이고 메시지에 <code>ERROR_PARTIAL_COPY</code>나 <code>HRESULT: 0x80004005</code>가 있을 때만 반쯤 쓴 파일을 지우고 100ms 뒤 한 번 더 쓴다. 두 번째 실패는 그대로 던진다. 메시지 형식은 라이브러리 소스(<code>ValidateResponseMessage</code>)로 확인했다.</li>
+  <li>실패를 일부러 만들 수 없어 재시도 자체의 테스트는 없다. 대신 <code>Base.Tests</code> release 40회 반복 실패 0.</li>
+</ul>
+<h3>문서</h3>
+<ul>
+  <li><code>performance.html</code> 사례 15, <code>naming.md</code>(Scheduler, TimerHeap, TimerId, SetCurrentThreadName), <code>class-map.html</code>(Timer → Scheduling), <code>PROGRESS.md</code>, <code>threading.html</code>, <code>libraries.md</code>(FakeTimeProvider).</li>
+</ul>
+
+<h2>테스트</h2>
+<div class="table-wrap"><table>
+<tr><th>확인하는 것</th><th>C++ gtest</th><th>C# xUnit</th></tr>
+<tr><td>시각이 된 일만 시각 순서로, 같은 시각은 넣은 순서</td><td>TimerHeap: RunsOnlyDueJobsInTimeOrder, SameTimeRunsInAddOrder</td><td>-</td></tr>
+<tr><td>주기 일은 고정 간격, 놓친 칸은 한 번만</td><td>TimerHeap: RepeatsAtFixedRate, RunsMissedPeriodsOnlyOnce</td><td>EveryRepeatsUntilCanceled</td></tr>
+<tr><td>지운 일은 돌지 않음, 지운 칸이 많이 쌓여도 맞음</td><td>TimerHeap: CanceledJobDoesNotRun, StaysCorrectAfterManyCancels</td><td>CanceledBeforeDueDoesNotRun</td></tr>
+<tr><td>일 안에서 자기 자신 Cancel(주기 true, 한 번짜리 false), 일 안에서 Add</td><td>TimerHeap: PeriodicJobCanCancelItself, OneShotJobCancelingItselfReturnsFalse, JobAddedInsideJobRunsIfDue</td><td>PeriodicJobCanCancelItselfInLane</td></tr>
+<tr><td>한 번 돌고 Lane에서 돈다</td><td>Scheduler: AfterRunsOnceOnGivenLane</td><td>AfterRunsOnceOnGivenLane</td></tr>
+<tr><td>주기 일이 Cancel까지 반복, Lane 안에서 자기 Cancel</td><td>Scheduler: EveryRepeatsUntilCanceled, PeriodicJobCanCancelItselfInLane</td><td>(위)</td></tr>
+<tr><td>Lane이 바빠 이미 넣은 회차도 Cancel이 막음, 돈 뒤 Cancel은 false</td><td>Scheduler: CancelStopsRunAlreadyPostedToBusyLane, CanceledBeforeDueDoesNotRun, OneShotCancelAfterRunReturnsFalse</td><td>CancelStopsRunAlreadyPostedToBusyLane, OneShotCancelAfterRunReturnsFalse</td></tr>
+<tr><td>먼 일을 기다리며 자는 중에 더 이른 일이 오면 깸</td><td>Scheduler: EarlierTimerWakesSleepingThread</td><td>-(런타임 몫)</td></tr>
+<tr><td>멈춘 뒤 남은 일 버림·새 등록 0, 여러 스레드 동시 Stop(R1)</td><td>Scheduler: StopDropsPendingAndRejectsNew, ConcurrentStopIsSafe</td><td>DisposeDropsPendingAndRejectsNew</td></tr>
+<tr><td>실제 시계로도 돈다</td><td>(Scheduler 테스트 전부)</td><td>RunsWithSystemClock</td></tr>
+<tr><td>닫힌 Lane이 거절한 한 번짜리는 목록에서 지움(R3), 타이머 생성 실패 시 등록 안 남김(R4)</td><td>-(C++은 <code>weak_ptr</code>이라 자연히 비고, 생성 실패 경로 없음)</td><td>OneShotRejectedByClosedLaneIsForgotten, FailedTimerCreationLeavesNoEntry</td></tr>
+<tr><td>스레드 이름: UTF-8로 붙음, 빈 이름은 건너뜀, 깨진 UTF-8은 false</td><td>ThreadName: SetsUtf8NameOnCurrentThread, EmptyNameIsSkippedAndBrokenUtf8Fails</td><td>-</td></tr>
+</table></div>
+<p class="muted">실제 시계로 도는 테스트가 흔들리지 않는지 확인: C++ <code>SchedulingTests</code> release·debug 각 <code>--gtest_repeat=30</code> 실패 0, C# <code>Scheduling.Tests</code> release 30회 실패 0. R3·R4 테스트는 수정 전 코드에서 실패하는 것을 확인했다.</p>
+
+<h2>결과</h2>
+<div class="grid2">
+  <div class="card cpp"><span class="tag cpp">C++</span> Debug·Release 경고 0, lint 0, gtest Debug <strong>153개</strong>·Release <strong>151개</strong> 통과(Scheduling 18개, ThreadName 2개). Bench: TimerBench(힙 vs 휠, 1만·10만·100만)</div>
+  <div class="card cs"><span class="tag cs">C#</span> <code>Core/Scheduling</code> 프로젝트 + 테스트(NuGet <code>FakeTimeProvider</code>, 테스트만). xUnit <strong>73개</strong> 통과(Scheduling 10개), lint OK</div>
+</div>
+<p>기본 QA(qa.json 4단계: C++ release 빌드+테스트 151개, C++ lint 0, C# release 빌드+테스트, C# lint OK) 통과(<code>70def23</code>).</p>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap"><table>
+<tr><th>차수</th><th>범위</th><th>결과</th></tr>
+<tr><td>1차</td><td><code>82c9857..9a68fce</code>(커밋 9개, 파일 54개: C++ 38, C# 9, docs 7)</td><td>4건, 모두 <strong>동의, 수정</strong>(<code>70def23</code>).
+<ul>
+<li>R1(high) C++ <code>Stop</code>을 두 스레드가 같이 부르면 같은 스레드를 두 번 join → <code>_stopMutex</code>로 joinable 확인부터 join까지 하나씩(<code>_mutex</code>로 하면 Run과 교착)</li>
+<li>R2(medium) <code>TimerHeap::RunDue</code>가 주기 일마다 해시 노드를 지웠다 새로 할당 → <code>extract</code>로 노드째 꺼내 다시 넣음</li>
+<li>R3(medium) C# 닫힌 Lane이 거절한 한 번짜리가 목록에 남아 일과 캡처를 붙잡음 → 거절되면 표시 후 정리</li>
+<li>R4(medium) C# <code>CreateTimer</code>가 던지면(범위 밖 시간) 먼저 넣은 등록이 남음 → 되돌린 뒤 다시 던짐</li>
+</ul></td></tr>
+<tr><td>2차</td><td><code>9a68fce..70def23</code>(커밋 1개, 파일 6개: C++ 4, C# 2)</td><td>0건</td></tr>
+</table></div>
+
+<h2>나중에</h2>
+<ul>
+  <li>C++ <code>Lane::Stop</code>도 같은 모양(joinable 확인과 join 사이 잠금 없음)이다. 지금 쓰는 곳은 모두 한 곳에서만 멈춰 이번 범위 밖으로 두고, 다음에 같은 방식으로 손본다.</li>
+  <li>닫힌 Lane을 가리키는 주기 일은 두 언어 모두 Cancel·Stop 전까지 회차를 계속 버린다(종료 순서상 Scheduler를 먼저 멈추는 규칙으로 막는다).</li>
+  <li>R2 뒤 TimerBench 다시 재기(PC가 쉴 때), 계층 휠은 필요해지면.</li>
+</ul>
+
+<h2>다음</h2>
+<p>PROGRESS 개발 순서의 다음 Core 단위(Metrics 또는 Config). 남은 손볼 것: C++ 로그 큐 상한, PROGRESS Core 표의 Log·CrashDump 상태 표시.</p>
+</main>
+</body>
+</html>
