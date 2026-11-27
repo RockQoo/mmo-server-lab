@@ -30,6 +30,10 @@ MMORPG 서버를 기능 하나씩 만들면서, **설계 결정마다 벤치마�
 우선순위: **안전 > 성능 > 편의.** 서버는 성능을 우선하되, 안전(검사·실패 표시)은 빼지 않는다.
 
 - **가져다 쓰는 후보는 두 종류뿐이다.** ① MS·표준 공식 제공: BCL(Base Class Library: .NET 기본 제공, `System.*`)의 `IBufferWriter<T>`, `BinaryPrimitives`, `Channel<T>`, `System.IO.Pipelines`, `ArrayPool<T>` 등과 C++ 표준 라이브러리. 문서와 답변에서 용어는 "원래 용어(풀이)" 형식으로 적는다. ② 아주 대중적인 외부 라이브러리(예: C# Dapper, C++ Boost, JSON nlohmann/json, enum 리플렉션 magic_enum).
+- **"아주 대중적"의 기준(2026-11-27)**: 아래를 모두 넘어야 한다. 추가할 때 수치를 조회해 `docs/libraries.md`에 날짜와 함께 적는다.
+  0. 표준(std)·MS 공식에 같은 역할이 없거나 성능이 부족할 때만 외부를 본다.
+  1. 사용량: C++은 GitHub 스타 1만 이상(공개 다운로드 수가 없어서), C#은 NuGet 누적 다운로드 1억 이상.
+  2. 역사 5년 이상. 3. 최근 6개월 안에 커밋·릴리스. 4. 라이선스 MIT·BSD·Apache 계열(GPL 계열 금지, LICENSE 파일을 직접 확인). 5. vcpkg·NuGet 공식 등록.
 - **후보가 있어도 성능이 나쁘면 직접 만든다.** 성능이 갈리는 자리(패킷 경로, 틱, 메모리)는 벤치마크로 비교하고 결과를 `docs/decisions/`에 남긴다.
 - **외부 라이브러리를 새로 설치(vcpkg, NuGet)할 때는 먼저 사용자에게 알린다.** 무엇을, 왜, 대안은 무엇인지 말하고 확인받는다. 설치한 것은 `docs/libraries.md`에 적는다.
 - 예: 직렬화는 직접 만든 형식(C++ `ByteWriter`)을 유지한다. MS 공식에는 C++과 같은 바이트를 내는 고성능 바이너리 직렬화가 없고(`BinaryFormatter`는 제거, JSON은 느림), 가장 빠른 MemoryPack은 C++ 구현이 없으며, Protobuf는 가변 길이 정수와 C++ 할당 비용이 있다. 나중에 직접 만든 형식 vs MemoryPack vs Protobuf 벤치마크로 근거를 남긴다.

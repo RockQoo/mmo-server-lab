@@ -2,18 +2,42 @@
 
 대중적으로 많이 쓰는 라이브러리는 직접 만들지 않고 가져다 쓴다. 새로 추가할 때는 이 표에 이유와 함께 적는다.
 
+## 고르는 기준 (2026-11-27)
+
+표준(std)·MS 공식에 같은 역할이 없거나 성능이 부족할 때만 외부를 보고, 아래를 모두 넘어야 한다(CLAUDE.md "가져다 쓸 것과 직접 만들 것").
+
+| 기준 | 넘어야 하는 선 | 왜 |
+|---|---|---|
+| 사용량 | C++ GitHub 스타 1만 이상 / C# NuGet 누적 다운로드 1억 이상 | 많이 쓰일수록 버그가 빨리 드러난다. C++은 공개 다운로드 수가 없어 스타로 본다 |
+| 역사 | 5년 이상 | 금방 사라질 라이브러리를 거른다 |
+| 유지보수 | 최근 6개월 안에 커밋·릴리스 | 버그·보안 수정이 계속되는지 |
+| 라이선스 | MIT·BSD·Apache 계열(GPL 계열 금지). LICENSE 파일을 직접 확인 | 공개 저장소, 나중에 상업용으로 써도 문제없게 |
+| 설치 | vcpkg·NuGet 공식 등록 | 버전 고정, 재현 가능한 빌드 |
+
+vcpkg·NuGet에 있다는 것은 "빌드가 된다"는 확인일 뿐 코드 품질 검증이 아니다. 그래서 사용량·유지보수를 따로 본다.
+
 ## C++ (`server-cpp/vcpkg.json`)
 
-| 라이브러리 | 용도 | 추가한 날 | 이유 |
-|---|---|---|---|
-| GoogleTest | 단위 테스트 | 2026-11-17 | C++ 테스트의 사실상 표준 |
-| Google Benchmark (`benchmark`) | 마이크로 벤치마크(`server-cpp/Bench`) | 2026-11-26 | C++ 마이크로 벤치마크의 사실상 표준. 반복 횟수·워밍업·스레드별 측정과 합산을 처리한다 |
+| 라이브러리 | 용도 | 서버 코드 | 추가한 날 | 수치(조회일) | 이유 |
+|---|---|---|---|---|---|
+| GoogleTest | 단위 테스트 | ✗ | 2026-11-17 | ★ 3.98만, 2015~, BSD-3 (11-27) | C++ 테스트의 사실상 표준 |
+| Google Benchmark (`benchmark`) | 마이크로 벤치마크(`server-cpp/Bench`) | ✗ | 2026-11-26 | ★ 1.05만, 2013~, Apache-2.0 (11-27) | C++ 마이크로 벤치마크의 사실상 표준. 반복 횟수·워밍업·스레드별 측정과 합산을 처리한다 |
 
 ## C# (NuGet)
 
-| 패키지 | 용도 | 추가한 날 | 이유 |
+| 패키지 | 용도 | 서버 코드 | 추가한 날 | 수치(조회일) | 이유 |
+|---|---|---|---|---|---|
+| xunit.v3, xunit.runner.visualstudio | 단위 테스트 | ✗ | 2026-11-23 | 11.7억 다운로드, 2013~ (11-27) | .NET 테스트에서 가장 많이 쓰는 프레임워크. VS 테스트 탐색기 연동 |
+| Microsoft.NET.Test.Sdk | 테스트 실행 | ✗ | 2026-11-23 | MS 공식 | `dotnet test`와 VS가 테스트를 찾고 실행하는 데 필요 |
+| BenchmarkDotNet | 마이크로 벤치마크(`server-cs/Bench`) | ✗ | 2026-11-26 | 9,162만 다운로드, 2013~, MIT (11-27). 사용량 선(1억)에 조금 못 미치지만 .NET 런타임 팀도 쓰는 사실상 표준이고 벤치 전용이라 유지 | .NET 벤치마크의 사실상 표준. JIT 워밍업·GC 영향을 걸러 내고 할당량(MemoryDiagnoser)을 잰다 |
+| Microsoft.Extensions.ObjectPool | 객체 풀(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>`). 지금은 `server-cs/Bench`만(C++ `ObjectPool<T>`와 비교), 쓰는 곳이 생기면 그 프로젝트에 추가 | ✗(지금은) | 2026-11-26 | MS 공식 | MS 공식(ASP.NET Core가 쓰는 것). C#에 직접 만들지 않는다(docs/naming.md) |
+
+## 계획(아직 설치 안 함)
+
+| 라이브러리 | 언어 | 단위 | 수치(2026-11-27) |
 |---|---|---|---|
-| xunit.v3, xunit.runner.visualstudio | 단위 테스트 | 2026-11-23 | .NET 테스트에서 가장 많이 쓰는 프레임워크. VS 테스트 탐색기 연동 |
-| Microsoft.NET.Test.Sdk | 테스트 실행 | 2026-11-23 | `dotnet test`와 VS가 테스트를 찾고 실행하는 데 필요 |
-| BenchmarkDotNet | 마이크로 벤치마크(`server-cs/Bench`) | 2026-11-26 | .NET 벤치마크의 사실상 표준(.NET 런타임 팀도 사용). JIT 워밍업·GC 영향을 걸러 내고 할당량(MemoryDiagnoser)을 잰다 |
-| Microsoft.Extensions.ObjectPool | 객체 풀(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>`). 지금은 `server-cs/Bench`만(C++ `ObjectPool<T>`와 비교), 쓰는 곳이 생기면 그 프로젝트에 추가 | 2026-11-26 | MS 공식(ASP.NET Core가 쓰는 것). C#에 직접 만들지 않는다(docs/naming.md) |
+| spdlog (+ fmt) | C++ | Log | ★ 2.98만, 2014~, MIT(설치 때 LICENSE 확인) |
+| Serilog | C# | Log | 36.9억 다운로드, 2013~, Apache-2.0 |
+| nlohmann/json | C++ | Config | ★ 5.1만, 2013~, MIT |
+| Dapper | C# | DB(4단계) 후보 | 8.5억 다운로드, Apache-2.0 |
+| Quill | C++ | Log 대안 | ★ 3.1천, 2020~ — 사용량 선 미달. spdlog가 느릴 때만 다시 본다 |
