@@ -402,6 +402,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <tr><td class="cpp">0단계: 고치기 전(다시 잼)</td><td class="num">34.7</td><td class="num">51.1</td><td class="num">72.8</td><td class="num">90.5</td><td class="num">72.7</td><td class="num">73.3</td></tr>
 <tr><td class="cpp">1단계: ① <code>bool _stopping</code></td><td class="num">35.4</td><td class="num">51.3</td><td class="num">64.6</td><td class="num">79.9</td><td class="num">63.8</td><td class="num">63.5</td></tr>
 <tr><td class="cpp">2단계: + ④ <code>std::condition_variable</code></td><td class="num"><strong>29.1</strong></td><td class="num"><strong>47.9</strong></td><td class="num"><strong>56.1</strong></td><td class="num"><strong>71.4</strong></td><td class="num"><strong>57.5</strong></td><td class="num"><strong>59.6</strong></td></tr>
+<tr><td class="cpp">2단계 A: + 메모리 배치(뜨거운 필드 모으고 64B 띄움)</td><td class="num"><strong>28.7</strong></td><td class="num"><strong>46.6</strong></td><td class="num"><strong>53.9</strong></td><td class="num"><strong>67.8</strong></td><td class="num"><strong>53.5</strong></td><td class="num"><strong>55.9</strong></td></tr>
 <tr><td class="cs">C# <code>Channel</code>(목표선)</td><td class="num">50</td><td class="num">104</td><td class="num">67</td><td class="num">71</td><td class="num">47</td><td class="num">45</td></tr>
 </table></div>
 <div class="table-wrap"><table>
@@ -409,6 +410,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <tr><td class="cpp">0단계</td><td class="num">72.7</td><td><span class="bar warn" style="width:100%"></span></td></tr>
 <tr><td class="cpp">1단계 ①</td><td class="num">63.8</td><td><span class="bar" style="width:88%"></span></td></tr>
 <tr><td class="cpp">2단계 ①+④</td><td class="num">57.5</td><td><span class="bar" style="width:79%"></span></td></tr>
+<tr><td class="cpp">2단계 A 메모리 배치</td><td class="num">53.5</td><td><span class="bar" style="width:74%"></span></td></tr>
 <tr><td class="cs">C# <code>Channel</code></td><td class="num">47</td><td><span class="bar cs" style="width:65%"></span></td></tr>
 <tr><td>합격선</td><td class="num">45</td><td><span class="bar muted" style="width:62%"></span></td></tr>
 </table></div>
@@ -419,6 +421,14 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <li>둘을 합쳐 4:4·8:4가 약 20% 빨라졌고, 1:1·2:2·4:2는 C# <code>Channel</code>보다 빠르거나 같아졌다. 1:1 합격선(34ns 이하)은 넘었다.</li>
 <li><strong>4:4·8:4는 아직 합격선(45ns) 밖</strong>(57.5·59.6, C#의 약 1.25배). 남은 차이는 ②(일 64B vs 24B)와 ③(소비자도 같은 mutex)이다. 잠금 안에서 하는 일을 덜어 낼 수 있는 만큼 덜어 냈으니, 남은 것은 큐 구조를 바꿔야 한다 → 계획 B 2단계.</li>
 </ul>
+
+<h3>Lane 개선 2단계 A: mutex는 그대로, 메모리 배치만 (2026-11-27)</h3>
+<div class="table-wrap"><table>
+<tr><th style="width:8%"></th><th style="width:50%">무엇을 봤나</th><th>어떻게 했나 / 결과</th></tr>
+<tr><td>배치</td><td>Lane 하나는 240B(<code>std::mutex</code> 80B, <code>condition_variable</code> 72B, ...). <code>LaneGroup</code>이 Lane을 하나씩 힙에 만들어, 이웃 Lane이나 다른 객체와 같은 캐시 줄에 놓일 수 있다. <code>Post</code>가 만지는 필드(mutex, 대기 vector, <code>_stopping</code>, 깨우기)는 흩어져 있었다</td><td>매번 만지는 필드를 한데 모으고 앞뒤를 64B 패딩으로 띄웠다(이름·스레드 같은 찬 필드는 뒤로). <strong>N:M 7~9% 감소</strong>(4:4 57.5 → 53.5ns, 두 번 재서 같은 방향), 1:1은 그대로</td></tr>
+<tr><td>바로잡음</td><td>처음엔 "일을 vector 칸에 바로 만들어 옮기기 한 번(간접 호출)을 줄인다"도 A에 넣으려 했다</td><td>MSVC <code>&lt;functional&gt;</code>을 보니 <code>move_only_function</code>은 담긴 함수가 작고 trivially copyable이면(참조만 캡처한 람다 등) <strong>간접 호출 없이 복사</strong>한다. 벤치의 일이 그 경우라 효과가 없어 뺐다. <code>unique_ptr</code>을 캡처한 실제 콘텐츠 람다는 옮길 때 간접 호출이 있다</td></tr>
+</table></div>
+<p>남은 차이(4:4 53.5 vs 47)는 큐 구조(소비자도 같은 mutex, 일이 칸 하나 64B = 캐시 줄 하나)라 → <strong>2단계 C: 티켓 링 버퍼</strong>로 간다.</p>
 <p class="talk"><b>30초 답변.</b> 생산자 여러 개가 Lane 여러 개에 키로 섞어 넣는 실무 모양으로 재니, C++ Lane이 C# Channel보다 1.5배 느렸습니다. CPU가 대부분 user라서 잠금 경합 쪽으로 보고, 처음엔 C#이 lock-free라서라고 생각했지만 .NET 소스를 보니 C#도 쓰기마다 lock을 잡았습니다. 그래서 잠금 안에서 하는 일을 의심했고, MSVC STL 소스를 읽어 두 가지를 찾았습니다. 하나는 <code>Post</code>마다 <code>get_stop_token()</code>이 공유 참조 카운트를 원자적으로 올리고 내리던 것이고, 다른 하나는 <code>condition_variable_any</code>가 깨울 때마다 내부 mutex를 하나 더 잡던 것입니다. 하나씩 고치며 재니 첫째는 N:M에서만 12%, 둘째는 모든 조합에서 줄었고, 합쳐서 4:4가 73ns에서 58ns가 됐습니다. 남은 차이는 큐 구조 문제라 다음 단계에서 비교합니다.</p>
 </div>
 

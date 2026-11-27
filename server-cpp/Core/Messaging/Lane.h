@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <condition_variable>
+#include <cstddef>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -51,11 +53,16 @@ namespace Messaging
     private:
         void Run();
 
+        // 메모리 배치(Lane 개선 2단계 A): Post 와 Lane 스레드가 매번 만지는 필드를 한데 모으고 앞뒤를 64B 띄운다.
+        // Lane 은 LaneGroup 이 하나씩 힙에 만들므로 띄우지 않으면 이웃 객체와 같은 캐시 줄에 놓일 수 있다.
+        // (alignas 는 C4324 경고라 패딩으로)
+        std::array<std::byte, 64> _paddingBefore{};
         std::mutex _mutex{};
-        std::condition_variable _wake{}; // 일이 들어오거나 _stopping이 켜지면 깨운다
         std::vector<Job> _pending{};     // _mutex가 지킨다
         bool _stopping{};                // _mutex가 지킨다. Stop이 켠다(Post가 보고 넣지 않는다)
-        std::wstring _name{};            // 스레드 이름(Windows API가 UTF-16을 받는다). 스레드 시작 전에 정해진다
-        std::jthread _thread{};          // 생성자 본문에서 시작, Stop()에서 join
+        std::condition_variable _wake{}; // 일이 들어오거나 _stopping이 켜지면 깨운다
+        std::array<std::byte, 64> _paddingAfter{};
+        std::wstring _name{};   // 스레드 이름(Windows API가 UTF-16을 받는다). 스레드 시작 전에 정해진다
+        std::jthread _thread{}; // 생성자 본문에서 시작, Stop()에서 join
     };
 } // namespace Messaging
