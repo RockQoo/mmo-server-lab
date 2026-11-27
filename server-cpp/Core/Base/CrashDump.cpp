@@ -23,6 +23,7 @@
 #include <intrin.h>
 
 #include "Base/Assert.h"
+#include "Base/ThreadName.h"
 
 namespace Base
 {
@@ -121,7 +122,7 @@ namespace Base
             void Run()
             {
                 _dumpThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
-                static_cast<void>(SetThreadDescription(GetCurrentThread(), L"CrashDump"));
+                static_cast<void>(SetCurrentThreadName("CrashDump"));
                 while (true)
                 {
                     WaitForSingleObject(_request, INFINITE);

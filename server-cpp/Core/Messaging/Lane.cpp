@@ -2,12 +2,8 @@
 
 #include <utility>
 
-// SetThreadDescription(스레드 이름). windows.h 의 min/max 매크로와 잘 안 쓰는 부분은 끈다.
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-
 #include "Base/Assert.h"
+#include "Base/ThreadName.h"
 #include "Base/Utf8.h"
 
 namespace Messaging
@@ -25,12 +21,9 @@ namespace Messaging
 
     Lane::Lane(const std::string_view name)
     {
-        // 이름은 스레드보다 먼저 정한다(Run이 시작하자마자 읽는다).
-        if (!name.empty())
-        {
-            const auto ok = Base::DecodeUtf8(name, _name);
-            ASSERT(ok, "Lane name is not valid UTF-8");
-        }
+        // 이름은 스레드보다 먼저 정한다(Run이 시작하자마자 읽는다). 깨진 UTF-8은 만드는 쪽에서 바로 잡는다.
+        ASSERT(Base::IsValidUtf8(name), "Lane name is not valid UTF-8");
+        _name = name;
         // 본문에서 시작한다: 모든 멤버가 만들어진 뒤라 Run이 덜 만들어진 객체를 보지 않는다
         // (초기화 목록에서 this를 넘기면 C4355).
         _thread = std::jthread{[this] { Run(); }};
@@ -93,11 +86,8 @@ namespace Messaging
     void Lane::Run()
     {
         t_currentLane = this; // 이 스레드는 끝날 때까지 이 Lane만 돌린다
-        if (!_name.empty())
-        {
-            // 실패해도 동작에는 영향이 없다(디버깅 표시용). 결과는 무시한다.
-            static_cast<void>(SetThreadDescription(GetCurrentThread(), _name.c_str()));
-        }
+        // 실패해도 동작에는 영향이 없다(디버깅 표시용). 결과는 무시한다. 빈 이름이면 붙이지 않는다.
+        static_cast<void>(Base::SetCurrentThreadName(_name));
         auto running = std::vector<Job>{};
         while (true)
         {

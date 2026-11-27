@@ -77,6 +77,8 @@ add_library(Base STATIC
     Core/Base/RuidGenerator.cpp
     Core/Base/RuidGenerator.h
     Core/Base/StrongId.h
+    Core/Base/ThreadName.cpp
+    Core/Base/ThreadName.h
     Core/Base/Utf8.cpp
     Core/Base/Utf8.h
 )
@@ -93,6 +95,7 @@ add_executable(BaseTests
     Core/Base/Tests/RuidGeneratorTest.cpp
     Core/Base/Tests/RuidTest.cpp
     Core/Base/Tests/StrongIdTest.cpp
+    Core/Base/Tests/ThreadNameTest.cpp
 )
 target_link_libraries(BaseTests PRIVATE Base GTest::gtest_main)
 # C# 테스트와 같이 쓰는 정답 파일 위치(저장소 최상위 testdata/)
