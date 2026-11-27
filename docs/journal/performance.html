@@ -136,13 +136,13 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <path class="d-line" d="M160,61 L178,61"/><path class="d-line" d="M320,61 L338,61"/><path class="d-line" d="M480,61 L498,61"/><path class="d-line" d="M640,61 L658,61"/><path class="d-line" d="M810,61 L828,61"/>
 <text class="d-t" x="20" y="134" font-weight="600">앞으로 (⬜)</text>
 <rect class="d-box" x="20" y="146" width="150" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="95" y="168" text-anchor="middle">A 풀 벤치 N:M</text><text class="d-m" x="95" y="186" text-anchor="middle">불균형 비율</text>
-<rect class="d-warn" x="190" y="146" width="150" height="50" rx="8"/><text class="d-t" x="265" y="168" text-anchor="middle">B Lane 큐 개선</text><text class="d-m" x="265" y="186" text-anchor="middle">합격선 45ns</text>
+<rect class="d-ok" x="190" y="146" width="150" height="50" rx="8"/><text class="d-t" x="265" y="168" text-anchor="middle">B Lane 큐 개선</text><text class="d-m" x="265" y="186" text-anchor="middle">1.6→1.17배, 1단계 끝</text>
 <rect class="d-box" x="360" y="146" width="150" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="435" y="168" text-anchor="middle">C BufferPool 인라인</text><text class="d-m" x="435" y="186" text-anchor="middle">ObjectPool급으로</text>
 <rect class="d-box" x="530" y="146" width="150" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="605" y="168" text-anchor="middle">D 직렬화 비용</text><text class="d-m" x="605" y="186" text-anchor="middle">덩어리 복사</text>
 <rect class="d-box" x="700" y="146" width="130" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="765" y="168" text-anchor="middle">E C# GC 공부</text><text class="d-m" x="765" y="186" text-anchor="middle">설정별 측정</text>
 <rect class="d-box" x="850" y="146" width="130" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="915" y="168" text-anchor="middle">F 부하 테스트</text><text class="d-m" x="915" y="186" text-anchor="middle">p99, GC 멈춤</text>
 <path class="d-line" d="M170,171 L188,171"/><path class="d-line" d="M340,171 L358,171"/><path class="d-line" d="M510,171 L528,171"/><path class="d-line" d="M680,171 L698,171"/><path class="d-line" d="M830,171 L848,171"/>
-<text class="d-m" x="20" y="220">B(주황)가 지금 가장 큰 문제: 실무 모양(N:M)에서 C++ Lane이 C# Channel보다 느리다(1.5배 → 1단계 후 1.25배, 사례 8)</text>
+<text class="d-m" x="20" y="220">B Lane 큐: 1단계로 N:M 차이를 1.5배 → 약 1.2배로 줄이고 lock-free 2단계는 보류(사례 8). 1:1·4:1·2:2는 C++이 빠르다</text>
 </svg>
 </div>
 
@@ -155,7 +155,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <li><a href="#c5">같은 구조인데 ObjectPool이 BufferPool보다 3배 빨랐다</a></li>
 <li><a href="#c6">C#·C++ 측정 틀이 공정하지 않았다</a></li>
 <li><a href="#c7">메시지 큐: 객체 vs 직렬화한 바이트</a></li>
-<li><a href="#c8">N:M에서 C++ Lane이 C# Channel보다 1.5배 느리다</a></li>
+<li><a href="#c8">N:M에서 C++ Lane이 C# Channel보다 1.5배 느렸다 → 약 1.2배로</a></li>
 <li><a href="#c9">C# 클로저가 보이지 않게 할당하고 있었다</a></li>
 <li><a href="#c10">직렬화가 필드 하나에 4~5ns였다</a></li>
 <li><a href="#c11">Lane이 보장하는 것: 같은 ID는 순서대로, 락 없이</a></li>
@@ -336,9 +336,9 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 </div>
 
 <!-- ===================== 사례 8 ===================== -->
-<h2 id="c8">8. N:M에서 C++ Lane이 C# Channel보다 1.5배 느리다</h2>
+<h2 id="c8">8. N:M에서 C++ Lane이 C# Channel보다 1.5배 느렸다 → 약 1.2배로</h2>
 <div class="card">
-<div class="case-head"><h3>지금 가장 큰 문제 · 1단계로 1.5배 → 1.25배, 계획 B 2단계 남음</h3><span class="date">2026-11-27 · 자세히: <a href="messagequeue.html#nm">messagequeue.html</a></span></div>
+<div class="case-head"><h3>1단계(잠금 안 일 덜기)로 줄이고, lock-free는 보류</h3><span class="date">2026-11-27 · 자세히: <a href="messagequeue.html#nm">messagequeue.html</a></span></div>
 <div class="steps">
 <div class="step s1"><b>증상</b>1:1, 4:1(Lane 1개)은 C++이 빠른데, 실무 모양인 N:M(4:4, 8:4)에서 C#이 1.5배 빠르다. C++은 Lane을 늘리면 오히려 느려진다(34 → 69ns)</div>
 <div class="step s2"><b>원인(좁히는 중)</b>4:4에서 메시지당 user CPU 490ns, kernel 38ns라 깨우기보다 잠금 경합·캐시 줄 쪽. "C#은 lock-free라서"라고 생각했으나 <strong>.NET 소스를 보니 C# Channel도 쓰기마다 lock</strong>을 잡는다. 차이는 잠금 안에서 하는 일(아래 가설)</div>
@@ -428,8 +428,30 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <tr><td>배치</td><td>Lane 하나는 240B(<code>std::mutex</code> 80B, <code>condition_variable</code> 72B, ...). <code>LaneGroup</code>이 Lane을 하나씩 힙에 만들어, 이웃 Lane이나 다른 객체와 같은 캐시 줄에 놓일 수 있다. <code>Post</code>가 만지는 필드(mutex, 대기 vector, <code>_stopping</code>, 깨우기)는 흩어져 있었다</td><td>매번 만지는 필드를 한데 모으고 앞뒤를 64B 패딩으로 띄웠다(이름·스레드 같은 찬 필드는 뒤로). <strong>N:M 7~9% 감소</strong>(4:4 57.5 → 53.5ns, 두 번 재서 같은 방향), 1:1은 그대로</td></tr>
 <tr><td>바로잡음</td><td>처음엔 "일을 vector 칸에 바로 만들어 옮기기 한 번(간접 호출)을 줄인다"도 A에 넣으려 했다</td><td>MSVC <code>&lt;functional&gt;</code>을 보니 <code>move_only_function</code>은 담긴 함수가 작고 trivially copyable이면(참조만 캡처한 람다 등) <strong>간접 호출 없이 복사</strong>한다. 벤치의 일이 그 경우라 효과가 없어 뺐다. <code>unique_ptr</code>을 캡처한 실제 콘텐츠 람다는 옮길 때 간접 호출이 있다</td></tr>
 </table></div>
-<p>남은 차이(4:4 53.5 vs 47)는 큐 구조(소비자도 같은 mutex, 일이 칸 하나 64B = 캐시 줄 하나)라 → <strong>2단계 C: 티켓 링 버퍼</strong>로 간다.</p>
-<p class="talk"><b>30초 답변.</b> 생산자 여러 개가 Lane 여러 개에 키로 섞어 넣는 실무 모양으로 재니, C++ Lane이 C# Channel보다 1.5배 느렸습니다. CPU가 대부분 user라서 잠금 경합 쪽으로 보고, 처음엔 C#이 lock-free라서라고 생각했지만 .NET 소스를 보니 C#도 쓰기마다 lock을 잡았습니다. 그래서 잠금 안에서 하는 일을 의심했고, MSVC STL 소스를 읽어 두 가지를 찾았습니다. 하나는 <code>Post</code>마다 <code>get_stop_token()</code>이 공유 참조 카운트를 원자적으로 올리고 내리던 것이고, 다른 하나는 <code>condition_variable_any</code>가 깨울 때마다 내부 mutex를 하나 더 잡던 것입니다. 하나씩 고치며 재니 첫째는 N:M에서만 12%, 둘째는 모든 조합에서 줄었고, 합쳐서 4:4가 73ns에서 58ns가 됐습니다. 남은 차이는 큐 구조 문제라 다음 단계에서 비교합니다.</p>
+<h3>마무리: 같은 날 C#과 다시 비교하고 여기서 멈춘다 (2026-11-27)</h3>
+<p>C# 수치는 며칠 전 값이라 같은 날 다시 쟀다(BenchmarkDotNet, 큐만).</p>
+<div class="table-wrap"><table>
+<tr><th>메시지당 ns, 같은 날</th><th class="num">1:1</th><th class="num">4:1</th><th class="num">2:2</th><th class="num">4:2</th><th class="num">4:4</th><th class="num">8:4</th></tr>
+<tr><td class="cpp">C++ <code>Lane</code>(처음)</td><td class="num">34.7</td><td class="num">51.1</td><td class="num">72.8</td><td class="num">90.5</td><td class="num">72.7</td><td class="num">73.3</td></tr>
+<tr><td class="cpp">C++ <code>Lane</code>(지금)</td><td class="num"><strong>28.7</strong></td><td class="num"><strong>46.6</strong></td><td class="num"><strong>53.9</strong></td><td class="num">67.8</td><td class="num">53.5</td><td class="num">55.9</td></tr>
+<tr><td class="cs">C# <code>Lane</code>(Channel 위)</td><td class="num">49.5</td><td class="num">80.5</td><td class="num">59.3</td><td class="num">68.6</td><td class="num"><strong>45.7</strong></td><td class="num"><strong>44.4</strong></td></tr>
+<tr><td class="cs">C# <code>Channel</code>만</td><td class="num">48.7</td><td class="num">84.7</td><td class="num">63.0</td><td class="num"><strong>63.5</strong></td><td class="num">46.0</td><td class="num">44.2</td></tr>
+</table></div>
+<div class="table-wrap"><table>
+<tr><th>4:4 C++ 대 C# 차이(배)</th><th class="num">배</th><th style="width:55%"></th></tr>
+<tr><td>처음</td><td class="num">1.59</td><td><span class="bar warn" style="width:100%"></span></td></tr>
+<tr><td>1단계 ①</td><td class="num">1.40</td><td><span class="bar" style="width:88%"></span></td></tr>
+<tr><td>1단계 ①+④</td><td class="num">1.26</td><td><span class="bar" style="width:79%"></span></td></tr>
+<tr><td>2단계 A 메모리 배치</td><td class="num">1.17</td><td><span class="bar" style="width:74%"></span></td></tr>
+<tr><td>같음</td><td class="num">1.00</td><td><span class="bar muted" style="width:63%"></span></td></tr>
+</table></div>
+<p><strong>결정: lock-free(2단계 C 티켓 링 버퍼)는 보류한다</strong>(사용자 결정). 이유:</p>
+<ul>
+<li>남은 차이는 4:4·8:4에서 메시지당 약 8~11ns다. 메시지 하나를 실제로 처리하는 비용(객체 만들기·처리, 사례 7에서 70~80ns)에 비해 작다. 1:1·4:1·2:2는 C++이 이미 빠르고 4:2는 비슷하다.</li>
+<li>lock-free 큐는 순서 보장(사례 11), 멈출 때 일을 잃지 않기, 재우기·깨우기를 모두 원자 연산으로 다시 짜야 한다. 메모리 순서 버그는 테스트로 잘 안 잡히고 고치기도 어렵다.</li>
+<li><strong>다시 볼 조건</strong>: 봇 부하 테스트(계획 F)에서 Lane 큐가 실제 병목으로 보일 때. 설계는 아래 계획 B에 남겨 둔다.</li>
+</ul>
+<p class="talk"><b>30초 답변.</b> 생산자 여러 개가 Lane 여러 개에 키로 섞어 넣는 실무 모양으로 재니, C++ Lane이 C# Channel보다 1.5배 느렸습니다. CPU가 대부분 user라서 잠금 경합 쪽으로 보고, 처음엔 C#이 lock-free라서라고 생각했지만 .NET 소스를 보니 C#도 쓰기마다 lock을 잡았습니다. 그래서 잠금 안에서 하는 일을 의심했고, MSVC STL 소스를 읽어 두 가지를 찾았습니다. 하나는 <code>Post</code>마다 <code>get_stop_token()</code>이 공유 참조 카운트를 원자적으로 올리고 내리던 것이고, 다른 하나는 <code>condition_variable_any</code>가 깨울 때마다 내부 mutex를 하나 더 잡던 것입니다. 하나씩 고치며 재니 첫째는 N:M에서만 12%, 둘째는 모든 조합에서 줄었습니다. 마지막으로 자주 만지는 필드를 한 캐시 줄 근처로 모아 4:4가 73ns에서 53ns, C#과의 차이가 1.6배에서 1.17배가 됐습니다. 남은 차이는 큐 구조를 lock-free로 바꿔야 하는데, 처리 비용에 비해 작고 검증 비용이 커서 부하 테스트에서 병목으로 보일 때 하기로 미뤘습니다.</p>
 </div>
 
 <!-- ===================== 사례 9 ===================== -->
@@ -572,9 +594,9 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 </div>
 
 <div class="card plan">
-<div class="case-head"><h3>B. Lane 큐 개선: 1.5배 느린 것을 C# Channel 수준 이상으로</h3><span class="tag warn">가장 중요</span></div>
+<div class="case-head"><h3>B. Lane 큐 개선: 1.5배 느린 것을 C# Channel 수준으로</h3><span class="tag ok">1단계 완료 · lock-free 보류</span></div>
 <p><strong>1단계: 원인 확정 ✅(2026-11-27).</strong> 사례 8의 가설 ①(stop 확인 → 잠금 안의 <code>bool</code>)과 ④(<code>condition_variable_any</code> → <code>std::condition_variable</code>)를 하나씩 고쳐 쟀다. 4:4 72.7 → 57.5ns, 8:4 73.3 → 59.6ns, 1:1 34.7 → 29.1ns. 1:1 합격선은 넘었고 4:4·8:4는 아직 밖이라 2단계로 간다(<a href="#c8">사례 8</a>).</p>
-<p><strong>2단계: 구조 후보 비교.</strong> 같은 N:M 벤치마크에 넣는다. 합격선은 4:4·8:4에서 메시지당 45ns 이하, 1:1은 34ns 이하다. <strong>모든 후보는 Lane의 순서 보장(<a href="#c11">사례 11</a>: <code>Post</code>가 끝난 순서대로)을 지켜야 한다.</strong> 그래서 B는 뺐고 C는 조건부다.</p>
+<p><strong>2단계: 구조 후보 비교 — A(메모리 배치) ✅, C(티켓 링 버퍼) 보류(2026-11-27, 사례 8 마무리).</strong> 같은 N:M 벤치마크에 넣는다. 합격선은 4:4·8:4에서 메시지당 45ns 이하, 1:1은 34ns 이하다. <strong>모든 후보는 Lane의 순서 보장(<a href="#c11">사례 11</a>: <code>Post</code>가 끝난 순서대로)을 지켜야 한다.</strong> 그래서 B는 뺐고 C는 조건부다.</p>
 <div class="diagram">
 <svg viewBox="0 0 900 330" role="img" aria-label="후보 셋. A 직접 만든 MPSC는 꼬리를 원자 교환 한 번으로 붙인다. B ConcurrentQueue는 생산자마다 작은 큐를 둔다. C는 생산자가 모아서 한 번에 넣는다">
 <text class="d-t" x="20" y="22" font-weight="600">A. 직접 만든 lock-free MPSC(생산자 여럿, 소비자 하나)</text>
@@ -606,7 +628,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <text class="d-m" x="370" y="294">모아 둔 채 다음 수신을 걸면, 다른 스레드의 다음 패킷이 먼저 들어가 순서가 깨진다</text>
 </svg>
 </div>
-<p>끝나면 사례 8에 "어떻게 고쳤고 얼마가 됐는지"를 더한다.</p>
+<p><strong>C를 할 때의 설계(보류 중)</strong>: 칸 1024개짜리 세그먼트를 연결하고, 생산자는 <code>tail.fetch_add(1)</code>로 칸 번호를 받아 일을 놓고 "다 놨음" 표시. 소비자는 번호 순서대로 잠금 없이 꺼낸다. 멈춤은 tail에 "마감" 비트를 원자적으로 붙여 마감 전 번호까지 처리. 재우기는 <code>std::atomic::wait/notify</code>. 이름 후보 <code>MpscQueue&lt;T&gt;</code>. 다시 볼 조건: 봇 부하 테스트에서 Lane 큐가 병목일 때.</p>
 </div>
 
 <div class="card plan">
