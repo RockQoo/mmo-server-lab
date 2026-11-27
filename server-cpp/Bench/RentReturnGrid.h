@@ -1,5 +1,8 @@
 #pragma once
 
+#include <benchmark/benchmark.h>
+
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -7,12 +10,57 @@
 #include <exception>
 #include <memory>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "ThreadTeam.h"
 
 namespace Bench
 {
+    // 풀 N:M 측정의 조합(빌리는 스레드 N, 반납하는 스레드 M). 실행하는 PC의 논리 코어 수 C 로 정한다(2026-11-27):
+    // 코어가 많은 머신에서 같은 벤치마크를 돌려도 같은 뜻의 측정이 되게. 세 단계마다 한쪽이 하나인 모양(1:N, N:1)과
+    // 양쪽이 여럿인 N:M 을 같이 둔다(한쪽이 하나면 그 스레드가 먼저 막혀 전역 풀 다툼이 덜 드러난다).
+    //   여유(C/2):      1:1(기준선, 건너가기만), 1:C/2, C/2:1, C/4:C/4
+    //   최대(C):        1:C, C:1, C/2:C/2
+    //   초과(1.25C):    1:1.25C, 1.25C:1, 0.625C:0.625C  (넘쳐도 무너지지 않는지 본다. x2 는 과해서 뺐다)
+    // 물리 8코어·논리 16 PC 에서는 1:1, 1:8, 8:1, 4:4 / 1:16, 16:1, 8:8 / 1:20, 20:1, 10:10. 목록은 여기 하나에서만
+    // 고친다. 전체 횟수(TotalOps)는 모든 조합 x 64(블록)로 나누어떨어지게 정한다(C# OperationsPerInvoke 가 상수라).
+    // 풀 N:M 측정의 전체 횟수: 2^18 x 50 = 13,107,200. 위 조합(N x M 최대 100) x 64 로 모두 나누어떨어진다.
+    inline constexpr std::int64_t RentReturnOps = std::int64_t{50} << 18;
+
+    inline std::vector<std::pair<int, int>> RentReturnShapes()
+    {
+        const auto cores = std::max(4, static_cast<int>(std::thread::hardware_concurrency()));
+        const auto half = cores / 2;
+        const auto quarter = cores / 4;
+        const auto over = cores + cores / 4;
+        const auto overHalf = over / 2;
+        return {{1, 1},     {1, half},    {half, 1}, {quarter, quarter}, {1, cores},
+                {cores, 1}, {half, half}, {1, over}, {over, 1},          {overHalf, overHalf}};
+    }
+
+    inline void ApplyRentReturnShapes(::benchmark::Benchmark* benchmark)
+    {
+        benchmark->ArgNames({"renters", "returners"});
+        for (const auto& [renters, returners] : RentReturnShapes())
+        {
+            benchmark->Args({renters, returners});
+        }
+    }
+
+    // 버퍼 크기까지 붙인 조합. 크기마다 캐시 개수·묶음이 달라(256B·1KB 64·32, 4KB 16·8) 셋 다 잰다.
+    inline void ApplyRentReturnShapesWithSizes(::benchmark::Benchmark* benchmark)
+    {
+        benchmark->ArgNames({"renters", "returners", "size"});
+        for (const auto& [renters, returners] : RentReturnShapes())
+        {
+            for (const auto size : {256, 1024, 4096})
+            {
+                benchmark->Args({renters, returners, size});
+            }
+        }
+    }
+
     // 빌리는 스레드 N개 → 반납하는 스레드 M개 측정 틀(풀 벤치마크 공용, C# Bench/RentReturnGrid.cs 와 같은 방법).
     //
     // 실무 모양: IOCP 스레드 여러 개가 패킷 객체를 빌리고 Lane 하나가 반납(4:1), Lane 하나가 송신 버퍼를 빌리고 IOCP
@@ -44,19 +92,19 @@ namespace Bench
         RentReturnGrid(RentReturnGrid&&) = delete;
         RentReturnGrid& operator=(RentReturnGrid&&) = delete;
 
-        // 전체 totalOps 개를 빌리고 반납할 때까지 돌린다. rent() 는 Handle 하나를 빌려 돌려준다.
-        // totalOps 는 N * M * BlockSize 로 나누어떨어져야 한다(쌍마다 같은 수의 블록).
+        // 약 totalOps 개를 빌리고 반납할 때까지 돌리고, 실제로 한 횟수를 돌려준다. rent() 는 Handle 하나를 빌려
+        // 돌려준다. 쌍마다 같은 수의 블록이 되게 N * M * BlockSize 의 배수로 내린다(코어 수가 2의 거듭제곱이 아닌 PC
+        // 대비).
         template <typename Rent>
-        void Run(const std::int64_t totalOps, const Rent& rent)
+        std::int64_t Run(const std::int64_t totalOps, const Rent& rent)
         {
-            const auto renters = static_cast<std::int64_t>(_renters);
-            const auto returners = static_cast<std::int64_t>(_returners);
-            const auto blockSize = static_cast<std::int64_t>(BlockSize);
-            if (totalOps % (renters * returners * blockSize) != 0)
+            const auto perRound =
+                static_cast<std::int64_t>(_renters) * static_cast<std::int64_t>(_returners) * std::int64_t{BlockSize};
+            const auto blocksPerPair = totalOps / perRound;
+            if (blocksPerPair == 0)
             {
-                std::terminate(); // 측정 조건 실수
+                std::terminate(); // 측정 조건 실수: 조합에 비해 횟수가 너무 적다
             }
-            const auto blocksPerPair = totalOps / (renters * returners * blockSize);
 
             _team.Run(
                 [this, &rent, blocksPerPair](const int t)
@@ -70,6 +118,7 @@ namespace Bench
                         RunReturner(t - _renters, blocksPerPair);
                     }
                 });
+            return blocksPerPair * perRound;
         }
 
     private:

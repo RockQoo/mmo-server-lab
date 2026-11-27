@@ -148,17 +148,18 @@ namespace
         const auto returners = static_cast<int>(state.range(1));
         const auto size = static_cast<std::size_t>(state.range(2));
         Bench::RentReturnGrid<typename Renter::Buffer> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
+        auto ops = std::int64_t{};                                               // 실제로 한 횟수(조합의 배수로 내림)
         for (auto iteration : state)
         {
-            grid.Run(TotalOps,
-                     [size]
-                     {
-                         auto buffer = Renter::Rent(size);
-                         buffer.Data()[0] = std::byte{1};
-                         return buffer;
-                     });
+            ops = grid.Run(Bench::RentReturnOps,
+                           [size]
+                           {
+                               auto buffer = Renter::Rent(size);
+                               buffer.Data()[0] = std::byte{1};
+                               return buffer;
+                           });
         }
-        state.SetItemsProcessed(state.iterations() * TotalOps);
+        state.SetItemsProcessed(state.iterations() * ops);
     }
 } // namespace
 
@@ -174,19 +175,12 @@ BENCHMARK(SameThread<PoolRenter>)
     ->ArgsProduct({{1, 2, 4, 8}, {256, 4096}})
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
-// 인자: {빌리는 스레드 N, 반납하는 스레드 M, 크기}. 1:1 은 기준선(건너가기만, 다툼 거의 없음). 8:4·4:8(12스레드),
-// 8:8(16스레드)은 물리 8코어보다 스레드가 많다. 크기마다 캐시 개수·묶음이 달라(256B·1KB 64·32, 4KB 16·8) 셋 다 잰다.
+// 인자: {빌리는 스레드 N, 반납하는 스레드 M, 크기}. 조합은 Bench::ApplyRentReturnShapesWithSizes(코어 수 기준).
+// 측정 틀 자체의 비용은 ObjectPoolBench 의 RentReturnNoop(같은 틀)으로 본다.
 #define RENT_RETURN_BENCH(renter, name)                                                                                \
     BENCHMARK(RentReturn<renter>)                                                                                      \
         ->Name(name)                                                                                                   \
-        ->ArgNames({"renters", "returners", "size"})                                                                   \
-        ->ArgsProduct({{1}, {1}, {256, 1024, 4096}})                                                                   \
-        ->ArgsProduct({{4}, {1}, {256, 1024, 4096}})                                                                   \
-        ->ArgsProduct({{1}, {4}, {256, 1024, 4096}})                                                                   \
-        ->ArgsProduct({{4}, {4}, {256, 1024, 4096}})                                                                   \
-        ->ArgsProduct({{8}, {4}, {256, 1024, 4096}})                                                                   \
-        ->ArgsProduct({{4}, {8}, {256, 1024, 4096}})                                                                   \
-        ->ArgsProduct({{8}, {8}, {256, 1024, 4096}})                                                                   \
+        ->Apply(Bench::ApplyRentReturnShapesWithSizes)                                                                 \
         ->UseRealTime()                                                                                                \
         ->Unit(benchmark::kMillisecond)
 RENT_RETURN_BENCH(NewDeleteRenter, "BufferRentReturn/NewDelete");

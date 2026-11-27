@@ -134,17 +134,33 @@ namespace
         const auto renters = static_cast<int>(state.range(0));
         const auto returners = static_cast<int>(state.range(1));
         Bench::RentReturnGrid<typename Renter::Handle> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
+        auto ops = std::int64_t{};                                               // 실제로 한 횟수(조합의 배수로 내림)
         for (auto iteration : state)
         {
-            grid.Run(TotalOps,
-                     []
-                     {
-                         auto object = Renter::Rent();
-                         object->Use(1);
-                         return object;
-                     });
+            ops = grid.Run(Bench::RentReturnOps,
+                           []
+                           {
+                               auto object = Renter::Rent();
+                               object->Use(1);
+                               return object;
+                           });
         }
-        state.SetItemsProcessed(state.iterations() * TotalOps);
+        state.SetItemsProcessed(state.iterations() * ops);
+    }
+
+    // 측정 틀 자체의 비용(Codex 리뷰 R1): 빌리기·반납 대신 정수 하나를 같은 우편함으로 넘긴다. 이 값이 각 조합에서
+    // 풀 측정보다 충분히 빨라야 풀 값을 풀 비용으로 읽을 수 있다. BufferPoolBench 도 같은 틀이라 이 값을 같이 쓴다.
+    void RentReturnNoop(benchmark::State& state)
+    {
+        const auto renters = static_cast<int>(state.range(0));
+        const auto returners = static_cast<int>(state.range(1));
+        Bench::RentReturnGrid<std::uint64_t> grid(renters, returners);
+        auto ops = std::int64_t{}; // 실제로 한 횟수(조합의 배수로 내림)
+        for (auto iteration : state)
+        {
+            ops = grid.Run(Bench::RentReturnOps, [] { return std::uint64_t{1}; });
+        }
+        state.SetItemsProcessed(state.iterations() * ops);
     }
 } // namespace
 
@@ -182,21 +198,18 @@ BENCHMARK(SameThread<PoolRenter<WithList>>)
     ->Arg(8)
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
-// 인자: {빌리는 스레드 N, 반납하는 스레드 M}. 1:1 은 기준선(건너가기만, 다툼 거의 없음). 8:4·4:8(12스레드),
-// 8:8(16스레드)은 물리 8코어보다 스레드가 많다.
+// 인자: {빌리는 스레드 N, 반납하는 스레드 M}. 조합 목록은 Bench/RentReturnGrid.h 의 Bench::ApplyRentReturnShapes.
 #define RENT_RETURN_BENCH(renter, name)                                                                                \
     BENCHMARK(RentReturn<renter>)                                                                                      \
         ->Name(name)                                                                                                   \
-        ->ArgNames({"renters", "returners"})                                                                           \
-        ->Args({1, 1})                                                                                                 \
-        ->Args({4, 1})                                                                                                 \
-        ->Args({1, 4})                                                                                                 \
-        ->Args({4, 4})                                                                                                 \
-        ->Args({8, 4})                                                                                                 \
-        ->Args({4, 8})                                                                                                 \
-        ->Args({8, 8})                                                                                                 \
+        ->Apply(Bench::ApplyRentReturnShapes)                                                                          \
         ->UseRealTime()                                                                                                \
         ->Unit(benchmark::kMillisecond)
+BENCHMARK(RentReturnNoop)
+    ->Name("RentReturnNoop")
+    ->Apply(Bench::ApplyRentReturnShapes)
+    ->UseRealTime()
+    ->Unit(benchmark::kMillisecond);
 RENT_RETURN_BENCH(NewDeleteRenter<Plain>, "ObjectRentReturn/NewDelete/Plain");
 RENT_RETURN_BENCH(PoolRenter<Plain>, "ObjectRentReturn/ObjectPool/Plain");
 RENT_RETURN_BENCH(NewDeleteRenter<WithList>, "ObjectRentReturn/NewDelete/WithList");

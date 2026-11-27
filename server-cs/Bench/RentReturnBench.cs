@@ -6,10 +6,26 @@ namespace Bench;
 
 // 빌리는 스레드 N개 → 반납하는 스레드 M개(C++ BufferPoolBench·ObjectPoolBench 의 RentReturn 과 같은 틀·횟수·조합).
 // 틀: Bench/RentReturnGrid.cs. Mean = 전체 걸린 시간 / 전체 횟수(빌리기 + 반납 한 쌍이 한 번).
-// 조합: 1:1(기준선) 4:1 1:4 4:4 8:4 4:8 8:8. 8:4·4:8(12스레드), 8:8(16스레드)은 물리 8코어보다 스레드가 많다.
+// 조합은 실행하는 PC의 논리 코어 수 C 로 정한다(C++ Bench::RentReturnShapes 와 같다):
+//   여유(C/2): 1:1(기준선), 1:C/2, C/2:1, C/4:C/4 / 최대(C): 1:C, C:1, C/2:C/2 / 초과(1.25C): 1:1.25C, 1.25C:1, 0.625C:0.625C
+//   논리 16 PC 에서는 1:1, 1:8, 8:1, 4:4 / 1:16, 16:1, 8:8 / 1:20, 20:1, 10:10
 internal static class RentReturnShapes
 {
-    public const int TotalOps = 1 << 23; // C++ 과 같은 수
+    // 13,107,200(2^18 x 50): C++ Bench::RentReturnOps 와 같은 수. OperationsPerInvoke 가 상수라 모든 조합 x 64 로
+    // 나누어떨어지게 골랐다
+    public const int TotalOps = 50 << 18;
+
+    public static IEnumerable<string> All()
+    {
+        var cores = Math.Max(4, Environment.ProcessorCount);
+        var half = cores / 2;
+        var quarter = cores / 4;
+        var over = cores + cores / 4;
+        var overHalf = over / 2;
+        return [$"1:1", $"1:{half}", $"{half}:1", $"{quarter}:{quarter}",
+            $"1:{cores}", $"{cores}:1", $"{half}:{half}",
+            $"1:{over}", $"{over}:1", $"{overHalf}:{overHalf}"];
+    }
 
     public static (int Renters, int Returners) Parse(string shape)
     {
@@ -26,7 +42,9 @@ public class BufferRentReturnBench
 {
     private RentReturnGrid<byte[]>? _grid;
 
-    [Params("1:1", "4:1", "1:4", "4:4", "8:4", "4:8", "8:8")]
+    public static IEnumerable<string> Shapes => RentReturnShapes.All();
+
+    [ParamsSource(nameof(Shapes))]
     public string Shape { get; set; } = "1:1";
 
     [Params(256, 1024, 4096)]
@@ -68,23 +86,32 @@ public class BufferRentReturnBench
 }
 
 // 객체: new(반납 = GC) vs Microsoft.Extensions.ObjectPool 의 DefaultObjectPool. 객체 모양은 ObjectPoolBench 와 같다.
+// 비교 비율(Ratio)은 카테고리마다 따로 계산한다(Plain 은 NewPlain, WithList 는 NewWithList 기준. Codex 리뷰 R2).
+// Noop: 같은 틀로 미리 만든 객체 하나를 넘기기만 한다. 측정 틀 자체의 비용(Codex 리뷰 R1, 버퍼 벤치도 같은 틀).
 [MemoryDiagnoser]
 [SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 5)]
+[GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
+[CategoriesColumn]
 public class ObjectRentReturnBench
 {
     private static readonly ObjectPool<Plain> s_plainPool = new DefaultObjectPool<Plain>(new PlainPolicy());
     private static readonly ObjectPool<WithList> s_listPool = new DefaultObjectPool<WithList>(new WithListPolicy());
+    private static readonly object s_token = new();
 
+    private RentReturnGrid<object>? _noopGrid;
     private RentReturnGrid<Plain>? _plainGrid;
     private RentReturnGrid<WithList>? _listGrid;
 
-    [Params("1:1", "4:1", "1:4", "4:4", "8:4", "4:8", "8:8")]
+    public static IEnumerable<string> Shapes => RentReturnShapes.All();
+
+    [ParamsSource(nameof(Shapes))]
     public string Shape { get; set; } = "1:1";
 
     [GlobalSetup]
     public void Setup()
     {
         var (renters, returners) = RentReturnShapes.Parse(Shape);
+        _noopGrid = new RentReturnGrid<object>(renters, returners);
         _plainGrid = new RentReturnGrid<Plain>(renters, returners);
         _listGrid = new RentReturnGrid<WithList>(renters, returners);
     }
@@ -92,9 +119,14 @@ public class ObjectRentReturnBench
     [GlobalCleanup]
     public void Cleanup()
     {
+        _noopGrid?.Dispose();
         _plainGrid?.Dispose();
         _listGrid?.Dispose();
     }
+
+    [Benchmark(Baseline = true, OperationsPerInvoke = RentReturnShapes.TotalOps)]
+    [BenchmarkCategory("Noop")]
+    public void Noop() => _noopGrid!.Run(RentReturnShapes.TotalOps, static () => s_token, static _ => { });
 
     [Benchmark(Baseline = true, OperationsPerInvoke = RentReturnShapes.TotalOps)]
     [BenchmarkCategory("Plain")]
@@ -109,7 +141,7 @@ public class ObjectRentReturnBench
         return item;
     }, static item => s_plainPool.Return(item));
 
-    [Benchmark(OperationsPerInvoke = RentReturnShapes.TotalOps)]
+    [Benchmark(Baseline = true, OperationsPerInvoke = RentReturnShapes.TotalOps)]
     [BenchmarkCategory("WithList")]
     public void NewWithList() => _listGrid!.Run(RentReturnShapes.TotalOps, static () =>
     {
