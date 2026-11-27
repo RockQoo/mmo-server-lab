@@ -74,9 +74,9 @@ ul{padding-left:20px;margin:6px 0}
 <tr><td><code>RwLocked&lt;T&gt;</code><br><span class="b bcl">확정</span></td><td>데이터 + 읽기/쓰기 락을 묶음</td>
 <td><span class="b impl">직접 만듦</span><code>std::shared_mutex</code>, <code>Read()</code>/<code>Write()</code></td>
 <td><span class="b no">없음</span>Channel + 소비자 하나로 설계, 필요하면 <code>Lock</code>/<code>SemaphoreSlim</code></td><td class="st">⬜ ➖</td></tr>
-<tr><td><code>CrashDump</code><br><span class="b warn">제안</span> · Base에 둠</td><td>크래시 때 미니덤프 저장</td>
-<td><span class="b impl">직접 만듦</span><code>SetUnhandledExceptionFilter</code> + <code>MiniDumpWriteDump</code></td>
-<td><span class="b no">없음</span>런타임 설정 <code>DOTNET_DbgEnableMiniDump</code></td><td class="st">⬜ ➖</td></tr>
+<tr><td><code>CrashDump</code><br><span class="b bcl">확정</span> · Base에 둠</td><td>크래시 덤프(자동) + 살아 있는 서버 덤프(수동, 나중에 관리 콘솔 명령). 11-27</td>
+<td><span class="b impl">직접 만듦</span>덤프 전용 스레드, 예외·terminate·abort·purecall·잘못된 인자 → <code>MiniDumpWriteDump</code>, <code>Write(Mini/Full, 이유)</code></td>
+<td><span class="b bcl">MS 공식</span>자동은 런타임 설정 <code>DOTNET_DbgEnableMiniDump</code>, 수동은 <code>Microsoft.Diagnostics.NETCore.Client</code> <code>WriteDump</code></td><td class="st">🔨 🔨</td></tr>
 <tr><td><code>Config</code><br><span class="b warn">제안</span> · Base에 둠</td><td>설정 파일 읽기(레인 수, 포트)</td>
 <td><span class="b impl">직접 만듦</span>JSON 읽기: <b>nlohmann/json</b>(vcpkg, Config 단위 때 설치)</td>
 <td><span class="b bcl">BCL·표준</span><code>System.Text.Json</code>(설치 없음)</td><td class="st">⬜ ⬜</td></tr>

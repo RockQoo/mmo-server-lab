@@ -161,6 +161,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <li><a href="#c11">Lane이 보장하는 것: 같은 ID는 순서대로, 락 없이</a></li>
 <li><a href="#c12">패킷 흐름과 MessageRouter</a></li>
 <li><a href="#c13">로그 한 줄이 12µs였다 → 0.4µs</a></li>
+<li><a href="#c14">크래시 덤프: 덤프 전용 스레드가 쓴다</a></li>
 <li><a href="#plan">앞으로 할 것 A~F</a></li>
 <li><a href="#talk">면접용 정리</a></li>
 </ol>
@@ -610,6 +611,33 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <p class="talk"><b>30초 답변.</b> 로거를 직접 만들고 재 보니 아무 데도 안 쓰는데도 한 줄에 12마이크로초가 걸렸습니다. 하나씩 고치며 재니 첫째는 MSVC가 현지 시각을 만들 때마다 OS 시간대 DB를 조회하던 것, 둘째는 chrono 형식 지정이 로캘 스트림을 거치던 것, 셋째는 파일을 추가 모드로 열어 쓸 때마다 seek이 한 번 더 들던 것이었습니다. 시간대 정보를 캐시하고, 시각을 정수로 직접 찍고, 파일을 끝으로 한 번만 옮겨 열어서 Null 기준 31배, 파일 기준 8배 빨라졌고 C# Serilog보다 빨라졌습니다. 편한 표준 기능이 핫 패스에서는 비쌀 수 있어서 직접 재 봐야 한다는 걸 배웠습니다.</p>
 </div>
 
+<!-- ===================== 사례 14 ===================== -->
+<h2 id="c14">14. 크래시 덤프: 크래시 난 스레드가 아니라 덤프 전용 스레드가 쓴다</h2>
+<div class="card">
+<div class="case-head"><h3>설계 결정 · 자동(크래시) + 수동(살아 있는 서버) 덤프</h3><span class="date">2026-11-27 · <code>Base/CrashDump</code></span></div>
+<div class="steps">
+<div class="step s1"><b>질문</b>서버가 죽을 때 원인을 남기고, 살아 있는 서버도 죽이지 않고 덤프를 뜨고 싶다(관리 콘솔 명령으로 Mini/Full)</div>
+<div class="step s2"><b>위험</b>스택 오버플로로 죽으면 그 스레드는 스택이 거의 없어 덤프 함수를 부를 수도 없다. 또 MSVC의 <code>std::set_terminate</code>는 <strong>스레드마다 따로</strong>라 등록한 스레드만 덮는다</div>
+<div class="step s3"><b>설계</b>덤프 전용 스레드를 미리 만들고, 크래시 난 스레드는 요청만 하고 기다린다. 다른 스레드의 terminate는 기본 동작(abort)을 <code>SIGABRT</code>(프로세스 전체)로 잡는다</div>
+<div class="step s4"><b>확인</b>자식 프로세스를 일부러 죽이는 테스트: 접근 위반 → <code>_crash.dmp</code>, 다른 스레드 <code>std::terminate</code> → <code>_abort.dmp</code>. 수동 덤프 뒤에도 프로세스는 계속 돈다</div>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 900 200" role="img" aria-label="크래시 난 스레드는 요청 칸을 채우고 이벤트로 덤프 스레드를 깨운 뒤 기다린다. 덤프 스레드가 MiniDumpWriteDump로 파일을 쓰고 끝났다고 알리면 프로세스가 끝난다">
+<rect class="d-warn" x="20" y="30" width="210" height="70" rx="6"/><text class="d-t" x="125" y="54" text-anchor="middle">크래시 난 스레드</text><text class="d-m" x="125" y="72" text-anchor="middle">스택이 거의 없어도 된다</text><text class="d-m" x="125" y="88" text-anchor="middle">요청 칸 채우고 기다림</text>
+<rect class="d-ok" x="340" y="30" width="220" height="70" rx="6"/><text class="d-t" x="450" y="54" text-anchor="middle">덤프 전용 스레드(미리)</text><text class="d-m" x="450" y="72" text-anchor="middle">MiniDumpWriteDump</text><text class="d-m" x="450" y="88" text-anchor="middle">크래시 스레드 스택이 멈춘 그대로</text>
+<rect class="d-box" x="670" y="40" width="210" height="50" rx="6"/><text class="d-t" x="775" y="62" text-anchor="middle">dumps/…_crash.dmp</text><text class="d-m" x="775" y="80" text-anchor="middle">그다음 프로세스 종료</text>
+<path class="d-line" d="M230,55 L338,55"/><text class="d-m" x="284" y="48" text-anchor="middle">① 이벤트</text>
+<path class="d-line" d="M338,80 L232,80"/><text class="d-m" x="284" y="96" text-anchor="middle">③ 끝남</text>
+<path class="d-line" d="M560,65 L668,65"/><text class="d-m" x="614" y="58" text-anchor="middle">② 쓰기</text>
+<text class="d-m" x="20" y="135">잡는 것: 처리 안 된 예외(접근 위반, ASSERT) · std::terminate(등록한 스레드) · abort/SIGABRT(다른 스레드의 terminate 포함) · 순수 가상 호출 · CRT 잘못된 인자</text>
+<text class="d-m" x="20" y="155">수동 Write(Mini/Full, 이유)도 같은 길: 부른 스레드가 기다리는 동안 덤프 스레드가 쓴다(서버는 계속 돈다)</text>
+<text class="d-m" x="20" y="175">C#: 자동은 런타임 환경 변수(DOTNET_DbgEnableMiniDump), 수동은 MS 공식 DiagnosticsClient.WriteDump(dotnet-dump 와 같은 경로)</text>
+</svg>
+</div>
+<p class="muted">앞으로: Full 덤프는 메모리가 크면 몇 초 동안 서버가 멈춘다 → <code>PssCaptureSnapshot</code>으로 순간 복사본을 떠서 덤프(멈춤 수 ms 목표, 잰 뒤 여기에 수치). 덤프 뒤 로그 flush(시간 제한). 수동 덤프 명령은 Network 뒤 관리 콘솔(localhost·내부망만, 인증).</p>
+<p class="talk"><b>30초 답변.</b> 크래시 덤프는 크래시 난 스레드가 직접 쓰지 않고 미리 만든 덤프 전용 스레드가 씁니다. 스택 오버플로처럼 크래시 난 스레드에 스택이 거의 없어도 덤프를 남길 수 있고, 그 스레드의 스택이 멈춘 그대로 덤프에 들어갑니다. 만들면서 MSVC의 terminate 처리기가 스레드마다 따로라는 걸 테스트로 확인해서, 다른 스레드의 terminate는 프로세스 전체에 걸리는 SIGABRT로 잡았습니다. 같은 경로로 살아 있는 서버도 죽이지 않고 덤프를 뜹니다.</p>
+</div>
+
 <!-- ===================== 계획 ===================== -->
 <h2 id="plan">앞으로 할 것</h2>
 
@@ -777,6 +805,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <tr><td>멀티스레드 서버에서 락 없이 콘텐츠를 짜는 법</td><td>11</td><td>ID마다 정해진 Lane(전용 스레드)에서만 그 데이터를 만진다. 다른 ID의 데이터는 메시지로 요청하고, 기다리지 않고 답을 메시지로 받는다(액터 모델, Orleans grain과 같은 생각)</td></tr>
 <tr><td>패킷 처리 구조를 어떻게 짰나</td><td>12</td><td>IOCP 스레드가 자르기·검사·역직렬화까지 하고, 표로 목적지를 골라 Lane별로 묶어 넣는다. Processor 사이는 MessageRouter, 잘못 보내기는 컴파일 에러</td></tr>
 <tr><td>표준 라이브러리를 믿고 썼다가 느렸던 경험</td><td>13</td><td>MSVC의 <code>zoned_time</code>·chrono 형식·추가 모드 파일이 줄마다 µs를 썼다. 핫 패스는 편한 기능도 재 보고, 하나씩 고쳐 원인별 효과를 남긴다</td></tr>
+<tr><td>서버 크래시를 어떻게 조사하나</td><td>14</td><td>덤프 전용 스레드가 크래시 스레드 대신 덤프를 쓴다(스택 오버플로에도). 다른 스레드의 terminate는 SIGABRT로 잡는다. 살아 있는 서버는 수동 덤프</td></tr>
 <tr><td>틀린 가정을 어떻게 바로잡았나</td><td>8</td><td>"C#은 lock-free라 빠르다"고 적었다가 .NET 소스를 직접 읽고 바로잡았다. 추측은 소스나 측정으로 확인한다</td></tr>
 <tr><td>설계 결정을 어떻게 했나</td><td>3, 7</td><td>후보를 같은 조건으로 재고, 얻은 것·잃은 것·결론이 깨지는 조건을 결정 기록으로 남긴다</td></tr>
 </table></div>

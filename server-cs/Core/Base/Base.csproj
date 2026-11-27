@@ -10,4 +10,9 @@
     <Compile Remove="Tests\**" />
     <None Remove="Tests\**" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- CrashDump: 살아 있는 프로세스 덤프(MS 공식, dotnet-dump 가 쓰는 것) -->
+    <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" Version="0.2.750501" />
+  </ItemGroup>
 </Project>
