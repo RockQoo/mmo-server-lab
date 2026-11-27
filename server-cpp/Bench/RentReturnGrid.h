@@ -24,8 +24,8 @@ namespace Bench
     //   최대(C):        1:C, C:1, C/2:C/2
     //   초과(1.25C):    1:1.25C, 1.25C:1, 0.625C:0.625C  (넘쳐도 무너지지 않는지 본다. x2 는 과해서 뺐다)
     // 물리 8코어·논리 16 PC 에서는 1:1, 1:8, 8:1, 4:4 / 1:16, 16:1, 8:8 / 1:20, 20:1, 10:10. 목록은 여기 하나에서만
-    // 고친다. 전체 횟수(TotalOps)는 모든 조합 x 64(블록)로 나누어떨어지게 정한다(C# OperationsPerInvoke 가 상수라).
-    // 풀 N:M 측정의 전체 횟수: 2^18 x 50 = 13,107,200. 위 조합(N x M 최대 100) x 64 로 모두 나누어떨어진다.
+    // 고친다.
+    // 풀 N:M 측정의 전체 횟수: 2^18 x 50 = 13,107,200(64 의 배수, C# 과 같은 수). 조합과 상관없이 정확히 이만큼 한다.
     inline constexpr std::int64_t RentReturnOps = std::int64_t{50} << 18;
 
     inline std::vector<std::pair<int, int>> RentReturnShapes()
@@ -92,33 +92,31 @@ namespace Bench
         RentReturnGrid(RentReturnGrid&&) = delete;
         RentReturnGrid& operator=(RentReturnGrid&&) = delete;
 
-        // 약 totalOps 개를 빌리고 반납할 때까지 돌리고, 실제로 한 횟수를 돌려준다. rent() 는 Handle 하나를 빌려
-        // 돌려준다. 쌍마다 같은 수의 블록이 되게 N * M * BlockSize 의 배수로 내린다(코어 수가 2의 거듭제곱이 아닌 PC
-        // 대비).
+        // 정확히 totalOps 개를 빌리고 반납할 때까지 돌리고, 그 횟수를 돌려준다. rent() 는 Handle 하나를 빌려 돌려준다.
+        // totalOps 는 BlockSize 의 배수여야 한다. 블록을 빌리는 스레드에 나눠 주고 남는 것은 앞 스레드가 하나씩 더
+        // 맡는다(코어 수가 2의 거듭제곱이 아닌 PC 에서도 모든 조합이 같은 횟수를 한다. Codex 리뷰 2차 R1).
         template <typename Rent>
         std::int64_t Run(const std::int64_t totalOps, const Rent& rent)
         {
-            const auto perRound =
-                static_cast<std::int64_t>(_renters) * static_cast<std::int64_t>(_returners) * std::int64_t{BlockSize};
-            const auto blocksPerPair = totalOps / perRound;
-            if (blocksPerPair == 0)
+            if (totalOps <= 0 || totalOps % std::int64_t{BlockSize} != 0)
             {
-                std::terminate(); // 측정 조건 실수: 조합에 비해 횟수가 너무 적다
+                std::terminate(); // 측정 조건 실수
             }
+            const auto totalBlocks = totalOps / std::int64_t{BlockSize};
 
             _team.Run(
-                [this, &rent, blocksPerPair](const int t)
+                [this, &rent, totalBlocks](const int t)
                 {
                     if (t < _renters)
                     {
-                        RunRenter(t, blocksPerPair, rent);
+                        RunRenter(t, BlocksOfRenter(totalBlocks, t), rent);
                     }
                     else
                     {
-                        RunReturner(t - _renters, blocksPerPair);
+                        RunReturner(t - _renters, totalBlocks);
                     }
                 });
-            return blocksPerPair * perRound;
+            return totalOps;
         }
 
     private:
@@ -146,11 +144,27 @@ namespace Bench
                           static_cast<std::size_t>(returner)];
         }
 
+        // 빌리는 스레드 renter 가 맡는 블록 수: 고르게 나누고 남는 것은 앞 스레드가 하나씩 더.
+        [[nodiscard]] std::int64_t BlocksOfRenter(const std::int64_t totalBlocks, const int renter) const noexcept
+        {
+            const auto renters = static_cast<std::int64_t>(_renters);
+            return totalBlocks / renters + (renter < totalBlocks % renters ? 1 : 0);
+        }
+
+        // renter 가 returner 에게 보내는 블록 수. renter 는 블록 번호 % M 으로 보내므로 앞 returner 가 하나씩 더
+        // 받는다.
+        [[nodiscard]] std::int64_t BlocksBetween(const std::int64_t totalBlocks, const int renter,
+                                                 const int returner) const noexcept
+        {
+            const auto blocks = BlocksOfRenter(totalBlocks, renter);
+            const auto returners = static_cast<std::int64_t>(_returners);
+            return blocks / returners + (returner < blocks % returners ? 1 : 0);
+        }
+
         template <typename Rent>
-        void RunRenter(const int renter, const std::int64_t blocksPerPair, const Rent& rent)
+        void RunRenter(const int renter, const std::int64_t blocks, const Rent& rent)
         {
             auto next = std::vector<std::size_t>(static_cast<std::size_t>(_returners)); // 쌍마다 다음에 채울 블록
-            const auto blocks = blocksPerPair * _returners;
             for (auto b = std::int64_t{0}; b < blocks; ++b)
             {
                 const auto returner = static_cast<int>(b % _returners); // 반납하는 쪽을 차례로 바꾼다
@@ -170,9 +184,13 @@ namespace Bench
             }
         }
 
-        void RunReturner(const int returner, const std::int64_t blocksPerPair)
+        void RunReturner(const int returner, const std::int64_t totalBlocks)
         {
-            const auto expected = blocksPerPair * _renters;
+            auto expected = std::int64_t{0};
+            for (auto renter = 0; renter < _renters; ++renter)
+            {
+                expected += BlocksBetween(totalBlocks, renter, returner);
+            }
             auto received = std::int64_t{0};
             while (received < expected)
             {

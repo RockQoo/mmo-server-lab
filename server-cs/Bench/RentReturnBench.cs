@@ -11,8 +11,8 @@ namespace Bench;
 //   논리 16 PC 에서는 1:1, 1:8, 8:1, 4:4 / 1:16, 16:1, 8:8 / 1:20, 20:1, 10:10
 internal static class RentReturnShapes
 {
-    // 13,107,200(2^18 x 50): C++ Bench::RentReturnOps 와 같은 수. OperationsPerInvoke 가 상수라 모든 조합 x 64 로
-    // 나누어떨어지게 골랐다
+    // 13,107,200(2^18 x 50, 64 의 배수): C++ Bench::RentReturnOps 와 같은 수. 조합과 상관없이 정확히 이만큼 한다
+    // (RentReturnGrid 가 블록을 고르게 나눈다)
     public const int TotalOps = 50 << 18;
 
     public static IEnumerable<string> All()

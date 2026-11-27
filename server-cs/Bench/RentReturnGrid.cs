@@ -29,23 +29,25 @@ internal sealed class RentReturnGrid<T> : IDisposable where T : class
         _team = new ThreadTeam(renters + returners);
     }
 
-    // 전체 totalOps 개를 빌리고 반납할 때까지 돌린다. totalOps 는 N * M * BlockSize 로 나누어떨어져야 한다.
+    // 정확히 totalOps 개를 빌리고 반납할 때까지 돌린다. totalOps 는 BlockSize 의 배수여야 한다. 블록을 빌리는 스레드에
+    // 나눠 주고 남는 것은 앞 스레드가 하나씩 더 맡는다(코어 수가 2의 거듭제곱이 아닌 PC 에서도 모든 조합이
+    // OperationsPerInvoke 와 같은 횟수를 한다. Codex 리뷰 2차 R1, C++ 과 같은 나눔).
     public void Run(int totalOps, Func<T> rent, Action<T> giveBack)
     {
-        if (totalOps % (_renters * _returners * BlockSize) != 0)
+        if (totalOps <= 0 || totalOps % BlockSize != 0)
         {
-            throw new ArgumentException("totalOps must be divisible by renters * returners * 64", nameof(totalOps));
+            throw new ArgumentException("totalOps must be a positive multiple of 64", nameof(totalOps));
         }
-        var blocksPerPair = totalOps / (_renters * _returners * BlockSize);
+        var totalBlocks = totalOps / BlockSize;
         _team.RunEach(t =>
         {
             if (t < _renters)
             {
-                RunRenter(t, blocksPerPair, rent);
+                RunRenter(t, BlocksOfRenter(totalBlocks, t), rent);
             }
             else
             {
-                RunReturner(t - _renters, blocksPerPair, giveBack);
+                RunReturner(t - _renters, totalBlocks, giveBack);
             }
         });
     }
@@ -54,10 +56,20 @@ internal sealed class RentReturnGrid<T> : IDisposable where T : class
 
     private RentReturnCell CellAt(int renter, int returner) => _cells[renter * _returners + returner];
 
-    private void RunRenter(int renter, int blocksPerPair, Func<T> rent)
+    // 빌리는 스레드 renter 가 맡는 블록 수: 고르게 나누고 남는 것은 앞 스레드가 하나씩 더.
+    private int BlocksOfRenter(int totalBlocks, int renter) =>
+        totalBlocks / _renters + (renter < totalBlocks % _renters ? 1 : 0);
+
+    // renter 가 returner 에게 보내는 블록 수(블록 번호 % M 으로 보내므로 앞 returner 가 하나씩 더 받는다).
+    private int BlocksBetween(int totalBlocks, int renter, int returner)
+    {
+        var blocks = BlocksOfRenter(totalBlocks, renter);
+        return blocks / _returners + (returner < blocks % _returners ? 1 : 0);
+    }
+
+    private void RunRenter(int renter, int blocks, Func<T> rent)
     {
         var next = new int[_returners]; // 쌍마다 다음에 채울 블록(0, 1 번갈아)
-        var blocks = blocksPerPair * _returners;
         for (var b = 0; b < blocks; ++b)
         {
             var returner = b % _returners; // 반납하는 쪽을 차례로 바꾼다
@@ -77,9 +89,13 @@ internal sealed class RentReturnGrid<T> : IDisposable where T : class
         }
     }
 
-    private void RunReturner(int returner, int blocksPerPair, Action<T> giveBack)
+    private void RunReturner(int returner, int totalBlocks, Action<T> giveBack)
     {
-        var expected = blocksPerPair * _renters;
+        var expected = 0;
+        for (var renter = 0; renter < _renters; ++renter)
+        {
+            expected += BlocksBetween(totalBlocks, renter, returner);
+        }
         var received = 0;
         while (received < expected)
         {

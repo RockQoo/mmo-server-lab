@@ -148,7 +148,7 @@ namespace
         const auto returners = static_cast<int>(state.range(1));
         const auto size = static_cast<std::size_t>(state.range(2));
         Bench::RentReturnGrid<typename Renter::Buffer> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
-        auto ops = std::int64_t{};                                               // 실제로 한 횟수(조합의 배수로 내림)
+        auto ops = std::int64_t{};                                               // 한 횟수(= RentReturnOps)
         for (auto iteration : state)
         {
             ops = grid.Run(Bench::RentReturnOps,
