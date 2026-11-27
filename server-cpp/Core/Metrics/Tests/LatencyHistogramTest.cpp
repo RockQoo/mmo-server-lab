@@ -40,6 +40,16 @@ TEST(LatencyHistogram, BucketsCoverValuesWithinSixPercent)
     EXPECT_EQ(LatencyHistogram::BucketOf(uint64_t{1} << 40), LatencyHistogram::BucketCount - 1); // 넘으면 마지막 칸
 }
 
+// C# LatencyHistogramTest.BucketNumbersMatchCpp 와 같은 값 → 같은 칸(두 언어의 p99 가 같은 값이 되는 근거)
+TEST(LatencyHistogram, BucketNumbersMatchCs)
+{
+    EXPECT_EQ(LatencyHistogram::BucketOf(0), 0U);
+    EXPECT_EQ(LatencyHistogram::BucketOf(15), 15U);
+    EXPECT_EQ(LatencyHistogram::BucketOf(16), 16U);
+    EXPECT_EQ(LatencyHistogram::BucketOf(32), 32U);
+    EXPECT_EQ(LatencyHistogram::BucketOf(1'000'000), 270U);
+}
+
 TEST(LatencyHistogram, SmallValuesAreExact)
 {
     LatencyHistogram histogram;

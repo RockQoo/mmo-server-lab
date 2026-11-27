@@ -8,6 +8,8 @@
                                       "Core\\Log\\Tests\\Log.Tests.csproj",
                                       "Core\\Messaging\\Messaging.csproj",
                                       "Core\\Messaging\\Tests\\Messaging.Tests.csproj",
+                                      "Core\\Metrics\\Metrics.csproj",
+                                      "Core\\Metrics\\Tests\\Metrics.Tests.csproj",
                                       "Core\\Scheduling\\Scheduling.csproj",
                                       "Core\\Scheduling\\Tests\\Scheduling.Tests.csproj"
                                   ]

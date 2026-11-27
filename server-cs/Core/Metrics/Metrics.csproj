@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- C++ server-cpp/Core/Metrics 와 같은 라이브러리. namespace도 Metrics. 기록은 BCL System.Diagnostics.Metrics. -->
+  <PropertyGroup>
+    <RootNamespace>Metrics</RootNamespace>
+    <AssemblyName>Metrics</AssemblyName>
+  </PropertyGroup>
+
+  <!-- 테스트는 같은 폴더 아래 Tests/에 따로 프로젝트로 있다. 이 프로젝트에 섞여 컴파일되지 않게 뺀다. -->
+  <ItemGroup>
+    <Compile Remove="Tests\**" />
+    <None Remove="Tests\**" />
+  </ItemGroup>
+</Project>

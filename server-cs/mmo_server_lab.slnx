@@ -13,6 +13,12 @@
   <Folder Name="/Core/Messaging/Tests/">
     <Project Path="Core/Messaging/Tests/Messaging.Tests.csproj" />
   </Folder>
+  <Folder Name="/Core/Metrics/">
+    <Project Path="Core/Metrics/Metrics.csproj" />
+  </Folder>
+  <Folder Name="/Core/Metrics/Tests/">
+    <Project Path="Core/Metrics/Tests/Metrics.Tests.csproj" />
+  </Folder>
   <Folder Name="/Core/Scheduling/">
     <Project Path="Core/Scheduling/Scheduling.csproj" />
   </Folder>

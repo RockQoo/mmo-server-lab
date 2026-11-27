@@ -5,6 +5,7 @@
                                       "Core\\Base\\Base.csproj",
                                       "Core\\Log\\Log.csproj",
                                       "Core\\Messaging\\Messaging.csproj",
+                                      "Core\\Metrics\\Metrics.csproj",
                                       "Core\\Scheduling\\Scheduling.csproj"
                                   ]
                  }
