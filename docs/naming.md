@@ -37,6 +37,10 @@
 | Scheduling | `Scheduler` | 있음(타이머 스레드 하나(`std::jthread`) + `TimerHeap` + 시각이 되면 담당 Lane 에 `Post`. `After`/`Every`/`Cancel`/`Stop`) | 있음(BCL `TimeProvider.CreateTimer`(런타임 타이머) + 콜백은 `Lane.TryPost` 만. `After`/`Every`/`Cancel`/`Dispose`, 테스트는 `FakeTimeProvider`) | 같은 역할: "몇 초 뒤", "몇 초마다" 일을 등록할 때 넘긴 Lane 에서 실행, 어느 스레드에서 불러도 됨, `Cancel` 이 true 면 Lane 에 이미 넣은 회차까지 막음. 주기 일이 크게 늦을 때 규칙만 다르다(C++ 다음 칸으로 건너뜀, C# 런타임 규칙: 1ms 뒤 한 번 실행 후 거기서 다시 셈. `docs/journal/performance.html` 사례 15). namespace 를 `Timer` 로 하지 않은 것은 C# `System.Threading.Timer` 와 겹쳐서다 |
 | Scheduling | `TimerHeap` | 있음(`priority_queue` + `unordered_map`, 같은 시각은 넣은 순서, 주기는 고정 간격, `Cancel` 은 표시만, 스레드 안전하지 않음) | **없음** | 아래 참고 |
 | Scheduling | `TimerId` | 있음(`using TimerId = Base::StrongId<struct TimerTag, uint64_t>`, 0 = 없음) | 있음(`readonly record struct TimerId(ulong Value)`, `default` = 없음) | `Scheduler`(C++ 은 `TimerHeap` 도)가 발급하는 번호. 1부터 |
+| Metrics | `MetricCounter` | 있음(늘기만 하는 횟수. 캐시 줄마다 띄운 칸 16개, 스레드마다 정한 칸(`thread_local`)에 `fetch_add`, `Value()`는 칸 합) | **없음**(BCL `System.Diagnostics.Metrics.Counter<long>` 에 기록, 합은 `MetricsCollector` 가 CPU 번호로 고른 칸 16개에 모음) | 같은 역할: 여러 스레드가 같이 올리는 횟수. C++ 이름은 BCL `Counter<T>` 와 겹치지 않게 `MetricCounter`. 칸 나누기 효과는 `docs/journal/performance.html` 사례 16 |
+| Metrics | `LatencyHistogram`, `HistogramSnapshot` | 있음(16 미만은 정확, 그 위는 2의 거듭제곱 구간마다 16칸, 528칸, 오차 6.25% 이하. `Record`, `Snapshot`, `SnapshotAndReset`) | 있음(같은 칸 나누기, `Interlocked`. `HistogramSnapshot` 은 `readonly record struct`. 기록은 BCL `Histogram<long>`(ns) → `MetricsCollector` 가 이 칸에 넣음) | 같은 값 → 같은 칸 번호(두 언어 테스트로 확인, 100만 ns → 270번)라 두 언어의 p99 를 그대로 비교한다. BCL `Histogram<T>` 은 분위수를 계산하지 않아 C#도 직접 만듦 |
+| Metrics | `ScopedTimer` | 있음(`steady_clock`, 소멸자에서 `LatencyHistogram::Record`) | 있음(`readonly struct`, `IDisposable`, `Stopwatch.GetTimestamp` 차이를 ns 로, `Histogram<long>.Record`) | 블록 하나의 시간을 잰다(스코프/`using`). C#은 `TimeSpan`(100ns 단위)을 거치지 않는다 |
+| Metrics | `MetricsReporter` | 있음(`Add(name, MetricCounter&)`, `Add(name, LatencyHistogram&)`, `Report(now)`) | 있음(`AddCounter(name)`, `AddHistogram(name)`, `Report()`, 시계는 `TimeProvider`) | 같은 역할, 같은 줄: `tick.latency=[n=600 p50=812.0us p99=3.10ms max=12.00ms] packets.received=1200/s`. 글만 만들고 로거는 모른다(서버가 `Scheduler.Every(10s)` 로 불러 자기 카테고리로 남긴다). C#은 이름으로 모으므로 종류별 `Add` 로 나눴다 |
 
 ## 한쪽에만 있는 것
 
@@ -92,6 +96,12 @@ C#에 만들지 않는 이유(2026-11-28):
 C#에 만들지 않는 이유: C# `Lane` 과 `Scheduler` 는 전용 스레드 없이 스레드 풀에서 돈다(`LaneGroup` 처럼 이름이 없다). 풀 스레드는 일마다 바뀌어 이름을 붙여도 뜻이 없다. 전용 스레드가 필요하면 BCL `Thread.Name` 이 있다.
 
 ## C# 에만 있는 것
+
+### `MetricsCollector` (C#만)
+
+BCL `System.Diagnostics.Metrics`(`Meter`, `Counter<long>`, `Histogram<long>`)로 기록한 값을 `MeterListener` 로 받아 서버 안에서 모은다(`CounterValue(name)`, `Snapshot(name)`, `SnapshotAndReset(name)`). BCL 로 기록하는 이유는 MS 도구(`dotnet-counters`)로 밖에서 바로 볼 수 있어서다. 다만 BCL 은 값을 받기만 하고 합이나 p99 를 내 주지 않는다. 콜백은 기록한 스레드에서 바로 불린다(큐 없음). 카운터 합은 C++ `MetricCounter` 처럼 칸 16개에 나눠 더한다(`Thread.GetCurrentProcessorId`, 2026-11-28 사례 16).
+
+C++에 없는 이유: C++ 은 `MetricCounter`·`LatencyHistogram` 에 직접 넣으므로 중간에 모으는 곳이 필요 없다.
 
 ### 코덱(`IByteCodec<T>`, `ByteCodecs.cs`)
 

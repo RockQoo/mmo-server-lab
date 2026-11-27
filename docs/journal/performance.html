@@ -163,6 +163,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <li><a href="#c13">로그 한 줄이 12µs였다 → 0.4µs</a></li>
 <li><a href="#c14">크래시 덤프: 덤프 전용 스레드가 쓴다</a></li>
 <li><a href="#c15">타이머 자료구조: TimerHeap vs TimerWheel</a></li>
+<li><a href="#c16">카운터 하나를 여러 스레드가 올리면 느려졌다 → 칸 나누기</a></li>
 <li><a href="#plan">앞으로 할 것 A~F</a></li>
 <li><a href="#talk">면접용 정리</a></li>
 </ol>
@@ -722,6 +723,53 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <p class="talk"><b>30초 답변.</b> 타이머는 우선순위 큐로 만들었습니다. 흔히 타이머 휠이 빠르다고 해서 비교용 휠을 만들어 1만·10만·100만 개로 넣기, 지우기, 실행, 존 흉내 섞어 쓰기를 재 보니 휠이 2~3배 빨랐고, 특히 지우기에서 차이가 컸습니다. 그런데 10만 개 존에서 힙도 50ms 틱당 75마이크로초, 코어의 0.15%라 병목이 아니었습니다. 휠은 최대 1밀리초 늦고 같은 칸 안 순서가 정해지지 않으며, 긴 버프가 많으면 계층 휠까지 필요합니다. 그래서 결과가 늘 같은 힙을 두고, 휠 코드는 벤치마크에만 남겼습니다. 숫자가 빠른 쪽이 아니라 틱 예산 안에서 단순하고 결정적인 쪽을 골랐습니다.</p>
 </div>
 
+<!-- ===================== 사례 16 ===================== -->
+<h2 id="c16">16. 카운터 하나를 여러 스레드가 올리면 오히려 느려졌다 → 칸 나누기</h2>
+<div class="card">
+<div class="case-head"><h3>C++ <code>MetricCounter</code>(스레드 번호로 칸) · C# <code>MetricsCollector</code>(CPU 번호로 칸)</h3><span class="date">2026-11-28 · <code>Core/Metrics</code>, <code>Bench/MetricCounterBench.cpp</code>·<code>MetricsBench.cs</code></span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>받은 패킷 수처럼 IOCP 스레드 여럿이 같이 올리는 카운터를 atomic 하나로 두면, 스레드를 늘릴수록 전체 처리량이 줄었다. C++ 1스레드 초당 2.6억 → 16스레드 1.3억, C# <code>Interlocked</code> 하나는 2.0억 → 4스레드 0.94억</div>
+<div class="step s2"><b>원인</b>atomic 하나 = 캐시 줄 하나. 여러 코어가 같은 줄에 쓰면 줄이 코어 사이를 오간다(사례 1의 true sharing과 같은 원리). 더하기 자체는 몇 ns인데 줄을 받아 오는 시간이 그보다 길다</div>
+<div class="step s3"><b>해결</b>캐시 줄마다 띄운 칸 16개에 나눠 더하고, 읽을 때(10초에 한 번) 모두 더한다. 칸 고르기는 C++은 스레드마다 처음 한 번 정한 번호(<code>thread_local</code>), C#은 지금 도는 CPU 번호(<code>Thread.GetCurrentProcessorId</code>, BCL)</div>
+<div class="step s4"><b>결과</b>C++ 16스레드 <strong>1.3억 → 33억/초(25배)</strong>, C# 16스레드 <strong>1.05억 → 16억/초(15배)</strong>. 1스레드는 C++ 같음, C#은 CPU 번호 읽기로 4.9 → 6.1ns</div>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 700 290" role="img" aria-label="스레드 수에 따른 카운터 처리량. 칸을 나눈 C++과 C#은 스레드 수만큼 늘고, atomic 하나는 바닥에서 평평하다">
+<text class="d-t" x="20" y="20" font-weight="600">카운터 더하기 처리량(백만 번/초, 높을수록 좋음)</text>
+<line class="d-axis" x1="70" y1="30" x2="70" y2="230"/><line class="d-axis" x1="70" y1="230" x2="680" y2="230"/>
+<text class="d-m" x="62" y="234" text-anchor="end">0</text><text class="d-m" x="62" y="175" text-anchor="end">1000</text><text class="d-m" x="62" y="116" text-anchor="end">2000</text><text class="d-m" x="62" y="57" text-anchor="end">3000</text>
+<line class="d-axis" x1="70" y1="171" x2="680" y2="171" stroke-dasharray="2 4"/><line class="d-axis" x1="70" y1="112" x2="680" y2="112" stroke-dasharray="2 4"/><line class="d-axis" x1="70" y1="53" x2="680" y2="53" stroke-dasharray="2 4"/>
+<text class="d-m" x="100" y="248" text-anchor="middle">1</text><text class="d-m" x="280" y="248" text-anchor="middle">4</text><text class="d-m" x="460" y="248" text-anchor="middle">8</text><text class="d-m" x="640" y="248" text-anchor="middle">16 스레드</text>
+<path class="d-cppl" d="M100,214 L280,175 L460,123 L640,35"/>
+<path class="d-csl" d="M100,220 L280,193 L460,171 L640,136"/>
+<path class="d-cppl" d="M100,215 L280,221 L460,222 L640,222" stroke-dasharray="5 4"/>
+<path class="d-csl" d="M100,218 L280,225 L460,224 L640,224" stroke-dasharray="5 4"/>
+<text class="d-ct" x="632" y="32" text-anchor="end">C++ 칸 16개 3321</text>
+<text class="d-m" x="632" y="130" text-anchor="end">C# 칸 16개 1597</text>
+<text class="d-m" x="640" y="214" text-anchor="end">atomic 하나: C++ 130, C# 105</text>
+<line class="d-cppl" x1="80" y1="268" x2="104" y2="268"/><text class="d-m" x="110" y="272">C++ 칸 16개</text>
+<line class="d-csl" x1="210" y1="268" x2="234" y2="268"/><text class="d-m" x="240" y="272">C# 칸 16개</text>
+<line class="d-cppl" x1="340" y1="268" x2="364" y2="268" stroke-dasharray="5 4"/><text class="d-m" x="370" y="272">C++ atomic 하나</text>
+<line class="d-csl" x1="490" y1="268" x2="514" y2="268" stroke-dasharray="5 4"/><text class="d-m" x="520" y="272">C# Interlocked 하나</text>
+</svg>
+</div>
+<div class="table-wrap"><table>
+<tr><th>백만 번/초(카운터 1개, 스레드 N개가 같이)</th><th class="num">1</th><th class="num">4</th><th class="num">8</th><th class="num">16</th></tr>
+<tr><td>C++ atomic 하나</td><td class="num">263</td><td class="num">149</td><td class="num">144</td><td class="num">130</td></tr>
+<tr><td>C++ <code>MetricCounter</code>(칸 16개)</td><td class="num">267</td><td class="num">939</td><td class="num">1818</td><td class="num"><strong>3321</strong></td></tr>
+<tr><td>C# <code>Interlocked</code> 하나(수집기 첫 판)</td><td class="num">204</td><td class="num">94</td><td class="num">109</td><td class="num">105</td></tr>
+<tr><td>C# <code>MetricsCollector</code>(칸 16개)</td><td class="num">164</td><td class="num">625</td><td class="num">1010</td><td class="num"><strong>1597</strong></td></tr>
+<tr><td class="muted">기준선 Noop(C++, 십억 번/초)</td><td class="num">4.9</td><td class="num">12.9</td><td class="num">22.3</td><td class="num">38.5</td></tr>
+</table></div>
+<ul>
+<li><b>왜 C++과 C#이 칸 고르는 법이 다른가:</b> C++은 스레드마다 처음 한 번 정한 번호(<code>thread_local</code>, 전역 차례로 0~15)로 칸을 고른다. C#도 <code>[ThreadStatic]</code>으로 같은 방법을 쓸 수 있지만, BCL에 "지금 도는 CPU 번호"(<code>Thread.GetCurrentProcessorId</code>)가 있어 그것을 썼다(재 보니 1스레드에서 1ns 남짓 더 든다). 같은 CPU에서 도는 스레드는 동시에 돌지 않으니 다투지 않는다. 스레드가 16개보다 많아도 CPU 번호는 코어 수만큼이라 칸이 고르게 나뉜다.</li>
+<li><b>C# 1스레드가 C++보다 느린 이유:</b> C#은 BCL <code>Counter&lt;long&gt;.Add</code> → <code>MeterListener</code> 콜백 → 종류 고르기 → 칸 더하기를 거친다. MS 도구(<code>dotnet-counters</code>)로 밖에서 보려고 BCL로 기록하는 값이다. 그래도 한 번에 6ns라 서버 패킷 수(초당 수십만)에는 아무 문제가 없다.</li>
+<li><b>잃은 것:</b> 카운터 하나에 1KB(64B × 16). 서버 카운터는 수십 개라 괜찮다. 읽을 때 칸 16개를 더하는 동안 들어온 값은 들어갈 수도 빠질 수도 있다(늘기만 하므로 다음에 읽으면 들어간다).</li>
+<li class="muted">C++은 2026-11-28 PC 부하 10%에서 3회 중앙값. C#은 같은 날 <code>--job short</code>(Interlocked 판은 칸 나누기 전 첫 측정). Noop은 16스레드까지 늘어 측정 틀이 경합을 만들지 않는다. 카운터 4개를 같이 올린 측정(args 4)도 칸 16개는 같은 수치였다.</li>
+</ul>
+<p class="talk"><b>30초 답변.</b> 서버 지표 카운터를 atomic 하나로 두니 스레드를 늘릴수록 오히려 느려졌습니다. 16스레드에서 1스레드의 절반이었습니다. 원인은 같은 캐시 줄을 여러 코어가 번갈아 가져가는 것이라, 캐시 줄마다 띄운 칸 16개에 나눠 더하고 읽을 때 합치게 바꿨습니다. C++은 스레드마다 정한 칸, C#은 BCL의 현재 CPU 번호로 칸을 골라 16스레드에서 C++ 25배, C# 15배가 됐습니다. 읽기는 10초에 한 번이라 합치는 비용은 무시할 만하고, 대신 카운터 하나에 1KB를 씁니다.</p>
+</div>
+
 <!-- ===================== 계획 ===================== -->
 <h2 id="plan">앞으로 할 것</h2>
 
@@ -882,7 +930,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <div class="table-wrap"><table>
 <tr><th>질문이 오면</th><th>꺼낼 사례</th><th>핵심 한 줄</th></tr>
 <tr><td>성능 문제를 어떻게 찾았나</td><td>1, 8</td><td>기준선(Noop, 큐만)부터 재고, CPU를 user·kernel로 나눠 잠금 대기인지 깨우기인지 가른다</td></tr>
-<tr><td>멀티스레드 최적화 경험</td><td>2, 3, 8</td><td>공유 자원(mutex, 캐시 줄)을 스레드별로 나누고, 공유는 묶음 단위로만 만나게</td></tr>
+<tr><td>멀티스레드 최적화 경험</td><td>2, 3, 8, 16</td><td>공유 자원(mutex, 캐시 줄)을 스레드별로 나누고, 공유는 묶음 단위로만 만나게</td></tr>
 <tr><td>false/true sharing을 아나</td><td>1</td><td>같은 캐시 줄을 여러 코어가 쓰면 줄이 코어 사이를 오가 수십~100ns씩 든다</td></tr>
 <tr><td>C++과 C#의 차이</td><td>4, 8, 9, F</td><td>C# <code>new</code>는 싸지만 GC 비용이 나중에 꼬리 지연으로 온다. 구조가 같으면 언어보다 설계가 차이를 만든다</td></tr>
 <tr><td>벤치마크를 믿을 수 있나</td><td>1, 6, 9</td><td>두 언어 같은 틀, Noop 기준선, 할당량까지 본다. 리뷰로 측정 틀의 버그를 찾았다</td></tr>

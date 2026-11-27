@@ -114,13 +114,22 @@ ul{padding-left:20px;margin:6px 0}
 <td><span class="b cs">MS·대중 라이브러리</span><b>Serilog</b> + Sinks.Console·File(11-27 설치). <code>Logger.For(cat)</code> → <code>ILogger</code></td><td class="st">✅ ✅</td></tr>
 
 <!-- Metrics -->
-<tr><td class="mod" rowspan="2">Metrics</td>
-<td><code>Counter</code><br><span class="b red">이름 겹침</span></td><td>횟수 세기(패킷 수, 접속 수)</td>
-<td><span class="b impl">직접 만듦</span>atomic, 스레드별 합산</td>
-<td><span class="b bcl">BCL·표준</span><code>System.Diagnostics.Metrics.Counter&lt;T&gt;</code> → C++ 이름 바꿀 것</td><td class="st">⬜ ⬜</td></tr>
-<tr><td><code>LatencyHistogram</code><br><span class="b warn">제안</span></td><td>지연 분포, p50/p99</td>
-<td><span class="b impl">직접 만듦</span>로그 구간 버킷</td>
-<td><span class="b impl">직접 만듦</span>BCL <code>Histogram&lt;T&gt;</code>은 분위수를 직접 계산하지 않음</td><td class="st">⬜ ⬜</td></tr>
+<tr><td class="mod" rowspan="5">Metrics</td>
+<td><code>MetricCounter</code><br><span class="b bcl">확정</span></td><td>횟수 세기(패킷 수, 접속 수). 여러 스레드가 같이 올린다</td>
+<td><span class="b impl">직접 만듦</span>캐시 줄마다 띄운 칸 16개, 스레드마다 정한 칸(<code>thread_local</code>). BCL <code>Counter&lt;T&gt;</code>와 겹치지 않는 이름</td>
+<td><span class="b bcl">BCL·표준</span><code>System.Diagnostics.Metrics.Counter&lt;long&gt;</code>에 기록(합은 <code>MetricsCollector</code>)</td><td class="st">✅ ➖</td></tr>
+<tr><td><code>LatencyHistogram</code><br><code>HistogramSnapshot</code></td><td>지연 분포, p50/p90/p99/p999/max</td>
+<td><span class="b impl">직접 만듦</span>528칸(2의 거듭제곱 구간마다 16칸, 오차 6.25% 이하), <code>SnapshotAndReset</code></td>
+<td><span class="b impl">직접 만듦</span>같은 528칸(같은 값 → 같은 칸). BCL <code>Histogram&lt;T&gt;</code>은 분위수를 직접 계산하지 않음</td><td class="st">✅ ✅</td></tr>
+<tr><td><code>ScopedTimer</code></td><td>블록 하나의 시간 재기</td>
+<td><span class="b impl">직접 만듦</span><code>steady_clock</code>, 소멸자에서 기록</td>
+<td><span class="b impl">직접 만듦</span><code>readonly struct</code> + <code>using</code>, <code>Stopwatch.GetTimestamp</code></td><td class="st">✅ ✅</td></tr>
+<tr><td><code>MetricsReporter</code></td><td>등록한 지표를 로그 한 줄로(서버가 <code>Scheduler.Every(10s)</code>로 부른다)</td>
+<td><span class="b impl">직접 만듦</span><code>Add(name, 지표)</code>, <code>Report(now)</code>. 로거를 모름</td>
+<td><span class="b impl">직접 만듦</span><code>AddCounter</code>/<code>AddHistogram</code>(이름), <code>TimeProvider</code>. 같은 줄 모양</td><td class="st">✅ ✅</td></tr>
+<tr><td><code>MetricsCollector</code><br><span class="b warn">C#만</span></td><td>BCL 계기로 기록한 값을 서버 안에서 모으기</td>
+<td><span class="b no">없음</span>지표 객체에 직접 넣음</td>
+<td><span class="b impl">직접 만듦</span>BCL <code>MeterListener</code>, 카운터 합은 CPU 번호로 고른 칸 16개</td><td class="st">➖ ✅</td></tr>
 
 <!-- Scheduling -->
 <tr><td class="mod" rowspan="4">Scheduling<br><span class="b bcl">확정</span></td>
