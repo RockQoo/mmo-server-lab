@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개발일지: 덤프 분석</title>
+<style>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+.d-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+.d-wt { fill: var(--warn); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-ot { fill: var(--ok); font-size: 12px; font-weight: 600; font-family: inherit; }
+.d-buf { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.d-hot { stroke: var(--warn); stroke-width: 2; fill: none; marker-end: url(#arrowWarn); }
+.d-cold { stroke: var(--ok); stroke-width: 2; fill: none; stroke-dasharray: 6 4; marker-end: url(#arrowOk); }
+.bar { height: 14px; border-radius: 3px; background: var(--accent); display: inline-block; vertical-align: middle; }
+.bar.warn { background: var(--warn); }
+.bar.cs { background: var(--cs); }
+.bar.muted { background: var(--muted); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+<h1>개발일지 · 덤프 분석</h1>
+<p class="sub">CrashDump · 2026-11-27 · 남긴 덤프를 WinDbg로 실제로 열어 콜스택이 보이는지 확인한 일, release 심볼이 없던 문제, 데드락 찾는 법. 서버가 죽거나 멈췄을 때 여기부터 본다</p>
+
+<div class="card">
+<p><strong>한 줄 요약.</strong> CrashDump 테스트는 "파일이 생겼고 비어 있지 않다"까지만 봤다. WinDbg로 직접 열어 보니 C++·C# 덤프 모두 크래시 위치와 모든 스레드 스택이 보였다. 다만 <strong>release 빌드는 심볼(.pdb)을 만들지 않아</strong> 실제 서버 덤프는 주소만 남을 뻔했다. release에도 pdb를 만들게 고쳤다(<code>db47532</code>).</p>
+</div>
+
+<h2>왜 열어 봤나</h2>
+<p>덤프는 "남았다"보다 "열어서 원인이 보인다"가 목적이다. 파일 크기만 보는 테스트로는 다음을 알 수 없다.</p>
+<ul>
+  <li>크래시 덤프에 넣은 예외 정보(<code>RtlCaptureContext</code>로 직접 만든 것 포함)가 디버거에서 원래 스레드 스택으로 이어지는가</li>
+  <li>스냅샷(<code>PssCaptureSnapshot</code>) 덤프는 복사본 프로세스를 쓴다. 스레드 목록·레지스터가 빠지지 않는가</li>
+  <li>나중에 서버가 멈췄을 때(데드락) 수동 덤프로 원인을 찾을 수 있는가</li>
+</ul>
+
+<h2>도구 준비</h2>
+<div class="card">
+<p><strong>WinDbg</strong>(MS 공식 디버거). 설치하면 명령줄 디버거 <code>cdb.exe</code>가 같이 들어온다. 라이브러리가 아니라 도구라 저장소에는 아무것도 추가되지 않는다.</p>
+<pre><code>winget install Microsoft.WinDbg
+
+# cdb 위치(스토어 앱이라 PATH 에 없다)
+$cdb = (Get-AppxPackage Microsoft.WinDbg).InstallLocation + "\amd64\cdb.exe"</code></pre>
+<p>GUI로 보려면 WinDbg를 열고 File → Open dump file. 아래 명령은 GUI 아래쪽 명령 창에 그대로 쳐도 된다.</p>
+</div>
+
+<h3>심볼(.pdb)</h3>
+<p>덤프에는 메모리와 주소만 있다. 주소를 함수 이름·줄 번호로 바꾸는 것이 pdb다. <strong>덤프를 남긴 exe와 같은 빌드의 pdb</strong>가 있어야 한다.</p>
+<div class="table-wrap"><table>
+<tr><th>무엇</th><th>어디서</th></tr>
+<tr><td>우리 코드</td><td>exe 옆의 <code>*.pdb</code> (<code>server-cpp/build/&lt;config&gt;/</code>). 배포할 때는 빌드마다 exe와 pdb를 같이 보관한다</td></tr>
+<tr><td>Windows·CRT DLL</td><td>MS 심볼 서버: <code>srv*&lt;캐시 폴더&gt;*https://msdl.microsoft.com/download/symbols</code></td></tr>
+<tr><td>vcpkg DLL(gtest 등)</td><td><code>build/&lt;config&gt;/vcpkg_installed/x64-windows/(debug/)bin</code>. 빠뜨리면 그 프레임만 엉뚱한 함수 이름으로 나온다(우리 코드 프레임은 맞다)</td></tr>
+</table></div>
+<pre><code>&amp; $cdb -z &lt;덤프.dmp&gt; -y "&lt;exe 폴더&gt;;srv*C:\symcache*https://msdl.microsoft.com/download/symbols" -i "&lt;exe 폴더&gt;"</code></pre>
+
+<h3 id="release-pdb">바로잡음: release 빌드에 pdb가 없었다</h3>
+<div class="grid2">
+<div class="card"><span class="tag" style="background:var(--warn-soft);color:var(--warn)">전</span>
+<p>release 프리셋(<code>CMAKE_BUILD_TYPE=Release</code>)은 CMake 기본값이라 <code>/Zi</code>도 <code>/DEBUG</code>도 없다. 실제로 돌릴 release 서버의 덤프는 <code>BaseTests+0x1c57</code>처럼 주소만 나온다.</p></div>
+<div class="card"><span class="tag ok">후</span>
+<p><code>CMAKE_MSVC_DEBUG_INFORMATION_FORMAT ProgramDatabase</code>(= <code>/Zi</code>) + release 링크 <code>/DEBUG /OPT:REF /OPT:ICF</code>. 최적화(<code>/O2</code>)는 그대로다. <code>/DEBUG</code>가 기본으로 끄는 링크 최적화 두 개만 다시 켠다. release 덤프에서 함수 이름과 줄 번호가 나오는 것을 확인했다.</p></div>
+</div>
+
+<h2>자주 쓰는 명령</h2>
+<div class="grid2">
+<div class="card cpp"><span class="tag cpp">C++</span>
+<div class="table-wrap"><table>
+<tr><th>명령</th><th>뜻</th></tr>
+<tr><td><code>.ecxr</code></td><td>크래시 덤프: 덤프에 넣은 예외 순간의 레지스터로 바꾼다(이걸 해야 크래시 난 스택이 보인다)</td></tr>
+<tr><td><code>kn</code></td><td>지금 스레드 콜스택(번호 붙임)</td></tr>
+<tr><td><code>~*kn</code></td><td><strong>모든 스레드</strong> 콜스택. 데드락·멈춤은 이것부터</td></tr>
+<tr><td><code>~</code></td><td>스레드 목록(<code>SetThreadDescription</code> 이름이 보인다)</td></tr>
+<tr><td><code>.frame N</code> + <code>dv</code></td><td>N번 프레임의 지역 변수(Full 덤프에서 잘 보인다)</td></tr>
+<tr><td><code>!analyze -v</code></td><td>자동 분석(첫 감 잡기용)</td></tr>
+</table></div></div>
+<div class="card cs"><span class="tag cs">C#</span>
+<p class="muted" style="margin:0 0 6px">SOS(.NET 확장)는 WinDbg가 덤프를 보고 자동으로 붙인다.</p>
+<div class="table-wrap"><table>
+<tr><th>명령</th><th>뜻</th></tr>
+<tr><td><code>!pe</code></td><td>마지막 예외: 종류, 메시지, 예외가 난 관리 스택</td></tr>
+<tr><td><code>!clrstack -all</code></td><td>모든 관리 스레드 스택</td></tr>
+<tr><td><code>!syncblk</code></td><td><strong><code>lock</code>(Monitor)을 쥔 스레드</strong>. 데드락은 이것부터</td></tr>
+<tr><td><code>!threads</code></td><td>관리 스레드 목록</td></tr>
+<tr><td><code>!dumpheap -stat</code></td><td>힙의 타입별 개수·크기(메모리 누수. 힙 포함 덤프만)</td></tr>
+</table></div></div>
+</div>
+
+<h2>확인 결과</h2>
+<p class="muted">2026-11-27, cdb 10.0.29680. C++ 크래시 두 개는 <code>CrashDumpDeathTest</code>를 <code>--gtest_catch_exceptions=0</code>으로, 데드락은 아래 확인용 프로그램으로 남겼다.</p>
+<div class="table-wrap"><table>
+<tr><th></th><th>덤프</th><th>남긴 상황</th><th class="num">크기</th><th>보인 것</th></tr>
+<tr><td class="cpp">C++</td><td><code>_crash</code> Mini</td><td>처리 안 된 예외(SEH)</td><td class="num">0.6MB</td><td>✅ <code>.ecxr</code> → <code>RaiseException</code> → 테스트 함수 + 줄 번호. debug·release 둘 다</td></tr>
+<tr><td class="cpp">C++</td><td><code>_abort</code> Mini</td><td>다른 스레드에서 <code>std::terminate</code></td><td class="num">0.6MB</td><td>✅ 람다 → <code>terminate</code> → <code>abort</code> → <code>raise</code> → <code>OnAbortSignal</code> → <code>DumpAndExit</code>. debug·release 둘 다</td></tr>
+<tr><td class="cpp">C++</td><td>수동 Mini</td><td>데드락 중인 살아 있는 서버</td><td class="num">0.5MB</td><td>✅ 모든 스레드, 기다리는 줄 번호</td></tr>
+<tr><td class="cpp">C++</td><td>수동 Full <strong>스냅샷</strong></td><td>〃</td><td class="num">31MB</td><td>✅ 바로 쓰기와 같은 스레드·스택(복사본이어도 빠지지 않음)</td></tr>
+<tr><td class="cpp">C++</td><td>수동 Full 바로 쓰기</td><td>〃</td><td class="num">34MB</td><td>✅ 〃</td></tr>
+<tr><td class="cs">C#</td><td>수동 Mini(힙 포함)</td><td>데드락 중인 살아 있는 서버</td><td class="num">10MB</td><td>✅ <code>!syncblk</code>로 lock 주인 스레드, <code>!clrstack -all</code>로 기다리는 함수</td></tr>
+<tr><td class="cs">C#</td><td>수동 Full</td><td>〃</td><td class="num">104MB</td><td>✅ 〃</td></tr>
+<tr><td class="cs">C#</td><td>크래시(환경 변수)</td><td>처리 안 된 <code>NullReferenceException</code></td><td class="num">8MB</td><td>✅ <code>!pe</code>로 예외 종류·메시지·예외 난 함수</td></tr>
+</table></div>
+
+<h3>바로잡음: C# 크래시 덤프 이름</h3>
+<p><code>CrashDump.cs</code> 주석에 "이름 규칙은 C++과 같게"라고 적었는데, 실제 파일은 <code>DeadlockDump.exe_1795774681_pid44500_crash.dmp</code>였다. <code>%e</code>는 <code>.exe</code>까지 붙고 <code>%t</code>는 날짜가 아니라 1970년부터 센 초다. createdump에는 날짜 형식이 없어 같게 만들 수 없다. 주석을 고쳤다(<code>bf66323</code>). 수동 덤프(<code>CrashDump.Write</code>)는 이름을 우리가 만들어서 C++과 같다.</p>
+
+<h2>데드락 찾는 법</h2>
+<p>확인용으로 서로 반대 순서로 뮤텍스 두 개를 잡는 스레드 두 개를 만들고, 1초 뒤 살아 있는 상태로 수동 덤프를 남겼다.</p>
+<div class="diagram">
+<svg viewBox="0 0 760 210" role="img" aria-label="스레드 두 개가 서로 상대가 쥔 뮤텍스를 기다리는 데드락">
+<defs>
+<marker id="arrowW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--warn)"/></marker>
+<marker id="arrowO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker>
+</defs>
+<rect class="d-cpp" x="20" y="20" width="220" height="64" rx="8"/>
+<text class="d-t" x="130" y="46" text-anchor="middle">스레드 5 SaveInventoryThenGuild</text>
+<text class="d-m" x="130" y="66" text-anchor="middle">DeadlockDump.cpp @ 20</text>
+<rect class="d-cpp" x="20" y="126" width="220" height="64" rx="8"/>
+<text class="d-t" x="130" y="152" text-anchor="middle">스레드 6 UpdateGuildThenInventory</text>
+<text class="d-m" x="130" y="172" text-anchor="middle">DeadlockDump.cpp @ 27</text>
+<rect class="d-box" x="520" y="20" width="200" height="64" rx="8"/>
+<text class="d-t" x="620" y="58" text-anchor="middle">g_inventory</text>
+<rect class="d-box" x="520" y="126" width="200" height="64" rx="8"/>
+<text class="d-t" x="620" y="164" text-anchor="middle">g_guild</text>
+<line x1="240" y1="40" x2="516" y2="40" stroke="var(--ok)" stroke-width="2" marker-end="url(#arrowO)"/>
+<text class="d-ot" x="378" y="32" text-anchor="middle">쥠</text>
+<line x1="240" y1="170" x2="516" y2="170" stroke="var(--ok)" stroke-width="2" marker-end="url(#arrowO)"/>
+<text class="d-ot" x="378" y="188" text-anchor="middle">쥠</text>
+<line x1="240" y1="70" x2="516" y2="150" stroke="var(--warn)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowW)"/>
+<line x1="240" y1="140" x2="516" y2="60" stroke="var(--warn)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowW)"/>
+<text class="d-wt" x="378" y="110" text-anchor="middle">기다림(영원히)</text>
+</svg>
+</div>
+
+<div class="grid2">
+<div class="card cpp"><span class="tag cpp">C++ <code>std::mutex</code></span>
+<p><code>~*kn</code>에서 <code>RtlAcquireSRWLockExclusive</code>(뮤텍스 잡기)에 멈춘 스레드를 찾는다. 그 위 프레임이 어느 함수 몇 번 줄에서 무엇을 잡으려는지 보여 준다.</p>
+<pre><code>5  ntdll!RtlAcquireSRWLockExclusive
+   std::_Mutex_base::lock
+   SaveInventoryThenGuild   [DeadlockDump.cpp @ 20]
+6  ntdll!RtlAcquireSRWLockExclusive
+   std::_Mutex_base::lock
+   UpdateGuildThenInventory [DeadlockDump.cpp @ 27]</code></pre>
+<p><strong>한계:</strong> <code>std::mutex</code>(SRW lock)는 주인 스레드를 기록하지 않는다. 누가 쥐고 있는지는 "어느 스레드가 그 lock을 잡은 뒤의 줄에 있는가"로 코드를 보고 추론한다.</p></div>
+<div class="card cs"><span class="tag cs">C# <code>lock</code></span>
+<p><code>!syncblk</code>가 lock마다 <strong>주인 스레드</strong>를 바로 보여 준다. <code>!clrstack -all</code>에서 <code>Monitor.Enter</code>에 멈춘 스레드와 맞춰 보면 된다.</p>
+<pre><code>Index MonitorHeld Owning Thread  Owner
+    1           3 f18   8        System.Object
+    2           3 874c  9        System.Object
+
+0xf18   Monitor.Enter  Inventory.SaveThenGuild
+0x874c  Monitor.Enter  Inventory.GuildThenSave</code></pre>
+<p><code>MonitorHeld 3</code> = 주인 1 + 기다리는 스레드 하나(2). 두 lock이 서로의 주인을 기다리면 데드락이다.</p></div>
+</div>
+<p class="muted">C++에서 주인까지 덤프에 남기고 싶으면 lock을 감싸 주인 스레드 id를 적는 방법이 있다. 지금은 필요하지 않다. Lane 구조(스레드가 자기 큐만 처리)에서는 lock을 겹쳐 잡는 곳이 거의 없어서다. 실제로 데드락을 겪으면 그때 다시 본다.</p>
+
+<h3>확인용 프로그램(커밋하지 않음)</h3>
+<p>다시 확인하고 싶을 때 쓰는 코드다. <code>Base.lib</code>에 링크해 VS 개발자 환경에서 컴파일한다.</p>
+<pre><code>std::mutex g_inventory;
+std::mutex g_guild;
+
+void SaveInventoryThenGuild()
+{
+    std::scoped_lock first{g_inventory};
+    std::this_thread::sleep_for(200ms);
+    std::scoped_lock second{g_guild};        // 여기서 영원히 기다린다
+}
+void UpdateGuildThenInventory()              // 반대 순서
+{
+    std::scoped_lock first{g_guild};
+    std::this_thread::sleep_for(200ms);
+    std::scoped_lock second{g_inventory};
+}
+
+int main()
+{
+    Base::CrashDump::Install({.directory = "dumps"});
+    std::thread a{SaveInventoryThenGuild}, b{UpdateGuildThenInventory};
+    std::this_thread::sleep_for(1s);
+    Base::CrashDump::Write(Base::DumpKind::Full, "deadlock");   // 스냅샷
+    std::quick_exit(0);                                         // 데드락 스레드는 join 할 수 없다
+}
+
+// cl /std:c++latest /EHsc /Zi /MDd /utf-8 /I server-cpp/Core DeadlockDump.cpp /link server-cpp/build/debug/Base.lib dbghelp.lib</code></pre>
+
+<h2>서버가 죽거나 멈췄을 때 순서</h2>
+<ol>
+  <li><strong>죽었다:</strong> <code>dumps/</code>에서 <code>_crash</code>·<code>_terminate</code>·<code>_abort</code>·<code>_purecall</code>·<code>_invalidparameter</code> 덤프를 찾는다. C++은 <code>.ecxr</code> → <code>kn</code>, C#은 <code>!pe</code>.</li>
+  <li><strong>멈췄다(응답 없음):</strong> 프로세스를 죽이기 전에 수동 덤프(<code>CrashDump::Write</code>, 나중에 관리 콘솔)를 남긴다. C++은 <code>~*kn</code>, C#은 <code>!syncblk</code> → <code>!clrstack -all</code>.</li>
+  <li><strong>메모리가 계속 는다:</strong> Full 덤프. C#은 <code>!dumpheap -stat</code>.</li>
+  <li>그 빌드의 exe·pdb를 심볼 경로에 넣는다. 빌드가 다르면 줄 번호가 틀린다.</li>
+</ol>
+</main>
+</body>
+</html>
