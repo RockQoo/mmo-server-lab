@@ -49,12 +49,13 @@ namespace Messaging
         [[nodiscard]] bool IsInLane() const noexcept;
 
     private:
-        void Run(std::stop_token stop);
+        void Run();
 
         std::mutex _mutex{};
-        std::condition_variable_any _wake{}; // stop_token으로도 깨어나는 condition_variable
-        std::vector<Job> _pending{};         // _mutex가 지킨다
-        std::wstring _name{};                // 스레드 이름(Windows API가 UTF-16을 받는다). 스레드 시작 전에 정해진다
-        std::jthread _thread{};              // 생성자 본문에서 시작, Stop()에서 join
+        std::condition_variable _wake{}; // 일이 들어오거나 _stopping이 켜지면 깨운다
+        std::vector<Job> _pending{};     // _mutex가 지킨다
+        bool _stopping{};                // _mutex가 지킨다. Stop이 켠다(Post가 보고 넣지 않는다)
+        std::wstring _name{};            // 스레드 이름(Windows API가 UTF-16을 받는다). 스레드 시작 전에 정해진다
+        std::jthread _thread{};          // 생성자 본문에서 시작, Stop()에서 join
     };
 } // namespace Messaging

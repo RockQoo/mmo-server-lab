@@ -33,7 +33,7 @@ namespace Messaging
         }
         // 본문에서 시작한다: 모든 멤버가 만들어진 뒤라 Run이 덜 만들어진 객체를 보지 않는다
         // (초기화 목록에서 this를 넘기면 C4355).
-        _thread = std::jthread{[this](const std::stop_token stop) { Run(stop); }};
+        _thread = std::jthread{[this] { Run(); }};
     }
 
     Lane::~Lane()
@@ -51,9 +51,11 @@ namespace Messaging
         auto wasEmpty = false;
         {
             const std::scoped_lock lock{_mutex};
-            // 멈춤 요청 확인과 넣기를 같은 락 안에서 한다. Run이 "비었고 멈춤 요청됨"을 보고 끝난 뒤에는
-            // 여기서 반드시 멈춤 요청이 보이므로, 끝난 Lane에 넣고 잃어버리는 일이 없다.
-            if (_thread.get_stop_token().stop_requested())
+            // 멈춤 확인과 넣기를 같은 락 안에서 한다. Stop이 같은 락 안에서 _stopping을 켜므로, Run이 "비었고
+            // 멈춤 요청됨"을 보고 끝난 뒤에는 여기서 반드시 _stopping이 보여 끝난 Lane에 넣고 잃어버리는 일이 없다.
+            // _thread.get_stop_token()을 쓰지 않는 이유: 부를 때마다 멈춤 상태의 참조 카운트를 원자 연산으로
+            // 올렸다 내려(stop_token 복사·소멸), 락을 잡은 시간이 길어진다(Lane 개선 1단계, performance.html 사례 8).
+            if (_stopping)
             {
                 return false;
             }
@@ -75,7 +77,11 @@ namespace Messaging
         {
             return;
         }
-        _thread.request_stop(); // _wake 대기도 깨운다(condition_variable_any + stop_token)
+        {
+            const std::scoped_lock lock{_mutex};
+            _stopping = true; // 이 뒤의 Post는 넣지 않고 false
+        }
+        _wake.notify_one(); // 자고 있는 Run을 깨워 _stopping을 보게 한다
         _thread.join();
     }
 
@@ -84,7 +90,7 @@ namespace Messaging
         return t_currentLane == this;
     }
 
-    void Lane::Run(const std::stop_token stop)
+    void Lane::Run()
     {
         t_currentLane = this; // 이 스레드는 끝날 때까지 이 Lane만 돌린다
         if (!_name.empty())
@@ -98,7 +104,9 @@ namespace Messaging
             {
                 std::unique_lock lock{_mutex};
                 // 일이 들어오거나 멈춤 요청이 올 때까지 잔다. 멈춤 요청이 와도 남은 일이 있으면 먼저 처리한다.
-                _wake.wait(lock, stop, [this] { return !_pending.empty(); });
+                // std::condition_variable(일반판)을 쓴다. condition_variable_any + stop_token 은 대기·깨우기마다 내부
+                // mutex 와 stop 콜백 등록을 더 거쳐 무겁다(Lane 개선 1단계, performance.html 사례 8).
+                _wake.wait(lock, [this] { return !_pending.empty() || _stopping; });
                 if (_pending.empty())
                 {
                     return; // 멈춤 요청 + 남은 일 없음

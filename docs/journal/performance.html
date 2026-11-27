@@ -142,7 +142,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <rect class="d-box" x="700" y="146" width="130" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="765" y="168" text-anchor="middle">E C# GC 공부</text><text class="d-m" x="765" y="186" text-anchor="middle">설정별 측정</text>
 <rect class="d-box" x="850" y="146" width="130" height="50" rx="8" stroke-dasharray="5 4"/><text class="d-t" x="915" y="168" text-anchor="middle">F 부하 테스트</text><text class="d-m" x="915" y="186" text-anchor="middle">p99, GC 멈춤</text>
 <path class="d-line" d="M170,171 L188,171"/><path class="d-line" d="M340,171 L358,171"/><path class="d-line" d="M510,171 L528,171"/><path class="d-line" d="M680,171 L698,171"/><path class="d-line" d="M830,171 L848,171"/>
-<text class="d-m" x="20" y="220">B(주황)가 지금 가장 큰 문제: 실무 모양(N:M)에서 C++ Lane이 C# Channel보다 약 1.5배 느리다(사례 8)</text>
+<text class="d-m" x="20" y="220">B(주황)가 지금 가장 큰 문제: 실무 모양(N:M)에서 C++ Lane이 C# Channel보다 느리다(1.5배 → 1단계 후 1.25배, 사례 8)</text>
 </svg>
 </div>
 
@@ -338,7 +338,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <!-- ===================== 사례 8 ===================== -->
 <h2 id="c8">8. N:M에서 C++ Lane이 C# Channel보다 1.5배 느리다</h2>
 <div class="card">
-<div class="case-head"><h3>지금 가장 큰 문제 · 계획 B로 고친다</h3><span class="date">2026-11-27 · 자세히: <a href="messagequeue.html#nm">messagequeue.html</a></span></div>
+<div class="case-head"><h3>지금 가장 큰 문제 · 1단계로 1.5배 → 1.25배, 계획 B 2단계 남음</h3><span class="date">2026-11-27 · 자세히: <a href="messagequeue.html#nm">messagequeue.html</a></span></div>
 <div class="steps">
 <div class="step s1"><b>증상</b>1:1, 4:1(Lane 1개)은 C++이 빠른데, 실무 모양인 N:M(4:4, 8:4)에서 C#이 1.5배 빠르다. C++은 Lane을 늘리면 오히려 느려진다(34 → 69ns)</div>
 <div class="step s2"><b>원인(좁히는 중)</b>4:4에서 메시지당 user CPU 490ns, kernel 38ns라 깨우기보다 잠금 경합·캐시 줄 쪽. "C#은 lock-free라서"라고 생각했으나 <strong>.NET 소스를 보니 C# Channel도 쓰기마다 lock</strong>을 잡는다. 차이는 잠금 안에서 하는 일(아래 가설)</div>
@@ -371,7 +371,55 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <tr><td>③ 소비자의 잠금</td><td>swap 때 같은 mutex</td><td>읽기 빠른 길은 잠금 없음</td></tr>
 <tr><td>④ 잠금 종류</td><td><code>std::mutex</code> + <code>condition_variable_any</code></td><td><code>Monitor</code></td></tr>
 </table></div>
-<p class="talk"><b>30초 답변.</b> 생산자 여러 개가 Lane 여러 개에 키로 섞어 넣는 실무 모양으로 재니, C++ Lane이 C# Channel보다 1.5배 느렸습니다. 프로세스 CPU를 user와 kernel로 나눠 보니 user가 대부분이라 깨우기보다 잠금 경합 쪽이었습니다. 처음엔 C# Channel이 lock-free라서 빠르다고 생각했는데, .NET 소스를 직접 보니 C#도 쓰기마다 lock을 잡았습니다. 그래서 잠금의 유무가 아니라 잠금 안에서 하는 일과 옮기는 데이터 크기로 원인을 좁혔습니다. (원인 확정과 개선 결과는 계획 B를 마치면 여기에 더한다)</p>
+
+<h3>Lane 개선 1단계: 가설 ①·④를 하나씩 고쳐 쟀다 (2026-11-27)</h3>
+<p>같은 날 같은 빌드로 고치기 전 수치부터 다시 쟀다(0단계). 그다음 하나만 고치고 재고, 또 하나를 고치고 쟀다. 한꺼번에 고치면 무엇이 얼마나 효과였는지 알 수 없어서다. 벤치는 <code>MessageQueue/QueueOnly</code>, 3번 반복 평균. 원본은 로컬 <code>.qa/lane/step0~2.json</code>.</p>
+<div class="table-wrap"><table>
+<tr><th style="width:8%"></th><th style="width:50%">무엇이 문제였나(MSVC STL 소스로 확인)</th><th>어떻게 고쳤나</th></tr>
+<tr><td>①</td><td><code>Post</code>가 잠금 안에서 <code>_thread.get_stop_token()</code>을 불렀다. <code>&lt;stop_token&gt;</code>을 보면 <code>stop_token</code>을 만들 때 공유 상태의 참조 카운트를 <code>fetch_add</code>로 올리고, 없앨 때 내린다. 모든 생산자가 같은 캐시 줄을, <strong>잠금을 잡은 채</strong> 고쳐 잠금 시간이 길어졌다</td><td>멈춤 표시를 <code>_mutex</code>가 지키는 <code>bool _stopping</code>으로. <code>Stop()</code>이 같은 잠금 안에서 켜므로 "끝난 Lane에 넣고 잃어버리기"는 여전히 없다</td></tr>
+<tr><td>④</td><td><code>&lt;condition_variable&gt;</code>의 <code>condition_variable_any</code>는 <code>notify_one</code>마다 <strong>내부 mutex를 하나 더</strong> 잡는다. <code>wait(lock, stop_token, …)</code>은 기다릴 때마다 <code>stop_callback</code>을 등록·해제한다. 생산자는 Lane mutex와 내부 mutex 두 개를 거쳤다</td><td>일반 <code>std::condition_variable</code>(Windows SRW 잠금·조건 변수를 바로 씀)로. 기다리는 조건은 <code>!_pending.empty() || _stopping</code>. <code>stop_token</code>은 더 쓰지 않는다</td></tr>
+</table></div>
+<div class="diagram">
+<svg viewBox="0 0 900 200" role="img" aria-label="고치기 전 Post는 Lane mutex 안에서 stop 상태 참조 카운트를 올리고 내리며, notify 때 내부 mutex를 하나 더 잡는다. 고친 뒤에는 Lane mutex 안에서 bool만 읽고 notify는 운영체제 조건 변수를 바로 부른다">
+<text class="d-wt" x="20" y="22">고치기 전 Post</text>
+<rect class="d-warn" x="20" y="36" width="400" height="64" rx="6"/>
+<text class="d-t" x="34" y="56">Lane mutex 잡음</text>
+<rect class="d-buf" x="34" y="64" width="170" height="26" rx="4"/><text class="d-m" x="119" y="82" text-anchor="middle">① 참조 카운트 +1 / −1</text>
+<rect class="d-buf" x="214" y="64" width="90" height="26" rx="4"/><text class="d-m" x="259" y="82" text-anchor="middle">push_back</text>
+<rect class="d-warn" x="20" y="116" width="400" height="36" rx="6"/><text class="d-t" x="34" y="139">④ notify_one: 내부 mutex 잡음 → 깨우기</text>
+<text class="d-m" x="20" y="176">공유 캐시 줄 3개(Lane mutex, stop 상태, 내부 mutex)를 생산자들이 다툰다</text>
+<text class="d-ot" x="480" y="22">고친 뒤 Post</text>
+<rect class="d-ok" x="480" y="36" width="400" height="64" rx="6"/>
+<text class="d-t" x="494" y="56">Lane mutex 잡음</text>
+<rect class="d-buf" x="494" y="64" width="150" height="26" rx="4"/><text class="d-m" x="569" y="82" text-anchor="middle">① bool 읽기</text>
+<rect class="d-buf" x="654" y="64" width="90" height="26" rx="4"/><text class="d-m" x="699" y="82" text-anchor="middle">push_back</text>
+<rect class="d-ok" x="480" y="116" width="400" height="36" rx="6"/><text class="d-t" x="494" y="139">④ notify_one: OS 조건 변수 바로 깨우기</text>
+<text class="d-m" x="480" y="176">공유 캐시 줄 1개(Lane mutex)만 남았다. 순서 보장은 그대로(같은 mutex)</text>
+</svg>
+</div>
+<div class="table-wrap"><table>
+<tr><th>메시지당 ns(낮을수록 좋음)</th><th class="num">1:1</th><th class="num">4:1</th><th class="num">2:2</th><th class="num">4:2</th><th class="num">4:4</th><th class="num">8:4</th></tr>
+<tr><td class="cpp">0단계: 고치기 전(다시 잼)</td><td class="num">34.7</td><td class="num">51.1</td><td class="num">72.8</td><td class="num">90.5</td><td class="num">72.7</td><td class="num">73.3</td></tr>
+<tr><td class="cpp">1단계: ① <code>bool _stopping</code></td><td class="num">35.4</td><td class="num">51.3</td><td class="num">64.6</td><td class="num">79.9</td><td class="num">63.8</td><td class="num">63.5</td></tr>
+<tr><td class="cpp">2단계: + ④ <code>std::condition_variable</code></td><td class="num"><strong>29.1</strong></td><td class="num"><strong>47.9</strong></td><td class="num"><strong>56.1</strong></td><td class="num"><strong>71.4</strong></td><td class="num"><strong>57.5</strong></td><td class="num"><strong>59.6</strong></td></tr>
+<tr><td class="cs">C# <code>Channel</code>(목표선)</td><td class="num">50</td><td class="num">104</td><td class="num">67</td><td class="num">71</td><td class="num">47</td><td class="num">45</td></tr>
+</table></div>
+<div class="table-wrap"><table>
+<tr><th>4:4(실무 모양) 메시지당 ns</th><th class="num">ns</th><th style="width:55%"></th></tr>
+<tr><td class="cpp">0단계</td><td class="num">72.7</td><td><span class="bar warn" style="width:100%"></span></td></tr>
+<tr><td class="cpp">1단계 ①</td><td class="num">63.8</td><td><span class="bar" style="width:88%"></span></td></tr>
+<tr><td class="cpp">2단계 ①+④</td><td class="num">57.5</td><td><span class="bar" style="width:79%"></span></td></tr>
+<tr><td class="cs">C# <code>Channel</code></td><td class="num">47</td><td><span class="bar cs" style="width:65%"></span></td></tr>
+<tr><td>합격선</td><td class="num">45</td><td><span class="bar muted" style="width:62%"></span></td></tr>
+</table></div>
+<p><strong>읽는 법.</strong></p>
+<ul>
+<li>① 은 <strong>N:M에서만</strong> 약 12% 줄었다(1:1은 그대로). 생산자가 하나면 참조 카운트 줄을 다툴 상대가 없어 원자 연산이 싸기 때문이다. 경합 비용이었다는 증거다.</li>
+<li>④ 는 <strong>모든 조합</strong>에서 줄었다(1:1도 35.4 → 29.1). 깨울 때마다 잡던 내부 mutex가 사라졌기 때문이다.</li>
+<li>둘을 합쳐 4:4·8:4가 약 20% 빨라졌고, 1:1·2:2·4:2는 C# <code>Channel</code>보다 빠르거나 같아졌다. 1:1 합격선(34ns 이하)은 넘었다.</li>
+<li><strong>4:4·8:4는 아직 합격선(45ns) 밖</strong>(57.5·59.6, C#의 약 1.25배). 남은 차이는 ②(일 64B vs 24B)와 ③(소비자도 같은 mutex)이다. 잠금 안에서 하는 일을 덜어 낼 수 있는 만큼 덜어 냈으니, 남은 것은 큐 구조를 바꿔야 한다 → 계획 B 2단계.</li>
+</ul>
+<p class="talk"><b>30초 답변.</b> 생산자 여러 개가 Lane 여러 개에 키로 섞어 넣는 실무 모양으로 재니, C++ Lane이 C# Channel보다 1.5배 느렸습니다. CPU가 대부분 user라서 잠금 경합 쪽으로 보고, 처음엔 C#이 lock-free라서라고 생각했지만 .NET 소스를 보니 C#도 쓰기마다 lock을 잡았습니다. 그래서 잠금 안에서 하는 일을 의심했고, MSVC STL 소스를 읽어 두 가지를 찾았습니다. 하나는 <code>Post</code>마다 <code>get_stop_token()</code>이 공유 참조 카운트를 원자적으로 올리고 내리던 것이고, 다른 하나는 <code>condition_variable_any</code>가 깨울 때마다 내부 mutex를 하나 더 잡던 것입니다. 하나씩 고치며 재니 첫째는 N:M에서만 12%, 둘째는 모든 조합에서 줄었고, 합쳐서 4:4가 73ns에서 58ns가 됐습니다. 남은 차이는 큐 구조 문제라 다음 단계에서 비교합니다.</p>
 </div>
 
 <!-- ===================== 사례 9 ===================== -->
@@ -515,7 +563,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 
 <div class="card plan">
 <div class="case-head"><h3>B. Lane 큐 개선: 1.5배 느린 것을 C# Channel 수준 이상으로</h3><span class="tag warn">가장 중요</span></div>
-<p><strong>1단계: 원인 확정.</strong> 사례 8의 가설 ①~④를 하나씩 고치고(예: stop 확인을 잠금 안의 <code>bool</code>로, 일 크기 줄이기) 같은 벤치마크로 재서 어느 것이 얼마나 차지하는지 남긴다. 가장 싼 수정으로 합격선을 넘기면 2단계는 비교만 한다.</p>
+<p><strong>1단계: 원인 확정 ✅(2026-11-27).</strong> 사례 8의 가설 ①(stop 확인 → 잠금 안의 <code>bool</code>)과 ④(<code>condition_variable_any</code> → <code>std::condition_variable</code>)를 하나씩 고쳐 쟀다. 4:4 72.7 → 57.5ns, 8:4 73.3 → 59.6ns, 1:1 34.7 → 29.1ns. 1:1 합격선은 넘었고 4:4·8:4는 아직 밖이라 2단계로 간다(<a href="#c8">사례 8</a>).</p>
 <p><strong>2단계: 구조 후보 비교.</strong> 같은 N:M 벤치마크에 넣는다. 합격선은 4:4·8:4에서 메시지당 45ns 이하, 1:1은 34ns 이하다. <strong>모든 후보는 Lane의 순서 보장(<a href="#c11">사례 11</a>: <code>Post</code>가 끝난 순서대로)을 지켜야 한다.</strong> 그래서 B는 뺐고 C는 조건부다.</p>
 <div class="diagram">
 <svg viewBox="0 0 900 330" role="img" aria-label="후보 셋. A 직접 만든 MPSC는 꼬리를 원자 교환 한 번으로 붙인다. B ConcurrentQueue는 생산자마다 작은 큐를 둔다. C는 생산자가 모아서 한 번에 넣는다">
