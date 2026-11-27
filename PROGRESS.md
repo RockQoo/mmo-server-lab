@@ -32,7 +32,7 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 | 순위 | 항목 | 라이브러리 | 이유 |
 |---|---|---|---|
 | 1 | ✅ Lane 개선 1단계(2026-11-27: stop 확인 → `bool`, `condition_variable_any` → `std::condition_variable`, 메모리 배치. 4:4 72.7 → 53.5ns, C# 45.7ns의 약 1.17배. lock-free MPSC는 보류: 아래 후순위) | Messaging | N:M에서 C# `Channel`보다 약 1.5배 느렸다. 위의 모든 것이 Lane 위에서 돈다 |
-| 2 | MessageRouter | Messaging | 설계 끝남(결정 004). Processor 전에 |
+| 2 | ~~MessageRouter~~ → **2단계(존 이동)로 미룸**(2026-11-27) | Messaging | 설계는 끝남(결정 004). 1단계 ZoneServer 안 Processor는 사실상 `ZoneProcessor` 하나라 보낼 곳이 없다(패킷 입구는 `PacketDispatcher`, 같은 존 안은 직접 호출). 첫 실제 사용처는 존↔존(2단계), 다음이 DbWriter(4)·ServiceServer(5)로 보내기(다른 서버, 직렬화) |
 | 3 | Config | Base | 스레드·Lane 수, 포트를 재빌드 없이 바꿔 벤치마크로 정한다. nlohmann/json 설치 확인 |
 | 4 | Log | Log | 네트워크부터는 로그 없이 디버깅이 어렵다. C# Serilog 설치 확인 |
 | 5 | CrashDump | Base | 네트워크 개발 중 크래시 덤프 |
@@ -43,7 +43,7 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 | 10 | Network | Network | 1단계의 핵심. BufferPool 3판, 수신 단위 묶어 넣기(결정 004) |
 | 11 | DB | DB | 4단계(DbWriter) 때 |
 
-- **1단계 진입 조건**: 위 1~10번. 끝나면 1단계 게임 레이어: 접속 → 로그인(토큰 없음) → 존 입장 → 이동 브로드캐스트(틱 R&D A vs B 실제 비교) → 공격 1종 → 봇 수백~수천 명 첫 부하 테스트 → UE5 뷰어.
+- **1단계 진입 조건**: 위 1, 3~10번. 끝나면 1단계 게임 레이어: 접속 → 로그인(토큰 없음) → 존 입장 → 이동 브로드캐스트(틱 R&D A vs B 실제 비교) → 공격 1종 → 봇 수백~수천 명 첫 부하 테스트 → UE5 뷰어.
 - **틈날 때(막지 않음)**: 풀 N:M 측정(PC가 쉴 때), BufferPool 인라인(노트 계획 C), C# GC 공부(노트 계획 E, Metrics 뒤가 좋다).
 
 ## Core 라이브러리

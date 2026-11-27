@@ -42,6 +42,7 @@ public:
 - 실행: `Kind`로 배열에서 `LaneGroup`을 찾고(배열 한 칸) → `LaneFor(키)` → `Lane::Post`. 다른 서버에 있으면 직렬화해서 보낸다(결정 002).
 - C#: `router.Post<GuildProcessor, BuyMaterialReq>(guildId, msg)`, 제네릭 제약 `IProcessor<TKey>`, `IHandle<TMsg>`로 같은 검사.
 - 큰 메시지(MSVC `move_only_function` 작은 버퍼 56B 초과)는 ObjectPool 핸들로 넘겨 할당을 피한다.
+- **보충(2026-11-27)**: 예시의 `GuildProcessor`는 ServiceServer(5단계, 결정 001)에 있다. ZoneServer에서 `Post<GuildProcessor>`는 같은 프로세스의 Lane이 아니라 **다른 서버로 보내기**(`Kind`로 서버를 찾아 직렬화)다. 1단계 ZoneServer 안의 Processor는 사실상 `ZoneProcessor` 하나라서 MessageRouter는 **2단계(존 이동, 존↔존)** 때 만든다. 그때 같은 프로세스 예시는 `router.Post<ZoneProcessor>(targetZoneId, HandoffReq{...})`가 된다.
 - 이름 후보 비교: `MessageRouter`(채택, 가장 흔하고 뜻이 바로 보임), `ProcessorRegistry`(등록·조회에 치우침), `ActorSystem`(우리 `System` 기능 클래스 이름과 겹침).
 - 사용법 비교: A 템플릿만(키·메시지 실수를 못 막음), B enum만(실행 중에만 검사), C 키 타입이 목적지(간결하지만 목적지가 코드에 안 보임). 사용자는 목적지가 보이는 A와 다른 서버에도 쓰는 B를 원했고, 둘의 단점을 컴파일 검사로 메운 ①을 골랐다.
 
