@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <string_view>
@@ -39,6 +40,12 @@ namespace Base
     {
         std::filesystem::path directory = "dumps";
         DumpKind crashKind = DumpKind::Mini;
+        // 크래시 덤프를 쓴 뒤 프로세스를 끝내기 전에 부른다(남은 로그 flush 등. Base 는 Log 를 모르므로 서버가 넘긴다:
+        // .afterCrash = [] { Log::Flush(); }). 크래시 난 스레드가 아니라 덤프 전용 스레드가 부르고, 예외는 삼킨다.
+        // afterCrashTimeout 안에 끝나지 않으면 기다리지 않고 끝낸다: 크래시 난 스레드가 로그 Lane 이거나 Lane 의 잠금을
+        // 쥔 채 죽었으면 flush 는 영원히 끝나지 않는다. 수동 덤프(Write)에는 부르지 않는다.
+        void (*afterCrash)() = nullptr;
+        std::chrono::milliseconds afterCrashTimeout{1000};
     };
 
     class CrashDump

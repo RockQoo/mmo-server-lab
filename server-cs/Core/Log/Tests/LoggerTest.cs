@@ -56,6 +56,41 @@ public sealed class LoggerTest : IDisposable
         Directory.Delete(dir, recursive: true);
     }
 
+    // 크래시 처리기: 예외를 Fatal 로 남기고 큐에 남은 로그를 모두 쓴다(C++ LogDeathTest.FlushesQueuedLinesOnCrash)
+    [Fact]
+    public void WritesQueuedLinesAndExceptionOnCrash()
+    {
+        const int Lines = 200;
+        var slow = new MemorySink { Delay = TimeSpan.FromMilliseconds(1) };
+        Logger.Initialize(new LogOptions(), slow);
+        var log = Logger.For(TestCategory.System);
+        for (var i = 0; i < Lines; i++)
+        {
+            log.Information("before crash i={I}", i);
+        }
+
+        Assert.True(Logger.OnCrash(new InvalidOperationException("boom"), TimeSpan.FromSeconds(10)));
+
+        Assert.Equal(Lines + 1, slow.Lines.Count);
+        Assert.Contains("[FTL] [Crash] unhandled exception", slow.Lines[^1], StringComparison.Ordinal);
+        Assert.Contains("boom", slow.Lines[^1], StringComparison.Ordinal);
+    }
+
+    // sink 가 끝나지 않아도 시간 제한 뒤 돌아온다(런타임이 덤프를 쓰고 끝낼 수 있게)
+    [Fact]
+    public void GivesUpCrashFlushAfterTimeout()
+    {
+        using var gate = new ManualResetEventSlim();
+        var stuck = new MemorySink { Gate = gate };
+        Logger.Initialize(new LogOptions(), stuck);
+        Logger.For(TestCategory.System).Information("stuck");
+
+        Assert.False(Logger.OnCrash(new InvalidOperationException("boom"), TimeSpan.FromMilliseconds(200)));
+
+        gate.Set(); // 정리: sink 를 풀어 Shutdown 이 끝나게 한다
+        Logger.Shutdown();
+    }
+
     private enum TestCategory
     {
         System,
@@ -76,8 +111,19 @@ public sealed class LoggerTest : IDisposable
 
         public List<string> Lines { get; } = [];
 
+        // 한 줄에 걸리는 시간(크래시 때 큐에 줄이 남아 있게)
+        public TimeSpan Delay { get; init; }
+
+        // 있으면 열릴 때까지 기다린다(끝나지 않는 sink)
+        public ManualResetEventSlim? Gate { get; init; }
+
         public void Emit(LogEvent logEvent)
         {
+            Gate?.Wait();
+            if (Delay > TimeSpan.Zero)
+            {
+                Thread.Sleep(Delay);
+            }
             using var writer = new StringWriter(CultureInfo.InvariantCulture);
             _formatter.Format(logEvent, writer);
             Lines.Add(writer.ToString().TrimEnd());

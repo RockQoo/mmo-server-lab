@@ -48,11 +48,16 @@ namespace Base
         {
         public:
             explicit Dumper(const CrashDumpOptions& options)
-                : _directory(options.directory), _crashKind(options.crashKind),
+                : _directory(options.directory), _crashKind(options.crashKind), _afterCrash(options.afterCrash),
+                  _afterCrashTimeout(static_cast<DWORD>(options.afterCrashTimeout.count())),
                   _request(CreateEventW(nullptr, FALSE, FALSE, nullptr)),
-                  _done(CreateEventW(nullptr, FALSE, FALSE, nullptr))
+                  _done(CreateEventW(nullptr, FALSE, FALSE, nullptr)),
+                  _afterCrashDone(CreateEventW(nullptr, FALSE, FALSE, nullptr))
             {
-                ASSERT(_request != nullptr && _done != nullptr, "CrashDump: CreateEvent failed");
+                ASSERT(_request != nullptr && _done != nullptr && _afterCrashDone != nullptr,
+                       "CrashDump: CreateEvent failed");
+                ASSERT(options.afterCrashTimeout.count() >= 0 && options.afterCrashTimeout.count() < INFINITE,
+                       "CrashDump: afterCrashTimeout out of range");
                 std::array<wchar_t, MAX_PATH> module{};
                 const auto length = GetModuleFileNameW(nullptr, module.data(), static_cast<DWORD>(module.size()));
                 _processName = std::filesystem::path{std::wstring_view{module.data(), length}}.stem().wstring();
@@ -94,6 +99,11 @@ namespace Base
                 }
                 SetEvent(_request);
                 WaitForSingleObject(_done, INFINITE);
+                if (exception != nullptr && _afterCrash != nullptr)
+                {
+                    // 시간이 지나면 콜백이 덜 끝났어도 돌아간다(프로세스가 끝나면서 덤프 스레드도 같이 끝난다)
+                    WaitForSingleObject(_afterCrashDone, _afterCrashTimeout);
+                }
                 return _ok ? _path : std::filesystem::path{};
             }
 
@@ -105,7 +115,26 @@ namespace Base
                 {
                     WaitForSingleObject(_request, INFINITE);
                     _ok = WriteDumpFile();
+                    // _done 뒤에는 요청 칸이 다음 요청으로 바뀔 수 있어 먼저 읽는다(크래시면 요청한 쪽이 아직 기다린다)
+                    const auto crash = _exception != nullptr;
                     SetEvent(_done);
+                    if (crash && _afterCrash != nullptr)
+                    {
+                        CallAfterCrash();
+                        SetEvent(_afterCrashDone);
+                    }
+                }
+            }
+
+            void CallAfterCrash() const noexcept
+            {
+                try
+                {
+                    _afterCrash();
+                }
+                catch (...)
+                {
+                    static_cast<void>(std::fputs("CrashDump: afterCrash threw\n", stderr));
                 }
             }
 
@@ -172,9 +201,12 @@ namespace Base
 
             std::filesystem::path _directory;
             DumpKind _crashKind;
+            void (*_afterCrash)();
+            DWORD _afterCrashTimeout; // ms
             std::wstring _processName{};
             HANDLE _request;
             HANDLE _done;
+            HANDLE _afterCrashDone;
             std::mutex _mutex{};
             // 요청 칸(_mutex 를 잡은 쪽이 채우고, 덤프 스레드가 읽는다)
             DumpKind _kind{};

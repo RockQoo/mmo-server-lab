@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -20,14 +22,25 @@ namespace
         return std::filesystem::temp_directory_path() / "mmo-server-lab-CrashDump" / name;
     }
 
-    void InstallOnce(const std::filesystem::path& directory)
+    void InstallOnce(const Base::CrashDumpOptions& options)
     {
-        static const auto Installed = [&directory]
+        static const auto Installed = [&options]
         {
-            Base::CrashDump::Install({.directory = directory});
+            Base::CrashDump::Install(options);
             return true;
         }();
         static_cast<void>(Installed);
+    }
+
+    void InstallOnce(const std::filesystem::path& directory)
+    {
+        InstallOnce(Base::CrashDumpOptions{.directory = directory});
+    }
+
+    // afterCrash 는 함수 포인터라 캡처가 없다. 불렸다는 표시를 이 파일에 남긴다.
+    std::filesystem::path AfterCrashMarker()
+    {
+        return std::filesystem::temp_directory_path() / "mmo-server-lab-CrashDump" / "shared" / "aftercrash.txt";
     }
 
     // directory 에 이름이 suffix 로 끝나는 .dmp 가 있고 비어 있지 않은가
@@ -121,4 +134,46 @@ TEST(CrashDumpDeathTest, WritesDumpOnTerminateInOtherThread)
         },
         [](int) { return true; }, "");
     EXPECT_TRUE(HasDump(dir, L"_abort.dmp"));
+}
+
+// 덤프 뒤 afterCrash(서버는 Log::Flush)를 부르고 나서 끝난다
+TEST(CrashDumpDeathTest, CallsAfterCrashBeforeExit)
+{
+    if (!CanSeeCrashes())
+    {
+        GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
+    }
+    const auto dir = TestDir("shared");
+    std::filesystem::remove_all(dir);
+    EXPECT_EXIT(
+        {
+            InstallOnce({.directory = dir, .afterCrash = [] { std::ofstream{AfterCrashMarker()} << "called"; }});
+            RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
+        },
+        [](int) { return true; }, "");
+    EXPECT_TRUE(HasDump(dir, L"_crash.dmp"));
+    EXPECT_TRUE(std::filesystem::exists(AfterCrashMarker()));
+}
+
+// afterCrash 가 끝나지 않아도(크래시 난 스레드가 로그 Lane 인 경우) 시간 제한 뒤 끝난다. 못 끝나면 EXPECT_EXIT 가
+// 돌아오지 않아 테스트가 시간 초과로 실패한다.
+TEST(CrashDumpDeathTest, GivesUpAfterCrashAfterTimeout)
+{
+    if (!CanSeeCrashes())
+    {
+        GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
+    }
+    const auto dir = TestDir("shared");
+    std::filesystem::remove_all(dir);
+    const auto start = std::chrono::steady_clock::now();
+    EXPECT_EXIT(
+        {
+            InstallOnce({.directory = dir,
+                         .afterCrash = [] { Sleep(INFINITE); },
+                         .afterCrashTimeout = std::chrono::milliseconds{200}});
+            RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
+        },
+        [](int) { return true; }, "");
+    EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds{10});
+    EXPECT_TRUE(HasDump(dir, L"_crash.dmp"));
 }

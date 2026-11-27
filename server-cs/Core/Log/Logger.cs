@@ -61,13 +61,32 @@ public static class Logger
             blockWhenFull: true);
         Serilog.Log.Logger = config.CreateLogger();
         s_initialized = true;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
     }
 
     // 넣은 로그를 모두 쓰고 닫는다(C++ Log::Shutdown). 두 번 불러도 된다.
     public static void Shutdown()
     {
+        AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
         s_initialized = false;
         Serilog.Log.CloseAndFlush();
+    }
+
+    // 크래시 때 남은 로그를 기다리는 한도(C++ CrashDumpOptions.afterCrashTimeout 과 같다)
+    private static readonly TimeSpan s_crashFlushTimeout = TimeSpan.FromSeconds(1);
+
+    // 처리 안 된 예외(어느 스레드든): 예외를 Fatal 로 남기고 비동기 큐에 남은 로그를 모두 쓴다. 이 처리기가 돌아오면
+    // 런타임이 덤프(DOTNET_DbgEnableMiniDump, CrashDump 주석)를 쓰고 프로세스를 끝낸다. C++ 은 덤프 뒤 afterCrash 로
+    // Log::Flush 를 부르는 자리다. C++ 처럼 시간 제한을 둔다: 크래시 난 스레드가 sink 가 기다리는 잠금을 쥐었으면 flush
+    // 가 끝나지 않는다.
+    private static void OnUnhandledException(object? sender, UnhandledExceptionEventArgs e) =>
+        OnCrash(e.ExceptionObject as Exception, s_crashFlushTimeout);
+
+    // 끝까지 썼으면 true
+    internal static bool OnCrash(Exception? exception, TimeSpan timeout)
+    {
+        Serilog.Log.ForContext("Category", "Crash").Fatal(exception, "unhandled exception");
+        return Task.Run(Shutdown).Wait(timeout);
     }
 
     // 카테고리가 붙은 로거. Initialize 뒤에 부른다: Serilog 의 ForContext 는 그때의 로거에 묶이므로 앞에서 부르면 영원히

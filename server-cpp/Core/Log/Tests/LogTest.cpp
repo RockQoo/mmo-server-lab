@@ -14,6 +14,11 @@
 #include <utility>
 #include <vector>
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
+#include "Base/CrashDump.h"
 #include "Log/Log.h"
 
 namespace
@@ -198,5 +203,69 @@ TEST(FileSink, AppendsWhenReopenedOnSameDay)
     }
 
     EXPECT_EQ(ReadAll(dir / "zone-20261127.log"), "a\nb\n");
+    std::filesystem::remove_all(dir);
+}
+
+namespace
+{
+    // 한 줄에 1ms 걸리는 파일 sink. 크래시 순간 로그 Lane 큐에 줄이 남아 있게 한다(flush 하지 않으면 대부분 잃는다).
+    class SlowFileSink final : public Log::LogSink
+    {
+    public:
+        explicit SlowFileSink(const std::filesystem::path& path) : _file(path)
+        {
+        }
+        ~SlowFileSink() override = default;
+        SlowFileSink(const SlowFileSink&) = delete;
+        SlowFileSink& operator=(const SlowFileSink&) = delete;
+        SlowFileSink(SlowFileSink&&) = delete;
+        SlowFileSink& operator=(SlowFileSink&&) = delete;
+
+        void Write(const Log::LogEvent&, const std::string_view line) override
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            _file << line << '\n' << std::flush;
+        }
+
+    private:
+        std::ofstream _file;
+    };
+} // namespace
+
+// 서버가 쓰는 조합: CrashDump 의 afterCrash 로 Log::Flush 를 넘기면 크래시 직전까지 넣은 로그가 모두 파일에 남는다
+TEST(LogDeathTest, FlushesQueuedLinesOnCrash)
+{
+    if (GTEST_FLAG_GET(catch_exceptions))
+    {
+        GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
+    }
+    constexpr auto Lines = 200;
+    const auto dir = std::filesystem::temp_directory_path() / "mmo-server-lab-LogCrash";
+    const auto path = dir / "crash.log";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    EXPECT_EXIT(
+        {
+            Base::CrashDump::Install(
+                {.directory = dir, .afterCrash = [] { Log::Flush(); }, .afterCrashTimeout = std::chrono::seconds{10}});
+            std::vector<std::unique_ptr<Log::LogSink>> sinks;
+            sinks.push_back(std::make_unique<SlowFileSink>(path));
+            Log::Initialize({.minimumLevel = Log::Level::Info}, std::move(sinks));
+            for (auto i = 0; i < Lines; ++i)
+            {
+                Log::Info(TestCategory::System, "before crash").KV("i", i);
+            }
+            RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
+        },
+        [](int) { return true; }, "");
+
+    std::ifstream file{path};
+    auto count = 0;
+    for (std::string line; std::getline(file, line);)
+    {
+        ++count;
+    }
+    EXPECT_EQ(count, Lines);
+    file.close();
     std::filesystem::remove_all(dir);
 }

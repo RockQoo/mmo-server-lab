@@ -10,6 +10,11 @@
     <None Remove="Tests\**" />
   </ItemGroup>
 
+  <!-- 크래시 처리기(Logger.OnCrash)는 프로세스를 죽이지 않고는 부를 수 없어 테스트가 직접 부른다 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Log.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
