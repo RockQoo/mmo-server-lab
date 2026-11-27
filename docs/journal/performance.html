@@ -159,6 +159,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <li><a href="#c9">C# 클로저가 보이지 않게 할당하고 있었다</a></li>
 <li><a href="#c10">직렬화가 필드 하나에 4~5ns였다</a></li>
 <li><a href="#c11">Lane이 보장하는 것: 같은 ID는 순서대로, 락 없이</a></li>
+<li><a href="#c12">패킷 흐름과 MessageRouter</a></li>
 <li><a href="#plan">앞으로 할 것 A~F</a></li>
 <li><a href="#talk">면접용 정리</a></li>
 </ol>
@@ -446,6 +447,46 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <p class="talk"><b>30초 답변.</b> 플레이어나 길드처럼 ID가 있는 데이터는 ID를 섞어서 고른 Lane, 즉 전용 스레드 하나에서만 만지게 했습니다. 그래서 콘텐츠 코드에 락이 없습니다. 다른 ID의 데이터가 필요하면 그 Lane에 메시지를 보내고 답도 메시지로 받습니다. 예를 들어 길드 재료가 하나 남았을 때 두 명이 동시에 사면, 길드 Lane이 요청을 하나씩 처리해서 한 명만 성공하고 다른 한 명은 예약했던 재화를 돌려받습니다. 큐는 Post가 끝난 순서대로 실행된다는 보장이 필요해서, 생산자별 큐를 쓰는 ConcurrentQueue는 후보에서 뺐습니다.</p>
 </div>
 
+<!-- ===================== 사례 12 ===================== -->
+<h2 id="c12">12. 패킷 흐름과 MessageRouter</h2>
+<div class="card">
+<div class="case-head"><h3>설계 결정 · 패킷이 Processor까지 가는 길, 다른 Processor로 보내는 법</h3><span class="date">2026-11-27 · 자세히: <a href="../decisions/004-packet-flow-and-message-router.md">결정 004</a></span></div>
+<div class="diagram">
+<svg viewBox="0 0 900 270" role="img" aria-label="소켓에서 IOCP 스레드 N개가 패킷을 자르고 역직렬화한 뒤 PacketDispatcher로 목적지를 골라 Lane별로 묶어 넣는다. Lane 안의 Processor는 MessageRouter로 다른 Processor에 보낸다">
+<rect class="d-box" x="20" y="40" width="90" height="40" rx="6"/><text class="d-t" x="65" y="65" text-anchor="middle">소켓들</text>
+<rect class="d-cpp" x="150" y="20" width="200" height="34" rx="6"/><text class="d-t" x="250" y="42" text-anchor="middle">IOCP 스레드 1</text>
+<rect class="d-cpp" x="150" y="66" width="200" height="34" rx="6"/><text class="d-t" x="250" y="88" text-anchor="middle">IOCP 스레드 N</text>
+<path class="d-line" d="M110,55 L148,40"/><path class="d-line" d="M110,65 L148,82"/>
+<text class="d-m" x="150" y="186">① 자르기·검사·역직렬화(여기서 나눠 한다)</text>
+<text class="d-m" x="150" y="202">② PacketDispatcher: 패킷 번호 → (Processor, 키)</text>
+<text class="d-m" x="150" y="218">③ 수신 하나의 패킷을 Lane별로 모아 한 번에 Post</text>
+<text class="d-ot" x="150" y="234">   다음 수신을 걸기 전에 내보낸다(순서 보장)</text>
+<rect class="d-ok" x="480" y="20" width="170" height="34" rx="6"/><text class="d-t" x="565" y="42" text-anchor="middle">Lane: ZoneProcessor</text>
+<rect class="d-ok" x="480" y="66" width="170" height="34" rx="6"/><text class="d-t" x="565" y="88" text-anchor="middle">Lane: LoginProcessor</text>
+<rect class="d-ok" x="480" y="112" width="170" height="34" rx="6"/><text class="d-t" x="565" y="134" text-anchor="middle">Lane: …(M개)</text>
+<path class="d-line" d="M350,37 L478,37"/><path class="d-line" d="M350,83 L478,83"/><path class="d-line" d="M350,90 L478,126"/>
+<rect class="d-warn" x="700" y="66" width="180" height="34" rx="6"/><text class="d-t" x="790" y="88" text-anchor="middle">MessageRouter</text>
+<path class="d-line" d="M650,37 L698,76"/>
+<text class="d-m" x="700" y="122">Post&lt;GuildProcessor&gt;(guildId, msg)</text>
+<text class="d-m" x="700" y="138">같은 프로세스 → 그 Lane에 Post</text>
+<text class="d-m" x="700" y="154">다른 서버 → 직렬화해서 소켓</text>
+<rect class="d-box" x="480" y="200" width="170" height="34" rx="6"/><text class="d-t" x="565" y="222" text-anchor="middle">세션별 SendQueue</text>
+<path class="d-line" d="M565,146 L565,198"/>
+<text class="d-m" x="660" y="222">모아서 WSASend 한 번</text>
+<text class="d-m" x="20" y="262">스레드 수 N(IOCP), M(Lane)은 Config. 봇 부하 테스트로 정하고 N + M ≤ 코어 수</text>
+</svg>
+</div>
+<div class="table-wrap"><table>
+<tr><th>MessageRouter 사용법 후보</th><th>모양</th><th>판단</th></tr>
+<tr><td>A. Processor를 템플릿으로</td><td><code>router.Post&lt;GuildProcessor&gt;(guildId, msg)</code></td><td>목적지가 보인다. 키·메시지 실수를 못 막는다</td></tr>
+<tr><td>B. 종류를 enum으로</td><td><code>router.Post(ProcessorKind::Guild, guildId, msg)</code></td><td>다른 서버에도 쓴다. 실행 중에만 검사</td></tr>
+<tr><td>C. 키 타입이 목적지</td><td><code>router.Post(guildId, msg)</code></td><td>간결하지만 목적지가 코드에 안 보인다</td></tr>
+<tr><td><strong>① A + B (채택)</strong></td><td><code>router.Post&lt;GuildProcessor&gt;(guildId, msg)</code> + <code>GuildProcessor::Kind</code></td><td><strong>쓰는 모양은 A, 안쪽은 enum.</strong> 키 타입(<code>P::Key</code>)과 <code>On(msg)</code>를 컴파일 때 검사(실행 비용 0). 실행은 배열 한 칸 + <code>LaneFor</code> + <code>Lane::Post</code></td></tr>
+</table></div>
+<p class="muted">성능 확인 계획: 만들 때 "Lane에 바로 Post" vs "MessageRouter로 Post"를 같은 벤치마크로 재서 더해지는 비용(예상: 몇 ns)을 여기에 적는다.</p>
+<p class="talk"><b>30초 답변.</b> 패킷은 IOCP 스레드들이 자르고 검사하고 역직렬화까지 한 뒤, 패킷 번호 표로 목적지 Processor와 키를 골라 그 Lane에 넣습니다. 수신 하나에 든 패킷은 Lane별로 묶어 한 번에 넣어 잠금 횟수를 줄였고, 다음 수신을 걸기 전에 내보내서 순서를 지킵니다. 처리 중에 다른 Processor가 필요하면 MessageRouter에 Processor 타입과 키를 넘기는데, 키 타입과 받는 메시지가 맞는지 컴파일러가 검사하므로 잘못 보내는 실수가 빌드에서 걸립니다.</p>
+</div>
+
 <!-- ===================== 계획 ===================== -->
 <h2 id="plan">앞으로 할 것</h2>
 
@@ -570,6 +611,37 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 </div>
 </div>
 
+<div class="card plan">
+<div class="case-head"><h3>G. 틱을 어디서 돌리나 (R&amp;D)</h3><span class="tag plan">ZoneServer 때 · 결정 004</span></div>
+<p>패킷을 처리하는 Lane과 틱이 같은 데이터를 고치면 락이 다시 필요하다. 그래서 <strong>데이터 주인을 한 곳으로</strong> 정해야 한다. 두 방식을 같은 봇 부하로 비교한다.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 230" role="img" aria-label="A는 틱을 Lane의 일로 넣어 Lane이 데이터 주인이다. B는 Lane이 입력만 쌓고 틱 스레드가 주인이 되어 입력을 한꺼번에 적용하고 스냅샷을 브로드캐스트 스레드에 넘긴다">
+<text class="d-t" x="20" y="22" font-weight="600">A. 틱을 Lane의 일로</text>
+<rect class="d-ok" x="20" y="36" width="380" height="34" rx="6"/>
+<rect class="d-buf" x="30" y="42" width="60" height="22" rx="3"/><text class="d-m" x="60" y="57" text-anchor="middle">패킷</text>
+<rect class="d-buf" x="96" y="42" width="60" height="22" rx="3"/><text class="d-m" x="126" y="57" text-anchor="middle">패킷</text>
+<rect class="d-warn" x="162" y="42" width="60" height="22" rx="3"/><text class="d-m" x="192" y="57" text-anchor="middle">틱</text>
+<rect class="d-buf" x="228" y="42" width="60" height="22" rx="3"/><text class="d-m" x="258" y="57" text-anchor="middle">패킷</text>
+<rect class="d-warn" x="294" y="42" width="60" height="22" rx="3"/><text class="d-m" x="324" y="57" text-anchor="middle">틱</text>
+<text class="d-m" x="20" y="92">Lane 하나가 주인. 단순, 입력 바로 반영</text>
+<text class="d-m" x="20" y="108">틱이 앞의 메시지 뒤로 밀려 흔들릴 수 있다</text>
+<text class="d-m" x="20" y="124">많이 보낸 유저가 더 많이 반영된다</text>
+<text class="d-t" x="460" y="22" font-weight="600">B. 입력 쌓기 → 틱 → 브로드캐스트(사용자 구상)</text>
+<rect class="d-ok" x="460" y="36" width="110" height="34" rx="6"/><text class="d-m" x="515" y="57" text-anchor="middle">Lane: 입력만 쌓기</text>
+<rect class="d-warn" x="610" y="36" width="120" height="34" rx="6"/><text class="d-m" x="670" y="57" text-anchor="middle">틱 스레드(주인)</text>
+<rect class="d-cs" x="770" y="36" width="110" height="34" rx="6"/><text class="d-m" x="825" y="57" text-anchor="middle">브로드캐스트</text>
+<path class="d-line" d="M570,53 L608,53"/><path class="d-line" d="M730,53 L768,53"/>
+<text class="d-m" x="575" y="88">입력</text><text class="d-m" x="733" y="88">스냅샷</text>
+<text class="d-m" x="460" y="108">틱 시작에 입력을 한꺼번에 적용 → 유저마다 같은 처리</text>
+<text class="d-m" x="460" y="124">틱 간격이 일정, 보내기는 다른 스레드</text>
+<text class="d-m" x="460" y="140">입력 지연 최대 틱 하나. Lane은 월드를 직접 안 고친다</text>
+<text class="d-t" x="20" y="180" font-weight="600">R&amp;D에서 정할 것</text>
+<text class="d-m" x="20" y="198">① 틱 입력(이동, 스킬) vs 바로 처리(인벤토리, 거래, 채팅) 나누는 기준  ② 둘이 같은 데이터(HP 등)를 건드릴 때 주인</text>
+<text class="d-m" x="20" y="216">③ 측정: 틱 간격 흔들림 p99, 입력 지연, 처리량, 브로드캐스트 비용</text>
+</svg>
+</div>
+</div>
+
 <!-- ===================== 면접 ===================== -->
 <h2 id="talk">면접용 정리</h2>
 <div class="table-wrap"><table>
@@ -580,6 +652,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <tr><td>C++과 C#의 차이</td><td>4, 8, 9, F</td><td>C# <code>new</code>는 싸지만 GC 비용이 나중에 꼬리 지연으로 온다. 구조가 같으면 언어보다 설계가 차이를 만든다</td></tr>
 <tr><td>벤치마크를 믿을 수 있나</td><td>1, 6, 9</td><td>두 언어 같은 틀, Noop 기준선, 할당량까지 본다. 리뷰로 측정 틀의 버그를 찾았다</td></tr>
 <tr><td>멀티스레드 서버에서 락 없이 콘텐츠를 짜는 법</td><td>11</td><td>ID마다 정해진 Lane(전용 스레드)에서만 그 데이터를 만진다. 다른 ID의 데이터는 메시지로 요청하고, 기다리지 않고 답을 메시지로 받는다(액터 모델, Orleans grain과 같은 생각)</td></tr>
+<tr><td>패킷 처리 구조를 어떻게 짰나</td><td>12</td><td>IOCP 스레드가 자르기·검사·역직렬화까지 하고, 표로 목적지를 골라 Lane별로 묶어 넣는다. Processor 사이는 MessageRouter, 잘못 보내기는 컴파일 에러</td></tr>
 <tr><td>틀린 가정을 어떻게 바로잡았나</td><td>8</td><td>"C#은 lock-free라 빠르다"고 적었다가 .NET 소스를 직접 읽고 바로잡았다. 추측은 소스나 측정으로 확인한다</td></tr>
 <tr><td>설계 결정을 어떻게 했나</td><td>3, 7</td><td>후보를 같은 조건으로 재고, 얻은 것·잃은 것·결론이 깨지는 조건을 결정 기록으로 남긴다</td></tr>
 </table></div>
