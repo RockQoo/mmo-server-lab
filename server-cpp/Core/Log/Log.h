@@ -133,11 +133,13 @@ namespace Log
 
     private:
         void Open(std::chrono::local_days day);
+        void ReportWriteFailure(bool ok);
 
         std::filesystem::path _pathTemplate;
         Detail::LocalClock _clock{};
         std::chrono::local_days _day{};
         std::filesystem::path _currentPath{};
+        bool _failing{}; // 쓰기 실패를 이미 알렸다
         // std::ofstream 대신 C 파일: 줄마다 쓰고 flush 할 때 ofstream 은 한 줄에 µs 단위가 더 들었다(LogBench)
         struct FileCloser
         {

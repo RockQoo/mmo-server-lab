@@ -135,16 +135,34 @@ namespace Log
         {
             return;
         }
-        static_cast<void>(std::fwrite(line.data(), 1, line.size(), _file.get()));
-        static_cast<void>(std::fputc('\n', _file.get()));
-        static_cast<void>(std::fflush(_file.get()));
+        const auto written = std::fwrite(line.data(), 1, line.size(), _file.get());
+        const auto ok = written == line.size() && std::fputc('\n', _file.get()) != EOF && std::fflush(_file.get()) == 0;
+        ReportWriteFailure(ok);
     }
 
     void FileSink::Flush()
     {
         if (_file != nullptr)
         {
-            static_cast<void>(std::fflush(_file.get()));
+            ReportWriteFailure(std::fflush(_file.get()) == 0);
+        }
+    }
+
+    // 디스크가 가득 차는 등 쓰기가 실패하면 표준 오류에 알린다. 줄마다 알리지 않게 실패가 시작될 때 한 번만(다시
+    // 성공하면 다음 실패 때 또 알린다). 로그를 못 써도 서버는 계속 돈다(Codex 리뷰 R2).
+    void FileSink::ReportWriteFailure(const bool ok)
+    {
+        if (ok)
+        {
+            _failing = false;
+            return;
+        }
+        if (!_failing)
+        {
+            _failing = true;
+            const auto path = _currentPath.u8string();
+            std::println(stderr, "Log: cannot write {}",
+                         std::string_view{reinterpret_cast<const char*>(path.data()), path.size()});
         }
     }
 

@@ -48,8 +48,10 @@ public static class Logger
                 if (options.FilePath is not null)
                 {
                     // "logs/zone-.log" → logs/zone-20261127.log (C++ FileSink 과 같은 이름 규칙)
+                    // 크기 상한·보관 개수는 두지 않는다(C++ FileSink 과 같다). Serilog 기본은 파일당 1GB 를 넘으면 그날 나머지를
+                    // 버리고 31개보다 오래된 파일을 지운다(Codex 리뷰 R1). 정리는 운영 도구가 한다.
                     to.File(options.FilePath, outputTemplate: OutputTemplate, rollingInterval: RollingInterval.Day,
-                        formatProvider: CultureInfo.InvariantCulture);
+                        fileSizeLimitBytes: null, retainedFileCountLimit: null, formatProvider: CultureInfo.InvariantCulture);
                 }
                 foreach (var sink in sinks)
                 {
