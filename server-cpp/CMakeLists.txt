@@ -151,6 +151,24 @@ if(MSVC)
 endif()
 gtest_discover_tests(SchedulingTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
+# ---- Metrics: 서버 안에서 계속 재는 숫자. MetricCounter(칸 나누기 카운터). 다음: LatencyHistogram
+add_library(Metrics STATIC
+    Core/Metrics/MetricCounter.cpp
+    Core/Metrics/MetricCounter.h
+)
+target_link_libraries(Metrics PUBLIC Base)
+set_target_properties(Metrics PROPERTIES FOLDER Core/Metrics)
+
+add_executable(MetricsTests
+    Core/Metrics/Tests/MetricCounterTest.cpp
+)
+target_link_libraries(MetricsTests PRIVATE Metrics GTest::gtest_main)
+set_target_properties(MetricsTests PROPERTIES FOLDER Core/Metrics/Tests)
+if(MSVC)
+    target_compile_options(MetricsTests PRIVATE /wd6326) # BaseTests와 같은 gtest 오탐
+endif()
+gtest_discover_tests(MetricsTests EXTRA_ARGS --gtest_catch_exceptions=0)
+
 # ---- Memory: 버퍼 재사용(BufferPool, 빌린 버퍼 핸들 PooledBuffer), 객체 재사용(ObjectPool, 핸들 PooledPtr)
 add_library(Memory STATIC
     Core/Memory/BufferPool.cpp
@@ -199,13 +217,14 @@ add_executable(Bench
     Bench/CrashDumpBench.cpp
     Bench/LogBench.cpp
     Bench/MessageQueueBench.cpp
+    Bench/MetricCounterBench.cpp
     Bench/ObjectPoolBench.cpp
     Bench/RentReturnGrid.h
     Bench/ThreadTeam.h
     Bench/TimerBench.cpp
     Bench/TimerWheel.h
 )
-target_link_libraries(Bench PRIVATE Log Memory Messaging Scheduling Base benchmark::benchmark benchmark::benchmark_main)
+target_link_libraries(Bench PRIVATE Log Memory Messaging Metrics Scheduling Base benchmark::benchmark benchmark::benchmark_main)
 set_target_properties(Bench PROPERTIES FOLDER Bench)
 if(MSVC)
     target_compile_options(Bench PRIVATE /wd6326) # 테스트와 같은 매크로 오탐 대비
