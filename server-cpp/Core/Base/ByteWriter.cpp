@@ -28,16 +28,6 @@ namespace Base
         _valid = true;
     }
 
-    void ByteWriter::WriteBytes(const void* src, const std::size_t size)
-    {
-        if (!_valid)
-        {
-            return;
-        }
-        const auto* bytes = static_cast<const std::byte*>(src);
-        _buffer.insert(_buffer.end(), bytes, bytes + size);
-    }
-
     bool ByteWriter::WriteCount(const std::size_t count)
     {
         if (count > MaxCount)

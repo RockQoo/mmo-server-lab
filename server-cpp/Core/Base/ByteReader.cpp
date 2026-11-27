@@ -1,7 +1,5 @@
 #include "Base/ByteReader.h"
 
-#include <cstring>
-
 namespace Base
 {
     ByteReader::ByteReader(const std::span<const std::byte> data) : _data{data}
@@ -21,18 +19,6 @@ namespace Base
     bool ByteReader::IsValid() const
     {
         return _valid;
-    }
-
-    bool ByteReader::ReadBytes(void* dst, const std::size_t size)
-    {
-        if (!_valid || _data.size() - _readPos < size)
-        {
-            _valid = false;
-            return false;
-        }
-        std::memcpy(dst, _data.data() + _readPos, size);
-        _readPos += size;
-        return true;
     }
 
     std::size_t ByteReader::ReadCount()

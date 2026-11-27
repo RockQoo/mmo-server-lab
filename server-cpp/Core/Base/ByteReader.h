@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <span>
 #include <string>
 #include <utility>
@@ -126,7 +127,19 @@ namespace Base
         bool IsValid() const;
 
     private:
-        bool ReadBytes(void* dst, const std::size_t size);
+        // 모든 읽기가 마지막에 여기로 온다(필드마다 한 번).
+        // 헤더에 두어 인라인한다(ByteWriter::WriteBytes 와 같은 이유).
+        bool ReadBytes(void* dst, const std::size_t size)
+        {
+            if (!_valid || _data.size() - _readPos < size)
+            {
+                _valid = false;
+                return false;
+            }
+            std::memcpy(dst, _data.data() + _readPos, size);
+            _readPos += size;
+            return true;
+        }
         // 길이·개수를 읽는다. 남은 바이트보다 크면 실패 표시 후 0.
         // 원소는 최소 1바이트이므로, 거짓 개수로 큰 메모리를 잡게 하는 패킷을 여기서 막는다.
         std::size_t ReadCount();

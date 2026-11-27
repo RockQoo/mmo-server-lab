@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <span>
 #include <string>
 #include <string_view>
@@ -130,7 +131,18 @@ namespace Base
         void Clear();
 
     private:
-        void WriteBytes(const void* src, const std::size_t size);
+        // 모든 쓰기가 마지막에 여기로 온다(필드마다 한 번). 헤더에 두어 인라인한다: .cpp 에 두면 4바이트 하나에도
+        // 함수 호출이 생겼다(performance.html 사례 10).
+        void WriteBytes(const void* src, const std::size_t size)
+        {
+            if (!_valid)
+            {
+                return;
+            }
+            const auto used = _buffer.size();
+            _buffer.resize(used + size);
+            std::memcpy(_buffer.data() + used, src, size);
+        }
         // 길이·개수를 uint16으로 쓴다. MaxCount를 넘으면 실패 표시 후 false.
         bool WriteCount(const std::size_t count);
         // 길이 + 바이트. data는 UTF-8 문자열(char 또는 char8_t).
