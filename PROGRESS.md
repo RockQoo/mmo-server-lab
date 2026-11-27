@@ -33,13 +33,13 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 |---|---|---|---|
 | 1 | ✅ Lane 개선 1단계(2026-11-27: stop 확인 → `bool`, `condition_variable_any` → `std::condition_variable`, 메모리 배치. 4:4 72.7 → 53.5ns, C# 45.7ns의 약 1.17배. lock-free MPSC는 보류: 아래 후순위) | Messaging | N:M에서 C# `Channel`보다 약 1.5배 느렸다. 위의 모든 것이 Lane 위에서 돈다 |
 | 2 | ~~MessageRouter~~ → **2단계(존 이동)로 미룸**(2026-11-27) | Messaging | 설계는 끝남(결정 004). 1단계 ZoneServer 안 Processor는 사실상 `ZoneProcessor` 하나라 보낼 곳이 없다(패킷 입구는 `PacketDispatcher`, 같은 존 안은 직접 호출). 첫 실제 사용처는 존↔존(2단계), 다음이 DbWriter(4)·ServiceServer(5)로 보내기(다른 서버, 직렬화) |
-| 3 | Config | Base | 스레드·Lane 수, 포트를 재빌드 없이 바꿔 벤치마크로 정한다. nlohmann/json 설치 확인 |
-| 4 | Log | Log | 네트워크부터는 로그 없이 디버깅이 어렵다. C# Serilog 설치 확인 |
-| 5 | CrashDump | Base | 네트워크 개발 중 크래시 덤프 |
-| 6 | Timer(예약 실행, 고정 틱 루프) | Timer | 틱 R&D(노트 계획 G), ZoneServer 바탕. Network와 순서 바꿔도 된다 |
-| 7 | Metrics(카운터, 지연 히스토그램) | Metrics | 부하 테스트의 틱 지연 p99, GC 비교(노트 계획 F) |
-| 8 | 직렬화 필드 비용(노트 계획 D) | Base | 패킷마다 쓰인다 |
-| 9 | CodeGen | 도구 | 프로토콜보다 먼저(규칙) |
+| 3 | Log | Log | 네트워크부터는 로그 없이 디버깅이 어렵다. C# Serilog 설치 확인 |
+| 4 | CrashDump | Base | 네트워크 개발 중 크래시 덤프 |
+| 5 | Timer(예약 실행, 고정 틱 루프) | Timer | 틱 R&D(노트 계획 G), ZoneServer 바탕. Network와 순서 바꿔도 된다 |
+| 6 | Metrics(카운터, 지연 히스토그램) | Metrics | 부하 테스트의 틱 지연 p99, GC 비교(노트 계획 F) |
+| 7 | 직렬화 필드 비용(노트 계획 D) | Base | 패킷마다 쓰인다 |
+| 8 | CodeGen | 도구 | 프로토콜보다 먼저(규칙) |
+| 9 | Config | Base | 포트·IOCP·Lane 수를 재빌드 없이 바꾸는 틀. 값은 1단계 봇 부하 테스트로 정한다. 처음 읽는 곳이 Network·ZoneServer `main`이라 Network 바로 앞(2026-11-27 순서 변경). nlohmann/json 설치 확인 |
 | 10 | Network | Network | 1단계의 핵심. BufferPool 3판, 수신 단위 묶어 넣기(결정 004) |
 | 11 | DB | DB | 4단계(DbWriter) 때 |
 
