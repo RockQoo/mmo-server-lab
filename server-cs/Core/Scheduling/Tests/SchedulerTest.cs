@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Messaging;
 using Microsoft.Extensions.Time.Testing;
 
@@ -177,5 +178,47 @@ public sealed class SchedulerTest
         scheduler.After(TimeSpan.FromMilliseconds(10), lane, done.SetResult);
 
         await done.Task.WaitAsync(s_patience, TestContext.Current.CancellationToken);
+    }
+
+    // 닫힌 Lane 이 회차를 거절하면 한 번짜리는 목록에서도 지운다(리뷰 R3): 남아 있으면 Cancel 이 true 를 돌려준다
+    [Fact]
+    public async Task OneShotRejectedByClosedLaneIsForgotten()
+    {
+        var time = new FakeTimeProvider();
+        var lane = new Lane();
+        await lane.DisposeAsync();
+        using var scheduler = new Scheduler(time);
+        var ran = false;
+
+        var id = scheduler.After(TimeSpan.FromSeconds(1), lane, () => ran = true);
+        time.Advance(TimeSpan.FromSeconds(1)); // 콜백의 TryPost 가 false
+
+        Assert.False(scheduler.Cancel(id));
+        Assert.False(ran);
+    }
+
+    // 타이머를 못 만들면(범위 밖 시간) 예외를 그대로 던지고 등록을 남기지 않는다(리뷰 R4): 일이 붙잡은 객체가 풀린다
+    [Fact]
+    public async Task FailedTimerCreationLeavesNoEntry()
+    {
+        await using var lane = new Lane();
+        using var scheduler = new Scheduler(); // 실제 시계: 약 49.7일(0xFFFFFFFE ms)보다 긴 시간은 거절한다
+
+        var captured = AddTooLongTimer(scheduler, lane);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        Assert.False(captured.IsAlive);
+    }
+
+    // 일이 붙잡을 객체를 이 함수 안에서만 만든다(테스트 함수의 지역 변수가 객체를 살려 두지 않게)
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference AddTooLongTimer(Scheduler scheduler, Lane lane)
+    {
+        var payload = new object();
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            scheduler.After(TimeSpan.FromDays(100), lane, () => GC.KeepAlive(payload)));
+        return new WeakReference(payload);
     }
 }

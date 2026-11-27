@@ -54,9 +54,10 @@ namespace Scheduling
             {
                 continue; // 지운 일, 또는 이미 다른 시각으로 다시 들어간 칸
             }
-            // 일을 목록에서 꺼내 실행한다: 일 안에서 Add 가 _timers 를 바꿔도(rehash) 꺼낸 일은 안전하다
-            auto timer = std::move(found->second);
-            _timers.erase(found);
+            // 노드째 꺼내 실행한다(extract: 할당·해제 없음). 일 안에서 Add 가 _timers 를 바꿔도(rehash) 꺼낸 노드는
+            // 안전하고, 주기 일은 같은 노드를 다시 넣어 회차마다 할당하지 않는다.
+            auto node = _timers.extract(found);
+            auto& timer = node.mapped();
             _runningId = slot.id;
             _runningPeriodic = timer.period > Duration::zero();
             _runningCanceled = false;
@@ -78,7 +79,7 @@ namespace Scheduling
                 const auto missed = (now - timer.due) / timer.period + 1;
                 timer.due += missed * timer.period;
                 _heap.push({.due = timer.due, .id = slot.id});
-                _timers.emplace(slot.id, std::move(timer));
+                _timers.insert(std::move(node));
             }
         }
         return ran;

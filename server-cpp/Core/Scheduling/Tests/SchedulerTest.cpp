@@ -4,7 +4,9 @@
 #include <chrono>
 #include <functional>
 #include <future>
+#include <latch>
 #include <thread>
+#include <vector>
 
 #include "Messaging/Lane.h"
 #include "Scheduling/Scheduler.h"
@@ -185,4 +187,31 @@ TEST(Scheduler, StopDropsPendingAndRejectsNew)
     std::this_thread::sleep_for(60ms);
     Drain(lane);
     EXPECT_FALSE(ran);
+}
+
+// 여러 스레드가 같이 Stop 해도 join 은 한 번만 하고 모두 돌아온다(리뷰 R1). 경합이 나도록 같이 출발시켜 여러 번 한다.
+TEST(Scheduler, ConcurrentStopIsSafe)
+{
+    constexpr int32_t Rounds = 50;
+    constexpr int32_t Stoppers = 4;
+    for (int32_t round = 0; round < Rounds; ++round)
+    {
+        Lane lane;
+        Scheduler scheduler;
+        scheduler.Every(1ms, lane, [] {});
+        std::latch start{Stoppers};
+        std::vector<std::jthread> stoppers;
+        stoppers.reserve(Stoppers);
+        for (int32_t i = 0; i < Stoppers; ++i)
+        {
+            stoppers.emplace_back(
+                [&]
+                {
+                    start.arrive_and_wait();
+                    scheduler.Stop();
+                });
+        }
+        stoppers.clear(); // 모두 join
+        EXPECT_EQ(scheduler.After(1ms, lane, [] {}), TimerId{});
+    }
 }

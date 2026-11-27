@@ -87,6 +87,9 @@ namespace Scheduling
         void SweepExpiredEntries();
 
         std::mutex _mutex{};
+        // Stop 을 여러 스레드가 같이 불러도 joinable 확인부터 join 까지 하나씩. Run 이 _mutex 를 잡고 돌아서 _mutex 를
+        // 잡은 채 join 하면 교착이라 따로 둔다.
+        std::mutex _stopMutex{};
         std::condition_variable _wake{}; // 더 이른 일이 들어오거나 멈출 때 깨운다
         TimerHeap _heap{};               // _mutex 가 지킨다
         // id → 일. Cancel 이 Lane 에 이미 넣은 회차까지 막으려고 둔다. 끝난 일은 weak_ptr 이 비므로 가끔 치운다.

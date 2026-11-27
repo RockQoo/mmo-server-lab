@@ -95,7 +95,16 @@ public sealed class Scheduler : IDisposable
             var entry = new Entry(this, id, lane, job, periodic: period != Timeout.InfiniteTimeSpan);
             _entries.Add(id, entry);
             // 콜백이 바로(지연 0) 와도 Timer 를 아직 안 넣은 채 쓰지 않는다: 한 번짜리 정리(Finish)도 _lock 을 잡는다
-            entry.Timer = _time.CreateTimer(static state => ((Entry)state!).Fire(), entry, delay, period);
+            try
+            {
+                entry.Timer = _time.CreateTimer(static state => ((Entry)state!).Fire(), entry, delay, period);
+            }
+            catch
+            {
+                // 범위 밖 시간(ArgumentOutOfRangeException 등): 호출자는 id 를 못 받아 Cancel 로 지울 수 없으니 되돌린다
+                _entries.Remove(id);
+                throw;
+            }
             return new TimerId(id);
         }
     }
@@ -138,7 +147,14 @@ public sealed class Scheduler : IDisposable
         public bool TryClaim() => Interlocked.Exchange(ref _claimed, 1) == 0;
 
         // 타이머 콜백(스레드 풀): Lane 에 넣기만 한다. Lane 이 닫혔으면(종료 중) 이 회차는 버린다.
-        public void Fire() => _ = _lane.TryPost(_runInLane);
+        // 한 번짜리는 다시 오지 않으므로 그때 목록에서도 지운다(안 지우면 Scheduler 가 살아 있는 동안 일과 캡처가 남는다).
+        public void Fire()
+        {
+            if (!_lane.TryPost(_runInLane) && !_periodic && TryClaim())
+            {
+                _owner.Finish(this);
+            }
+        }
 
         private void RunInLane()
         {

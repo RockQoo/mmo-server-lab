@@ -103,6 +103,8 @@ namespace Scheduling
 
     void Scheduler::Stop()
     {
+        // 동시에 부르면 뒤에 온 쪽은 앞쪽 join 이 끝난 뒤 joinable 이 false 라 바로 돌아간다
+        const std::scoped_lock stopLock{_stopMutex};
         if (!_thread.joinable())
         {
             return;
