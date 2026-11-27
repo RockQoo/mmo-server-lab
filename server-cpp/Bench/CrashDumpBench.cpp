@@ -19,6 +19,16 @@
 // 인자: {힙 MB, 방법(0 = Snapshot, 1 = Direct)}. Full 덤프 파일은 임시 폴더에 쓰고 바로 지운다.
 namespace
 {
+    // ticker 가 count 바퀴 더 돌 때까지 기다린다
+    void WaitLaps(const std::atomic<std::uint64_t>& laps, const std::uint64_t count)
+    {
+        const auto target = laps.load(std::memory_order_acquire) + count;
+        while (laps.load(std::memory_order_acquire) < target)
+        {
+            std::this_thread::yield();
+        }
+    }
+
     void LiveFullDump(benchmark::State& state)
     {
         const auto heapBytes = static_cast<std::size_t>(state.range(0)) * 1024 * 1024;
@@ -41,6 +51,7 @@ namespace
         std::atomic<bool> running{true};
         std::atomic<std::int64_t> maxGapNs{0};
         std::atomic<bool> measuring{false};
+        std::atomic<std::uint64_t> laps{0}; // ticker 가 한 바퀴 돌 때마다 +1
         std::jthread ticker{[&]
                             {
                                 auto last = std::chrono::steady_clock::now();
@@ -57,6 +68,7 @@ namespace
                                         }
                                     }
                                     last = now;
+                                    laps.fetch_add(1, std::memory_order_release);
                                 }
                             }};
 
@@ -66,9 +78,13 @@ namespace
         {
             maxGapNs.store(0, std::memory_order_relaxed);
             measuring.store(true, std::memory_order_relaxed);
+            WaitLaps(laps, 2); // ticker 가 measuring 을 본 바퀴가 지나간 뒤 시작
             const auto start = std::chrono::steady_clock::now();
             const auto path = Base::CrashDump::Write(Base::DumpKind::Full, "bench", method);
             const auto end = std::chrono::steady_clock::now();
+            // 덤프가 끝나 풀려난 ticker 가 멈춘 간격을 기록할 때까지 기다린 뒤 닫는다(Codex 리뷰 R3: 바로 닫으면 Direct
+            // 의 마지막 멈춤을 놓친다)
+            WaitLaps(laps, 2);
             measuring.store(false, std::memory_order_relaxed);
             state.SetIterationTime(std::chrono::duration<double>(end - start).count());
             pauseMs = std::max(pauseMs, static_cast<double>(maxGapNs.load(std::memory_order_relaxed)) / 1e6);

@@ -34,6 +34,9 @@ namespace Base
         constexpr DWORD PureCallCode{0xE000'7E72};
         constexpr DWORD InvalidParameterCode{0xE000'7E73};
 
+        // 같은 초·같은 이유 덤프 이름 뒤에 붙일 번호의 상한(넘으면 실패)
+        constexpr auto MaxSameNameDumps = 100;
+
         // 스레드·스택·전역 변수(DataSegs)·핸들·스택이 가리키는 메모리 조금. 보통 수 MB.
         constexpr auto MiniFlags =
             static_cast<MINIDUMP_TYPE>(MiniDumpWithDataSegs | MiniDumpWithHandleData | MiniDumpWithThreadInfo |
@@ -107,14 +110,22 @@ namespace Base
                 return _ok ? _path : std::filesystem::path{};
             }
 
+            // 덤프 스레드 자신이 크래시 났나. 그때는 덤프를 요청하지 않는다: 요청한 쪽이 _mutex 를 쥐고 이 스레드를
+            // 기다리고 있을 수 있어 Write 가 영원히 끝나지 않는다(Codex 리뷰 R2)
+            [[nodiscard]] bool IsDumpThread() const noexcept
+            {
+                return _dumpThreadId.load(std::memory_order_relaxed) == GetCurrentThreadId();
+            }
+
         private:
             void Run()
             {
+                _dumpThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
                 static_cast<void>(SetThreadDescription(GetCurrentThread(), L"CrashDump"));
                 while (true)
                 {
                     WaitForSingleObject(_request, INFINITE);
-                    _ok = WriteDumpFile();
+                    _ok = TryWriteDumpFile();
                     // _done 뒤에는 요청 칸이 다음 요청으로 바뀔 수 있어 먼저 읽는다(크래시면 요청한 쪽이 아직 기다린다)
                     const auto crash = _exception != nullptr;
                     SetEvent(_done);
@@ -138,15 +149,40 @@ namespace Base
                 }
             }
 
+            // 경로 만들기(std::format, path)는 할당 실패로 던질 수 있다. 던지면 이 스레드가 terminate 되고 요청한 쪽은
+            // _done 을 영원히 기다리므로 실패로 바꾼다(Codex 리뷰 R2)
+            bool TryWriteDumpFile() noexcept
+            {
+                try
+                {
+                    return WriteDumpFile();
+                }
+                catch (...)
+                {
+                    return false;
+                }
+            }
+
             bool WriteDumpFile()
             {
                 SYSTEMTIME now{};
                 GetLocalTime(&now);
-                _path = _directory / std::format(L"{}_{:04}{:02}{:02}_{:02}{:02}{:02}_pid{}_{}.dmp", _processName,
-                                                 now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
-                                                 GetCurrentProcessId(), std::wstring_view{_reason.data()});
-                const auto file = CreateFileW(_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
-                                              FILE_ATTRIBUTE_NORMAL, nullptr);
+                const auto stem = std::format(L"{}_{:04}{:02}{:02}_{:02}{:02}{:02}_pid{}_{}", _processName, now.wYear,
+                                              now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
+                                              GetCurrentProcessId(), std::wstring_view{_reason.data()});
+                // 같은 초에 같은 이유로 또 남기면 덮어쓰지 않고 _2, _3 … 을 붙인다(Codex 리뷰 R4: 연달아 뜬 덤프를
+                // 비교하는 일이 있다)
+                auto file = INVALID_HANDLE_VALUE;
+                for (auto n = 1; n <= MaxSameNameDumps && file == INVALID_HANDLE_VALUE; ++n)
+                {
+                    _path = _directory / (n == 1 ? stem + L".dmp" : std::format(L"{}_{}.dmp", stem, n));
+                    file = CreateFileW(_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
+                                       nullptr);
+                    if (file == INVALID_HANDLE_VALUE && GetLastError() != ERROR_FILE_EXISTS)
+                    {
+                        break;
+                    }
+                }
                 if (file == INVALID_HANDLE_VALUE)
                 {
                     return false;
@@ -207,6 +243,7 @@ namespace Base
             HANDLE _request;
             HANDLE _done;
             HANDLE _afterCrashDone;
+            std::atomic<DWORD> _dumpThreadId{};
             std::mutex _mutex{};
             // 요청 칸(_mutex 를 잡은 쪽이 채우고, 덤프 스레드가 읽는다)
             DumpKind _kind{};
@@ -225,6 +262,11 @@ namespace Base
         // 원래 종료 코드로 끝나야 한다.
         void WriteCrashDump(Dumper& dumper, const std::string_view reason, EXCEPTION_POINTERS* const exception) noexcept
         {
+            if (dumper.IsDumpThread())
+            {
+                static_cast<void>(std::fputs("CrashDump: dump thread crashed, no dump\n", stderr));
+                return;
+            }
             try
             {
                 static_cast<void>(dumper.Write(dumper.CrashKind(), reason, exception));

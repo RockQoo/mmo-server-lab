@@ -634,18 +634,19 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <text class="d-m" x="20" y="175">C#: 자동은 런타임 환경 변수(DOTNET_DbgEnableMiniDump), 수동은 MS 공식 DiagnosticsClient.WriteDump(dotnet-dump 와 같은 경로)</text>
 </svg>
 </div>
-<h3>살아 있는 서버 Full 덤프: 스냅샷으로 멈춤 22~26배 줄임 (2026-11-27)</h3>
+<h3>살아 있는 서버 Full 덤프: 스냅샷으로 멈춤 24~29배 줄임 (2026-11-27)</h3>
 <p>Full 덤프는 메모리 전체를 쓰는 동안 프로세스의 모든 스레드가 멈춘다. 그래서 <code>PssCaptureSnapshot</code>으로 순간 복사본(copy-on-write: 같은 메모리를 가리키다 고치는 페이지만 그때 복사)을 떠서 그것을 덤프한다. 멈추는 것은 복사본을 뜨는 순간뿐이다(procdump <code>-r</code>과 같은 방법). <code>Bench/CrashDumpBench.cpp</code>: 쉬지 않고 시각을 읽는 스레드의 가장 긴 간격 = 서버가 멈춘 시간.</p>
 <div class="table-wrap"><table>
 <tr><th>Full 덤프(힙을 잡고 모든 페이지를 씀)</th><th class="num">파일</th><th class="num">서버 멈춤</th><th style="width:34%">멈춤 막대</th><th class="num">부른 스레드 대기</th></tr>
-<tr><td>힙 256MB · 바로 쓰기(Direct)</td><td class="num">287MB</td><td class="num">131.6ms</td><td><span class="bar warn" style="width:29%"></span></td><td class="num">172ms</td></tr>
-<tr><td>힙 256MB · <strong>스냅샷</strong></td><td class="num">287MB</td><td class="num"><strong>5.1ms</strong></td><td><span class="bar" style="width:1%"></span></td><td class="num">226ms</td></tr>
-<tr><td>힙 1GB · 바로 쓰기(Direct)</td><td class="num">1,055MB</td><td class="num">450.9ms</td><td><span class="bar warn" style="width:100%"></span></td><td class="num">485ms</td></tr>
-<tr><td>힙 1GB · <strong>스냅샷</strong></td><td class="num">1,055MB</td><td class="num"><strong>20.2ms</strong></td><td><span class="bar" style="width:4%"></span></td><td class="num">922ms</td></tr>
+<tr><td>힙 256MB · 바로 쓰기(Direct)</td><td class="num">287MB</td><td class="num">167.9ms</td><td><span class="bar warn" style="width:33%"></span></td><td class="num">197ms</td></tr>
+<tr><td>힙 256MB · <strong>스냅샷</strong></td><td class="num">287MB</td><td class="num"><strong>5.7ms</strong></td><td><span class="bar" style="width:1%"></span></td><td class="num">263ms</td></tr>
+<tr><td>힙 1GB · 바로 쓰기(Direct)</td><td class="num">1,055MB</td><td class="num">512.9ms</td><td><span class="bar warn" style="width:100%"></span></td><td class="num">541ms</td></tr>
+<tr><td>힙 1GB · <strong>스냅샷</strong></td><td class="num">1,055MB</td><td class="num"><strong>21.0ms</strong></td><td><span class="bar" style="width:4%"></span></td><td class="num">992ms</td></tr>
 </table></div>
 <ul>
-<li>서버 멈춤은 22~26배 줄었다. 대신 파일을 다 쓰기까지(부른 스레드 대기)는 스냅샷이 더 길다(복사본에서 읽고, 그동안 서버가 고친 페이지를 복사하는 비용). 서버는 그동안 돈다.</li>
-<li>스냅샷 멈춤도 메모리에 비례한다(약 20ms/GB, 페이지 표 복제). 10GB 서버면 약 200ms로 추정(재지 않음) — Direct(약 4.5초 추정)보다는 훨씬 짧다.</li>
+<li><b>바로잡음(Codex 리뷰 R3):</b> 처음 잰 값(Direct 131.6 / 450.9ms, 스냅샷 5.1 / 20.2ms)은 덤프가 끝나자마자 측정을 닫아, 풀려난 측정 스레드가 마지막 멈춤을 기록하기 전에 끝날 수 있었다. 측정 스레드가 덤프 앞뒤로 두 바퀴 돈 것을 확인한 뒤 열고 닫게 고쳐 다시 쟀다(위 표). Direct가 덜 재졌던 것이라 개선 폭은 오히려 커졌다.</li>
+<li>서버 멈춤은 24~29배 줄었다. 대신 파일을 다 쓰기까지(부른 스레드 대기)는 스냅샷이 더 길다(복사본에서 읽고, 그동안 서버가 고친 페이지를 복사하는 비용). 서버는 그동안 돈다.</li>
+<li>스냅샷 멈춤도 메모리에 비례한다(약 20ms/GB, 페이지 표 복제). 10GB 서버면 약 200ms로 추정(재지 않음) — Direct(약 5초 추정)보다는 훨씬 짧다.</li>
 <li>크래시 덤프는 스냅샷을 쓰지 않는다: 어차피 끝날 프로세스라 바로 쓴다(기본 Mini).</li>
 </ul>
 <h3>덤프를 실제로 열어 확인 (2026-11-27)</h3>
@@ -657,7 +658,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <li><b>C#:</b> <code>Logger.Initialize</code>가 <code>AppDomain.UnhandledException</code>에 처리기를 건다. 예외를 Fatal 한 줄로 남기고 <code>CloseAndFlush</code>를 1초 제한으로 부른다. 처리기가 돌아오면 런타임이 덤프를 쓴다.</li>
 </ul>
 <p class="muted">앞으로: 수동 덤프 명령은 Network 뒤 관리 콘솔(localhost·내부망만, 인증).</p>
-<p class="talk"><b>30초 답변.</b> 크래시 덤프는 크래시 난 스레드가 직접 쓰지 않고 미리 만든 덤프 전용 스레드가 씁니다. 스택 오버플로처럼 크래시 난 스레드에 스택이 거의 없어도 덤프를 남길 수 있고, 그 스레드의 스택이 멈춘 그대로 덤프에 들어갑니다. 만들면서 MSVC의 terminate 처리기가 스레드마다 따로라는 걸 테스트로 확인해서, 다른 스레드의 terminate는 프로세스 전체에 걸리는 SIGABRT로 잡았습니다. 같은 경로로 살아 있는 서버도 죽이지 않고 덤프를 뜹니다. 다만 Full 덤프는 쓰는 동안 서버 전체가 멈춰서, 1GB에서 450ms였던 멈춤을 프로세스 스냅샷(copy-on-write 복사본)을 떠서 덤프하는 방식으로 20ms까지 줄였습니다.</p>
+<p class="talk"><b>30초 답변.</b> 크래시 덤프는 크래시 난 스레드가 직접 쓰지 않고 미리 만든 덤프 전용 스레드가 씁니다. 스택 오버플로처럼 크래시 난 스레드에 스택이 거의 없어도 덤프를 남길 수 있고, 그 스레드의 스택이 멈춘 그대로 덤프에 들어갑니다. 만들면서 MSVC의 terminate 처리기가 스레드마다 따로라는 걸 테스트로 확인해서, 다른 스레드의 terminate는 프로세스 전체에 걸리는 SIGABRT로 잡았습니다. 같은 경로로 살아 있는 서버도 죽이지 않고 덤프를 뜹니다. 다만 Full 덤프는 쓰는 동안 서버 전체가 멈춰서, 1GB에서 510ms였던 멈춤을 프로세스 스냅샷(copy-on-write 복사본)을 떠서 덤프하는 방식으로 21ms까지 줄였습니다.</p>
 </div>
 
 <!-- ===================== 계획 ===================== -->

@@ -83,11 +83,13 @@ public static class Logger
         OnCrash(e.ExceptionObject as Exception, s_crashFlushTimeout);
 
     // 끝까지 썼으면 true
-    internal static bool OnCrash(Exception? exception, TimeSpan timeout)
-    {
-        Serilog.Log.ForContext("Category", "Crash").Fatal(exception, "unhandled exception");
-        return Task.Run(Shutdown).Wait(timeout);
-    }
+    // Fatal 도 시간 제한 안에 넣는다: blockWhenFull 이라 sink 가 막혀 큐가 차 있으면 Fatal 자체가 기다린다(Codex 리뷰 R1).
+    internal static bool OnCrash(Exception? exception, TimeSpan timeout) =>
+        Task.Run(() =>
+        {
+            Serilog.Log.ForContext("Category", "Crash").Fatal(exception, "unhandled exception");
+            Shutdown();
+        }).Wait(timeout);
 
     // 카테고리가 붙은 로거. Initialize 뒤에 부른다: Serilog 의 ForContext 는 그때의 로거에 묶이므로 앞에서 부르면 영원히
     // 아무것도 쓰지 않는 로거가 된다(조용한 실수를 막으려고 확인한다).

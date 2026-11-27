@@ -40,7 +40,7 @@ namespace
     // afterCrash 는 함수 포인터라 캡처가 없다. 불렸다는 표시를 이 파일에 남긴다.
     std::filesystem::path AfterCrashMarker()
     {
-        return std::filesystem::temp_directory_path() / "mmo-server-lab-CrashDump" / "shared" / "aftercrash.txt";
+        return TestDir("aftercrash") / "aftercrash.txt";
     }
 
     // directory 에 이름이 suffix 로 끝나는 .dmp 가 있고 비어 있지 않은가
@@ -107,7 +107,7 @@ TEST(CrashDumpDeathTest, WritesDumpOnUnhandledException)
     {
         GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
     }
-    const auto dir = TestDir("shared");
+    const auto dir = TestDir("unhandled");
     std::filesystem::remove_all(dir);
     EXPECT_EXIT(
         {
@@ -125,7 +125,7 @@ TEST(CrashDumpDeathTest, WritesDumpOnTerminateInOtherThread)
     {
         GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
     }
-    const auto dir = TestDir("shared");
+    const auto dir = TestDir("terminate");
     std::filesystem::remove_all(dir);
     EXPECT_EXIT(
         {
@@ -143,7 +143,7 @@ TEST(CrashDumpDeathTest, CallsAfterCrashBeforeExit)
     {
         GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
     }
-    const auto dir = TestDir("shared");
+    const auto dir = TestDir("aftercrash");
     std::filesystem::remove_all(dir);
     EXPECT_EXIT(
         {
@@ -163,7 +163,7 @@ TEST(CrashDumpDeathTest, GivesUpAfterCrashAfterTimeout)
     {
         GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
     }
-    const auto dir = TestDir("shared");
+    const auto dir = TestDir("aftercrash-timeout");
     std::filesystem::remove_all(dir);
     const auto start = std::chrono::steady_clock::now();
     EXPECT_EXIT(
@@ -176,4 +176,45 @@ TEST(CrashDumpDeathTest, GivesUpAfterCrashAfterTimeout)
         [](int) { return true; }, "");
     EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds{10});
     EXPECT_TRUE(HasDump(dir, L"_crash.dmp"));
+}
+
+// 같은 초에 같은 이유로 연달아 남겨도 덮어쓰지 않는다(Codex 리뷰 R4)
+TEST(CrashDump, KeepsBothDumpsWithSameNameInSameSecond)
+{
+    const auto dir = TestDir("shared");
+    InstallOnce(dir);
+
+    const auto first = Base::CrashDump::Write(Base::DumpKind::Mini, "same");
+    const auto second = Base::CrashDump::Write(Base::DumpKind::Mini, "same");
+
+    ASSERT_FALSE(first.empty());
+    ASSERT_FALSE(second.empty());
+    EXPECT_NE(first, second);
+    EXPECT_TRUE(std::filesystem::exists(first));
+    EXPECT_TRUE(std::filesystem::exists(second));
+    std::filesystem::remove(first);
+    std::filesystem::remove(second);
+}
+
+// afterCrash 안에서 덤프 스레드 자신이 크래시 나도 기다리지 않고 끝난다(Codex 리뷰 R2). 덤프 스레드가 다시 덤프를
+// 요청하면 크래시 난 스레드가 쥔 mutex 를 기다려 시간 제한(10초)이 다 지나야 끝난다.
+TEST(CrashDumpDeathTest, ExitsWhenDumpThreadCrashes)
+{
+    if (!CanSeeCrashes())
+    {
+        GTEST_SKIP() << "--gtest_catch_exceptions=0 으로 실행할 때만 확인한다";
+    }
+    const auto dir = TestDir("dumpthread");
+    std::filesystem::remove_all(dir);
+    const auto start = std::chrono::steady_clock::now();
+    EXPECT_EXIT(
+        {
+            InstallOnce({.directory = dir,
+                         .afterCrash = [] { RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr); },
+                         .afterCrashTimeout = std::chrono::seconds{10}});
+            RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
+        },
+        [](int) { return true; }, "");
+    EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds{5});
+    EXPECT_TRUE(HasDump(dir, L"_crash.dmp")); // 처음 크래시의 덤프는 남는다
 }

@@ -22,17 +22,41 @@ public enum DumpKind
 //   프로세스에 덤프를 요청한다(dotnet-dump collect 와 같은 경로: 런타임이 createdump 를 띄워 쓴다).
 public static class CrashDump
 {
-    // 남긴 파일 경로. 파일: <directory>/<프로세스 이름>_<날짜>_<시각>_pid<번호>_<reason>.dmp (C++ 과 같다)
+    // 같은 초·같은 이유 덤프 이름 뒤에 붙일 번호의 상한(C++ 과 같다)
+    private const int MaxSameNameDumps = 100;
+
+    // 이름 고르기와 쓰기를 하나씩(C++ 은 덤프 전용 스레드가 하나씩 쓴다)
+    private static readonly Lock s_lock = new();
+
+    // 남긴 파일 경로. 파일: <directory>/<프로세스 이름>_<날짜>_<시각>_pid<번호>_<reason>.dmp (C++ 과 같다). 같은 초에 같은
+    // 이유로 또 남기면 덮어쓰지 않고 _2, _3 … 을 붙인다(Codex 리뷰 R4).
     public static string Write(DumpKind kind, string reason, string directory = "dumps")
     {
         ArgumentNullException.ThrowIfNull(reason);
         Directory.CreateDirectory(directory);
         using var process = Process.GetCurrentProcess();
         var safeReason = string.Concat(reason.Select(c => char.IsAsciiLetterOrDigit(c) || c == '-' ? c : '_'));
-        var name = string.Create(CultureInfo.InvariantCulture,
-            $"{process.ProcessName}_{DateTime.Now:yyyyMMdd_HHmmss}_pid{process.Id}_{safeReason}.dmp");
-        var path = Path.GetFullPath(Path.Combine(directory, name));
-        new DiagnosticsClient(process.Id).WriteDump(kind == DumpKind.Mini ? DumpType.WithHeap : DumpType.Full, path);
-        return path;
+        var stem = string.Create(CultureInfo.InvariantCulture,
+            $"{process.ProcessName}_{DateTime.Now:yyyyMMdd_HHmmss}_pid{process.Id}_{safeReason}");
+        lock (s_lock)
+        {
+            var path = FreePath(directory, stem);
+            new DiagnosticsClient(process.Id).WriteDump(kind == DumpKind.Mini ? DumpType.WithHeap : DumpType.Full, path);
+            return path;
+        }
+    }
+
+    private static string FreePath(string directory, string stem)
+    {
+        for (var n = 1; n <= MaxSameNameDumps; n++)
+        {
+            var name = n == 1 ? $"{stem}.dmp" : string.Create(CultureInfo.InvariantCulture, $"{stem}_{n}.dmp");
+            var path = Path.GetFullPath(Path.Combine(directory, name));
+            if (!File.Exists(path))
+            {
+                return path;
+            }
+        }
+        throw new IOException($"CrashDump: too many dumps named {stem}");
     }
 }
