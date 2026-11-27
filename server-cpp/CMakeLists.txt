@@ -137,6 +137,25 @@ if(MSVC)
 endif()
 gtest_discover_tests(MemoryTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
+# ---- Log: 비동기 로그(로그 전용 Lane), 카테고리 enum(magic_enum 으로 이름) + 키·값. C# 은 Serilog
+find_package(magic_enum CONFIG REQUIRED)
+add_library(Log STATIC
+    Core/Log/Log.cpp
+    Core/Log/Log.h
+)
+target_link_libraries(Log PUBLIC Messaging magic_enum::magic_enum)
+set_target_properties(Log PROPERTIES FOLDER Core/Log)
+
+add_executable(LogTests
+    Core/Log/Tests/LogTest.cpp
+)
+target_link_libraries(LogTests PRIVATE Log GTest::gtest_main)
+set_target_properties(LogTests PROPERTIES FOLDER Core/Log/Tests)
+if(MSVC)
+    target_compile_options(LogTests PRIVATE /wd6326) # BaseTests와 같은 gtest 오탐
+endif()
+gtest_discover_tests(LogTests EXTRA_ARGS --gtest_catch_exceptions=0)
+
 # ======== 벤치마크 (Google Benchmark) ========
 # 설계 선택의 근거를 재는 실행 파일. 결과는 docs/decisions/ 에 남긴다. Release 로 돌린다.
 #   build/release/Bench.exe --benchmark_filter=BufferPool
