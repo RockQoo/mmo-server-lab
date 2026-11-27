@@ -37,6 +37,7 @@
 |---|---|
 | [001-server-architecture.md](decisions/001-server-architecture.md) | 서버 구조: 분산 존(Gateway + ZoneServer) |
 | [002-message-queue-object-vs-bytes.md](decisions/002-message-queue-object-vs-bytes.md) | 메시지 큐에 객체 vs 직렬화한 바이트: 같은 프로세스 안은 객체(+ ObjectPool). N:M에서 C++ Lane이 병목, C# Channel이 목표선 |
+| [003-lane-ordering-guarantee.md](decisions/003-lane-ordering-guarantee.md) | Lane의 보장: 같은 Lane에 넣은 일은 Post가 끝난 순서대로(넣은 스레드가 달라도). ConcurrentQueue 제외, 묶어 넣기는 조건부, 콘텐츠 규칙(길드 재료 구매 예) |
 
 ### units (단위 보고서)
 

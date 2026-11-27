@@ -265,12 +265,67 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 </div>
 </div>
 
+<h2 id="order">Lane이 지켜야 하는 것: ID별 순서 (2026-11-27 결정)</h2>
+<p>Lane을 만든 주된 목적은 속도가 아니라 <strong>순서</strong>다. 아무 스레드나 일을 가져가면 도착 순서가 보장되지 않는다. ID를 섞어 Lane을 고르면(<code>LaneGroup</code>) 같은 ID는 늘 같은 Lane, 즉 같은 스레드 하나에서 넣은 순서대로 돈다. 그래서 그 ID의 데이터(플레이어, 길드)는 락 없이 만진다.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 150" role="img" aria-label="키 7은 늘 Lane2로, 키 9는 늘 Lane0으로 간다. 각 Lane은 넣은 순서대로 하나씩 처리하고 Lane끼리는 동시에 돈다">
+<rect class="d-cpp" x="20" y="24" width="90" height="30" rx="5"/><text class="d-t" x="65" y="44" text-anchor="middle">키 7</text>
+<rect class="d-cpp" x="20" y="92" width="90" height="30" rx="5"/><text class="d-t" x="65" y="112" text-anchor="middle">키 9</text>
+<rect class="d-box" x="160" y="56" width="130" height="34" rx="6"/><text class="d-t" x="225" y="78" text-anchor="middle">IndexFor(키)</text>
+<path class="d-line" d="M110,39 L158,66"/><path class="d-line" d="M110,107 L158,80"/>
+<rect class="d-ok" x="340" y="24" width="90" height="30" rx="5"/><text class="d-t" x="385" y="44" text-anchor="middle">Lane2</text>
+<rect class="d-ok" x="340" y="92" width="90" height="30" rx="5"/><text class="d-t" x="385" y="112" text-anchor="middle">Lane0</text>
+<path class="d-line" d="M290,66 L338,42"/><path class="d-line" d="M290,80 L338,104"/>
+<rect class="d-buf" x="460" y="26" width="70" height="26" rx="4"/><text class="d-m" x="495" y="44" text-anchor="middle">일1</text>
+<rect class="d-buf" x="540" y="26" width="70" height="26" rx="4"/><text class="d-m" x="575" y="44" text-anchor="middle">일2</text>
+<rect class="d-buf" x="620" y="26" width="70" height="26" rx="4"/><text class="d-m" x="655" y="44" text-anchor="middle">일3</text>
+<rect class="d-buf" x="460" y="94" width="70" height="26" rx="4"/><text class="d-m" x="495" y="112" text-anchor="middle">일A</text>
+<rect class="d-buf" x="540" y="94" width="70" height="26" rx="4"/><text class="d-m" x="575" y="112" text-anchor="middle">일B</text>
+<path class="d-line" d="M430,39 L458,39"/><path class="d-line" d="M430,107 L458,107"/>
+<text class="d-m" x="710" y="44">넣은 순서대로 하나씩</text>
+<text class="d-m" x="630" y="112">Lane2와 동시에</text>
+<text class="d-m" x="20" y="144">같은 ID = 같은 스레드 → 그 ID의 데이터는 락이 필요 없다(스레드 어피니티)</text>
+</svg>
+</div>
+<h3>"넣은 순서"의 정확한 뜻</h3>
+<p><strong>같은 Lane에 넣은 일은 <code>Post</code>가 끝난 순서대로 하나씩 실행된다. 넣은 스레드가 달라도 그렇다.</strong> 이게 왜 중요한지는 IOCP 수신에서 보인다. 한 세션의 패킷은 수신을 하나씩 걸기 때문에, 패킷1의 <code>Post</code>가 끝난 뒤에야 패킷2가 다른 스레드에서 들어온다.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 200" role="img" aria-label="T1이 패킷1을 넣은 뒤 T2가 패킷2를 넣는다. 지금 Lane과 MPSC는 패킷1 다음 패킷2를 실행하고, ConcurrentQueue는 생산자별 큐 때문에 패킷2를 먼저 실행할 수 있다">
+<text class="d-t" x="20" y="20" font-weight="600">세션 S(키 7)의 수신</text>
+<rect class="d-cpp" x="20" y="34" width="60" height="26" rx="4"/><text class="d-t" x="50" y="52" text-anchor="middle">T1</text>
+<rect class="d-cpp" x="20" y="74" width="60" height="26" rx="4"/><text class="d-t" x="50" y="92" text-anchor="middle">T2</text>
+<text class="d-m" x="92" y="52">수신 완료(패킷1) → Post(패킷1) → 다음 수신 걸기</text>
+<text class="d-m" x="392" y="92">수신 완료(패킷2) → Post(패킷2)</text>
+<path class="d-line" d="M380,58 L392,80"/>
+<text class="d-ot" x="20" y="134">✓ 지금 Lane(mutex + swap), 직접 만든 MPSC, asio strand</text>
+<rect class="d-ok" x="460" y="120" width="80" height="22" rx="4"/><text class="d-m" x="500" y="135" text-anchor="middle">패킷1</text>
+<rect class="d-ok" x="550" y="120" width="80" height="22" rx="4"/><text class="d-m" x="590" y="135" text-anchor="middle">패킷2</text>
+<text class="d-m" x="640" y="135">Post가 끝난 순서 그대로</text>
+<text class="d-wt" x="20" y="174">✗ moodycamel::ConcurrentQueue(생산자마다 작은 큐)</text>
+<rect class="d-warn" x="460" y="160" width="80" height="22" rx="4"/><text class="d-m" x="500" y="175" text-anchor="middle">패킷2</text>
+<rect class="d-warn" x="550" y="160" width="80" height="22" rx="4"/><text class="d-m" x="590" y="175" text-anchor="middle">패킷1</text>
+<text class="d-m" x="640" y="175">T2의 큐를 먼저 보면 뒤집힌다</text>
+</svg>
+</div>
+<p>그래서 <code>ConcurrentQueue</code>는 Lane 큐 후보에서 뺐다. 생산자가 모았다가 한꺼번에 넣는 방식도, 모아 둔 채로 다음 수신을 걸면 같은 이유로 뒤집힌다. "내보낸 뒤에만 다음 일을 일으킨다"를 지킬 수 있는 곳에서만 쓴다.</p>
+
+<h3>콘텐츠에서는: 길드 재료 구매</h3>
+<p>길드 재료가 1개 남았을 때 플레이어 A와 B가 동시에 산다. 재화는 각 플레이어 Lane에, 재료는 길드 Lane에 있으니 메시지를 주고받는다. 그림은 <a href="performance.html#c11">최적화·결정 노트 사례 11</a>에 있다.</p>
+<div class="table-wrap"><table>
+<tr><th>규칙</th><th>왜</th></tr>
+<tr><td>남의 ID 데이터는 직접 만지지 않고 그 Lane에 메시지로 요청한다</td><td>직접 만지면 두 스레드가 같은 데이터를 쓰게 되어 다시 락이 필요하다</td></tr>
+<tr><td>답을 기다리지 않는다. 답은 메시지로 받는다</td><td>기다리면 Lane 하나가 묶이고, 서로 기다리면 교착(deadlock)이 생긴다</td></tr>
+<tr><td>먼저 예약하고, 실패하면 되돌린다(재화 환불)</td><td>두 Lane에 걸친 일은 한 번에 끝낼 수 없다. 한쪽은 되돌리는 처리가 필요하다</td></tr>
+<tr><td>A와 B 중 누가 이길지는 정하지 않는다</td><td>동시에 넣은 요청은 어느 쪽이 먼저여도 맞다. 한 명만 이기는 것을 길드 Lane이 보장한다</td></tr>
+</table></div>
+
 <h2>결정과 다음</h2>
 <div class="table-wrap"><table>
 <tr><th>항목</th><th>결정</th><th>이유</th></tr>
 <tr><td>같은 프로세스 메시지</td><td>객체를 move(C++은 ObjectPool)</td><td>복사 한 번, 크기와 상관없이 포인터 하나. C++은 <code>unique_ptr</code>/<code>PooledPtr</code> move로 소유권을 넘겨 데이터 경쟁을 막는다</td></tr>
 <tr><td>프로세스 밖</td><td>직렬화(<code>ByteWriter</code>)</td><td>패킷, 서버 사이, 존 이동. 방송(여러 곳에 보내기)은 Network에서 따로 잰다</td></tr>
 <tr><td>C++ Lane</td><td>큐를 고친다(다음 단위)</td><td>N:M에서 C# Channel보다 1.5배 느리다. 합격선: 4:4·8:4에서 45ns 이하, 1:1 34ns 이하</td></tr>
+<tr><td>Lane 순서 보장</td><td><code>Post</code>가 끝난 순서대로 실행(넣은 스레드가 달라도)</td><td>같은 세션의 패킷, 같은 플레이어의 요청이 뒤집히면 안 된다. 큐 후보는 이 보장을 지켜야 한다: <code>ConcurrentQueue</code> 제외, 묶어 넣기는 조건부(<a href="../decisions/003-lane-ordering-guarantee.md">결정 003</a>)</td></tr>
 <tr><td>비교하지 않은 것</td><td>예전 개인 프로젝트의 큐(mutex + swap)</td><td>지금 Lane과 같은 계열이라 같은 병목이 나올 것이라 새로 알 것이 적다(2026-11-27 결정)</td></tr>
 <tr><td>C# GC</td><td>부하 테스트 때 잰다</td><td>이 측정은 메시지가 곧 죽어 Gen0만 돈다. C# <code>new</code>는 메시지당 32~1,080B를 할당하고, 그 값은 실제 서버에서 꼬리 지연으로 돌아온다</td></tr>
 </table></div>
