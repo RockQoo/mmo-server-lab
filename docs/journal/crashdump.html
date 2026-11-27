@@ -204,7 +204,7 @@ $cdb = (Get-AppxPackage Microsoft.WinDbg).InstallLocation + "\amd64\cdb.exe"</co
 6  ntdll!RtlAcquireSRWLockExclusive
    std::_Mutex_base::lock
    UpdateGuildThenInventory [DeadlockDump.cpp @ 27]</code></pre>
-<p><strong>한계:</strong> <code>std::mutex</code>(SRW lock)는 주인 스레드를 기록하지 않는다. 누가 쥐고 있는지는 "어느 스레드가 그 lock을 잡은 뒤의 줄에 있는가"로 코드를 보고 추론한다.</p></div>
+<p><strong>주인:</strong> 변수를 알면 <code>x 모듈!*g_inventory*</code>(natvis가 <code>locked</code>로 보여 준다) → <code>dt -r4 std::mutex &lt;주소&gt;</code>의 <code>_Thread_id</code>. 아래 "바로잡음" 참고.</p></div>
 <div class="card cs"><span class="tag cs">C# <code>lock</code></span>
 <p><code>!syncblk</code>가 lock마다 <strong>주인 스레드</strong>를 바로 보여 준다. <code>!clrstack -all</code>에서 <code>Monitor.Enter</code>에 멈춘 스레드와 맞춰 보면 된다.</p>
 <pre><code>Index MonitorHeld Owning Thread  Owner
@@ -215,7 +215,29 @@ $cdb = (Get-AppxPackage Microsoft.WinDbg).InstallLocation + "\amd64\cdb.exe"</co
 0x874c  Monitor.Enter  Inventory.GuildThenSave</code></pre>
 <p><code>MonitorHeld 3</code> = 주인 1 + 기다리는 스레드 하나(2). 두 lock이 서로의 주인을 기다리면 데드락이다.</p></div>
 </div>
-<p class="muted">C++에서 주인까지 덤프에 남기고 싶으면 lock을 감싸 주인 스레드 id를 적는 방법이 있다. 지금은 필요하지 않다. Lane 구조(스레드가 자기 큐만 처리)에서는 lock을 겹쳐 잡는 곳이 거의 없어서다. 실제로 데드락을 겪으면 그때 다시 본다.</p>
+<h3 id="lock-owner">바로잡음: lock 주인은 C++에서도 보인다 (2026-11-27)</h3>
+<p>처음에 "<code>std::mutex</code>는 주인 스레드를 기록하지 않는다"고 적었다. 같은 덤프를 다시 열어 보니 틀렸다. OS의 SRW lock은 주인을 적지 않지만, <strong>MSVC <code>std::mutex</code>는 그 바깥에 잡은 스레드 id를 따로 적는다.</strong> 크리티컬 섹션(<code>CRITICAL_SECTION</code>)도 같은 프로그램으로 바꿔 확인했다.</p>
+<pre><code>dt -r4 std::mutex 0x00007ff6ed4c5000      (g_inventory)
+   +0x008 _M_srw_lock : 0x0000008a`b79ffa13   ← SRW lock: 잠김 비트 + 기다리는 스레드 쪽 포인터, 주인 없음
+   +0x048 _Thread_id  : 0n16308              ← 0x3FB4 = 스레드 5 SaveInventoryThenGuild
+   +0x04c _Count      : 0n1
+
+!locks                                     (CRITICAL_SECTION 판)
+CritSec DeadlockCs!g_inventoryCs  OwningThread 52e0  LockCount 1  ContentionCount 1
+CritSec DeadlockCs!g_guildCs      OwningThread 500c  LockCount 1  ContentionCount 1
+Scanned 6 critical sections</code></pre>
+<div class="table-wrap"><table>
+<tr><th>lock</th><th>주인을 어디에 적나</th><th>덤프에서 찾는 법</th><th>변수 이름 없이 전부 훑기</th></tr>
+<tr><td class="cpp"><code>SRWLOCK</code>(OS, 맨 것)</td><td>적지 않는다. 8바이트에 잠김·기다림 비트와 기다리는 스레드 쪽 포인터만. 공유 모드(여럿이 동시에 쥠)가 있어 주인 하나를 둘 수 없다</td><td>스택을 보고 추론</td><td>❌</td></tr>
+<tr><td class="cpp"><code>std::mutex</code>(MSVC)</td><td>SRW lock 옆 <code>_Thread_id</code>, <code>_Count</code>. 같은 스레드가 두 번 잡는 실수를 검사하려고 둔 것(표준이 아니라 MSVC 구현)</td><td><code>dt std::mutex &lt;주소&gt;</code></td><td>❌ 변수를 알아야 한다</td></tr>
+<tr><td class="cpp"><code>CRITICAL_SECTION</code></td><td><code>OwningThread</code>, <code>RecursionCount</code>(재귀 허용). 만들 때 디버그 정보를 ntdll 전역 목록에 이어 둔다</td><td><code>!locks</code>(ntdll 심볼 필요 → MS 심볼 서버)</td><td>✅ 잡힌 것 전부</td></tr>
+<tr><td class="cs">C# <code>lock</code>(Monitor)</td><td>경합이 없으면 객체 헤더(thin lock)에 스레드 id, 경합이 생기면 런타임의 SyncBlock 표</td><td><code>!syncblk</code>(경합 있는 것), <code>!dumpheap -thinlock</code>(헤더에만 있는 것)</td><td>✅ 런타임 표를 훑는다</td></tr>
+</table></div>
+<p>그래서 데드락 분석이 편한 순서는 <strong>크리티컬 섹션 ≈ C# lock &gt; <code>std::mutex</code> &gt; 맨 SRW lock</strong>이다. 크리티컬 섹션과 C#은 디버거가 "잡힌 lock 전부"를 훑어 주고, <code>std::mutex</code>는 주인이 적혀 있지만 어느 변수인지 먼저 알아야 한다.</p>
+<ul>
+  <li><strong>범위:</strong> 확인한 것은 전역 변수 lock이고, Mini 덤프에도 들어 있었다(데이터 구역 포함). 힙 객체 안의 lock은 Mini에 안 들어갈 수 있다. 그때는 Full 덤프로 본다(확인 안 함).</li>
+  <li><strong>지금 코드:</strong> 그대로 <code>std::mutex</code>를 쓴다. Lane 구조(스레드가 자기 큐만 처리)에서는 lock을 겹쳐 잡는 곳이 거의 없고, 주인도 덤프에 남는다. 실제로 데드락을 겪으면 그때 다시 본다.</li>
+</ul>
 
 <h3>확인용 프로그램(커밋하지 않음)</h3>
 <p>다시 확인하고 싶을 때 쓰는 코드다. <code>Base.lib</code>에 링크해 VS 개발자 환경에서 컴파일한다.</p>
