@@ -18,6 +18,7 @@
 #include <windows.h>
 // clang-format off
 #include <DbgHelp.h>
+#include <ProcessSnapshot.h>
 // clang-format on
 #include <intrin.h>
 
@@ -72,11 +73,14 @@ namespace Base
             }
 
             // 덤프 전용 스레드에 쓰게 하고 끝날 때까지 기다린다. exception 이 있으면 덤프가 그 지점을 가리킨다.
+            // method 는 exception 이 없을 때(살아 있는 서버)만 쓴다: 크래시는 어차피 끝날 프로세스라 바로 쓴다.
             std::filesystem::path Write(const DumpKind kind, const std::string_view reason,
-                                        EXCEPTION_POINTERS* const exception)
+                                        EXCEPTION_POINTERS* const exception,
+                                        const DumpMethod method = DumpMethod::Direct)
             {
                 const std::scoped_lock lock{_mutex};
                 _kind = kind;
+                _method = exception == nullptr ? method : DumpMethod::Direct;
                 _exception = exception;
                 _threadId = GetCurrentThreadId();
                 // 파일 이름에 쓸 수 있는 영문·숫자·-만 남긴다(나머지는 _). 고정 크기라 크래시 중에 할당하지 않는다
@@ -118,11 +122,51 @@ namespace Base
                 {
                     return false;
                 }
-                auto info = MINIDUMP_EXCEPTION_INFORMATION{_threadId, _exception, FALSE};
-                const auto ok = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file,
-                                                  _kind == DumpKind::Mini ? MiniFlags : FullFlags,
-                                                  _exception != nullptr ? &info : nullptr, nullptr, nullptr) != FALSE;
+                const auto type = _kind == DumpKind::Mini ? MiniFlags : FullFlags;
+                auto ok = false;
+                if (_method == DumpMethod::Snapshot)
+                {
+                    ok = WriteFromSnapshot(file, type);
+                }
+                else
+                {
+                    auto info = MINIDUMP_EXCEPTION_INFORMATION{_threadId, _exception, FALSE};
+                    ok = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file, type,
+                                           _exception != nullptr ? &info : nullptr, nullptr, nullptr) != FALSE;
+                }
                 CloseHandle(file);
+                return ok;
+            }
+
+            // 순간 복사본(copy-on-write)을 떠서 덤프한다. 복사본을 뜨는 동안만 스레드가 멈추고, 파일 쓰기는 복사본에서
+            // 하므로 서버는 그동안 계속 돈다(procdump -r 과 같은 방법).
+            static bool WriteFromSnapshot(const HANDLE file, const MINIDUMP_TYPE type)
+            {
+                constexpr auto CaptureFlags =
+                    PSS_CAPTURE_VA_CLONE | PSS_CAPTURE_HANDLES | PSS_CAPTURE_HANDLE_NAME_INFORMATION |
+                    PSS_CAPTURE_HANDLE_BASIC_INFORMATION | PSS_CAPTURE_HANDLE_TYPE_SPECIFIC_INFORMATION |
+                    PSS_CAPTURE_HANDLE_TRACE | PSS_CAPTURE_THREADS | PSS_CAPTURE_THREAD_CONTEXT |
+                    PSS_CAPTURE_THREAD_CONTEXT_EXTENDED | PSS_CREATE_BREAKAWAY | PSS_CREATE_BREAKAWAY_OPTIONAL |
+                    PSS_CREATE_USE_VM_ALLOCATIONS | PSS_CREATE_RELEASE_SECTION;
+                HPSS snapshot{};
+                if (PssCaptureSnapshot(GetCurrentProcess(), CaptureFlags, CONTEXT_ALL, &snapshot) != ERROR_SUCCESS)
+                {
+                    return false;
+                }
+                // MiniDumpWriteDump 에 "이 핸들은 프로세스가 아니라 스냅샷"이라고 알리는 콜백
+                auto callback = MINIDUMP_CALLBACK_INFORMATION{
+                    [](PVOID, const PMINIDUMP_CALLBACK_INPUT input, const PMINIDUMP_CALLBACK_OUTPUT output) -> BOOL
+                    {
+                        if (input->CallbackType == IsProcessSnapshotCallback)
+                        {
+                            output->Status = S_FALSE;
+                        }
+                        return TRUE;
+                    },
+                    nullptr};
+                const auto ok = MiniDumpWriteDump(static_cast<HANDLE>(snapshot), GetCurrentProcessId(), file, type,
+                                                  nullptr, nullptr, &callback) != FALSE;
+                static_cast<void>(PssFreeSnapshot(GetCurrentProcess(), snapshot));
                 return ok;
             }
 
@@ -134,6 +178,7 @@ namespace Base
             std::mutex _mutex{};
             // 요청 칸(_mutex 를 잡은 쪽이 채우고, 덤프 스레드가 읽는다)
             DumpKind _kind{};
+            DumpMethod _method{};
             EXCEPTION_POINTERS* _exception{};
             DWORD _threadId{};
             std::array<wchar_t, 48> _reason{};
@@ -225,10 +270,10 @@ namespace Base
         static_cast<void>(_set_invalid_parameter_handler(OnInvalidParameter));
     }
 
-    std::filesystem::path CrashDump::Write(const DumpKind kind, const std::string_view reason)
+    std::filesystem::path CrashDump::Write(const DumpKind kind, const std::string_view reason, const DumpMethod method)
     {
         auto* const dumper = g_dumper.load(std::memory_order_acquire);
         ASSERT(dumper != nullptr, "CrashDump::Write called before Install");
-        return dumper->Write(kind, reason, nullptr);
+        return dumper->Write(kind, reason, nullptr, method);
     }
 } // namespace Base

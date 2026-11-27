@@ -166,6 +166,7 @@ gtest_discover_tests(LogTests EXTRA_ARGS --gtest_catch_exceptions=0)
 find_package(benchmark CONFIG REQUIRED)
 add_executable(Bench
     Bench/BufferPoolBench.cpp
+    Bench/CrashDumpBench.cpp
     Bench/LogBench.cpp
     Bench/MessageQueueBench.cpp
     Bench/ObjectPoolBench.cpp

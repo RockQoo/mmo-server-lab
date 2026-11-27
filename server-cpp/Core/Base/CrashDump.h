@@ -24,6 +24,17 @@ namespace Base
         Full, // 프로세스 메모리 전체(GB 단위일 수 있음)
     };
 
+    // 살아 있는 서버 덤프(Write)의 방법
+    enum class DumpMethod : std::uint8_t
+    {
+        // 프로세스의 순간 복사본(PssCaptureSnapshot, copy-on-write)을 떠서 그것을 쓴다. 서버가 멈추는 것은 복사본을
+        // 뜨는 짧은 순간뿐이다(Full 덤프도). 기본
+        Snapshot,
+        // 프로세스를 바로 쓴다. 덤프를 쓰는 동안(Full 이면 메모리 크기에 비례해 수 초) 모든 스레드가 멈춘다.
+        // 비교 측정과 스냅샷이 안 되는 환경용
+        Direct,
+    };
+
     struct CrashDumpOptions
     {
         std::filesystem::path directory = "dumps";
@@ -39,7 +50,9 @@ namespace Base
         static void Install(const CrashDumpOptions& options);
 
         // 지금 덤프를 남긴다(서버는 계속 돈다). reason 은 파일 이름에 들어간다(영문·숫자 권장). 남긴 파일 경로, 실패면
-        // 빈 경로. Install 전에 부르면 ASSERT.
-        static std::filesystem::path Write(DumpKind kind, std::string_view reason);
+        // 빈 경로. 파일을 다 쓸 때까지 부른 스레드는 기다린다(Lane 일 안에서 부르면 그 Lane 이 그동안 멈춘다. 관리
+        // 콘솔은 자기 스레드에서 부른다). Install 전에 부르면 ASSERT.
+        static std::filesystem::path Write(DumpKind kind, std::string_view reason,
+                                           DumpMethod method = DumpMethod::Snapshot);
     };
 } // namespace Base

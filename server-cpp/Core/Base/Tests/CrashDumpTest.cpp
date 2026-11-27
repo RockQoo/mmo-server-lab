@@ -68,6 +68,26 @@ TEST(CrashDump, WritesManualDumpAndKeepsRunning)
     std::filesystem::remove(path);
 }
 
+// Full 덤프를 스냅샷(기본)과 바로 쓰기 두 방법 모두로 남긴다. 둘 다 프로세스 메모리 전체라 Mini 보다 크다.
+TEST(CrashDump, WritesFullDumpBySnapshotAndDirect)
+{
+    const auto dir = TestDir("shared");
+    InstallOnce(dir);
+
+    const auto mini = Base::CrashDump::Write(Base::DumpKind::Mini, "mini");
+    const auto snapshot = Base::CrashDump::Write(Base::DumpKind::Full, "snapshot");
+    const auto direct = Base::CrashDump::Write(Base::DumpKind::Full, "direct", Base::DumpMethod::Direct);
+
+    ASSERT_FALSE(mini.empty());
+    ASSERT_FALSE(snapshot.empty());
+    ASSERT_FALSE(direct.empty());
+    EXPECT_GT(std::filesystem::file_size(snapshot), std::filesystem::file_size(mini));
+    EXPECT_GT(std::filesystem::file_size(direct), std::filesystem::file_size(mini));
+    std::filesystem::remove(mini);
+    std::filesystem::remove(snapshot);
+    std::filesystem::remove(direct);
+}
+
 TEST(CrashDumpDeathTest, WritesDumpOnUnhandledException)
 {
     if (!CanSeeCrashes())
