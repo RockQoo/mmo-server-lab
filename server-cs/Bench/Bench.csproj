@@ -11,8 +11,9 @@
     <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <!-- MessageQueueBench: 직렬화(Base), Lane·LaneGroup(Messaging) -->
+    <!-- MessageQueueBench: 직렬화(Base), Lane·LaneGroup(Messaging). LogBench: Log -->
     <ProjectReference Include="..\Core\Base\Base.csproj" />
+    <ProjectReference Include="..\Core\Log\Log.csproj" />
     <ProjectReference Include="..\Core\Messaging\Messaging.csproj" />
   </ItemGroup>
 </Project>

@@ -182,3 +182,21 @@ TEST(FileSink, WritesOneFilePerLocalDay)
     EXPECT_EQ(ReadAll(dir / "zone-20261128.log"), "b\nc\n");
     std::filesystem::remove_all(dir);
 }
+
+TEST(FileSink, AppendsWhenReopenedOnSameDay)
+{
+    using namespace std::chrono_literals;
+    const auto dir = std::filesystem::temp_directory_path() / "mmo-server-lab-FileSink-append";
+    std::filesystem::remove_all(dir);
+    {
+        Log::FileSink first{dir / "zone-.log"}; // 서버를 켜서 한 줄
+        first.Write(EventAt(2026y / 11 / 27, 10h, 0min), "a");
+    }
+    {
+        Log::FileSink second{dir / "zone-.log"}; // 같은 날 다시 켜서 한 줄: 덮어쓰지 않고 뒤에 붙는다
+        second.Write(EventAt(2026y / 11 / 27, 11h, 0min), "b");
+    }
+
+    EXPECT_EQ(ReadAll(dir / "zone-20261127.log"), "a\nb\n");
+    std::filesystem::remove_all(dir);
+}

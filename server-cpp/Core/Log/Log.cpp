@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <latch>
 #include <print>
+#include <share.h>
 #include <utility>
 
 #include "Base/Assert.h"
@@ -29,8 +30,7 @@ namespace Log
         {
         public:
             Logger(const LogOptions& options, std::vector<std::unique_ptr<LogSink>> sinks)
-                : _minimumLevel(options.minimumLevel), _zone(std::chrono::current_zone()), _sinks(std::move(sinks)),
-                  _lane("Log")
+                : _minimumLevel(options.minimumLevel), _sinks(std::move(sinks)), _lane("Log")
             {
             }
             ~Logger()
@@ -78,20 +78,29 @@ namespace Log
         private:
             void Write(const LogEvent& event)
             {
-                const auto local =
-                    std::chrono::zoned_time{_zone, std::chrono::floor<std::chrono::milliseconds>(event.time)};
-                const auto line =
-                    std::format("{:%Y-%m-%d %H:%M:%S} [{}] [{}] {} (T{}, {}:{})", local,
-                                LevelCodes[static_cast<std::size_t>(event.level)], event.category, event.text,
-                                event.threadId, FileName(event.location.file_name()), event.location.line());
+                // 시각은 숫자로 직접 쓴다: chrono 형식 지정({:%Y-%m-%d ...})은 MSVC 에서 로캘 스트림을 거쳐 한 줄에 µs
+                // 단위가 들었다(LogBench). 줄 버퍼는 다시 써서 줄마다 할당하지 않는다.
+                const auto local = _clock.ToLocal(event.time);
+                const auto day = std::chrono::floor<std::chrono::days>(local);
+                const std::chrono::year_month_day date{day};
+                const std::chrono::hh_mm_ss clock{local - day};
+                _line.clear();
+                std::format_to(std::back_inserter(_line),
+                               "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03} [{}] [{}] {} (T{}, {}:{})",
+                               static_cast<int>(date.year()), static_cast<unsigned>(date.month()),
+                               static_cast<unsigned>(date.day()), clock.hours().count(), clock.minutes().count(),
+                               clock.seconds().count(), clock.subseconds().count(),
+                               LevelCodes[static_cast<std::size_t>(event.level)], event.category, event.text,
+                               event.threadId, FileName(event.location.file_name()), event.location.line());
                 for (const auto& sink : _sinks)
                 {
-                    sink->Write(event, line);
+                    sink->Write(event, _line);
                 }
             }
 
             Level _minimumLevel;
-            const std::chrono::time_zone* _zone; // 줄마다 찾지 않게 한 번만
+            Detail::LocalClock _clock{};
+            std::string _line{}; // 한 줄 버퍼(로그 Lane 스레드만 쓴다)
             std::vector<std::unique_ptr<LogSink>> _sinks;
             Messaging::Lane _lane; // 마지막 멤버: 가장 먼저 소멸(스레드 join)
         };
@@ -111,31 +120,37 @@ namespace Log
         static_cast<void>(std::fflush(stdout));
     }
 
-    FileSink::FileSink(std::filesystem::path pathTemplate)
-        : _pathTemplate(std::move(pathTemplate)), _zone(std::chrono::current_zone())
+    FileSink::FileSink(std::filesystem::path pathTemplate) : _pathTemplate(std::move(pathTemplate))
     {
     }
 
     void FileSink::Write(const LogEvent& event, const std::string_view line)
     {
-        const auto day = std::chrono::floor<std::chrono::days>(_zone->to_local(event.time));
+        const auto day = std::chrono::floor<std::chrono::days>(_clock.ToLocal(event.time));
         if (_currentPath.empty() || day != _day) // 열기에 실패했으면 그날은 다시 시도하지 않는다
         {
             Open(day);
         }
-        _file.write(line.data(), static_cast<std::streamsize>(line.size()));
-        _file.put('\n');
-        _file.flush();
+        if (_file == nullptr)
+        {
+            return;
+        }
+        static_cast<void>(std::fwrite(line.data(), 1, line.size(), _file.get()));
+        static_cast<void>(std::fputc('\n', _file.get()));
+        static_cast<void>(std::fflush(_file.get()));
     }
 
     void FileSink::Flush()
     {
-        _file.flush();
+        if (_file != nullptr)
+        {
+            static_cast<void>(std::fflush(_file.get()));
+        }
     }
 
     void FileSink::Open(const std::chrono::local_days day)
     {
-        _file.close();
+        _file.reset();
         _day = day;
         // "zone-.log" → "zone-20261127.log"
         auto name = _pathTemplate.stem().wstring();
@@ -148,8 +163,19 @@ namespace Log
             std::error_code error;
             std::filesystem::create_directories(_currentPath.parent_path(), error); // 실패하면 아래 열기가 실패한다
         }
-        _file.open(_currentPath, std::ios::binary | std::ios::app);
-        if (!_file.is_open())
+        // 다른 프로그램이 쓰는 중에도 읽을 수 있게(_SH_DENYNO, 로그 보기 도구).
+        // "ab"(추가 모드)는 CRT 가 쓸 때마다 파일 끝으로 다시 옮겨(seek) 줄마다 시스템 호출이 하나 더 든다. 그래서
+        // 있으면 "r+b", 없으면 "wb"로 열고 끝으로 한 번만 옮긴다(로그 Lane 하나만 이 파일에 쓴다).
+        _file.reset(_wfsopen(_currentPath.c_str(), L"r+b", _SH_DENYNO));
+        if (_file == nullptr)
+        {
+            _file.reset(_wfsopen(_currentPath.c_str(), L"wb", _SH_DENYNO));
+        }
+        if (_file != nullptr)
+        {
+            static_cast<void>(_fseeki64(_file.get(), 0, SEEK_END));
+        }
+        if (_file == nullptr)
         {
             // 로그 파일을 못 열어도 서버는 계속 돈다. 표준 오류에 한 번 알린다(이 날짜 동안 쓰기는 아무 일 안 함)
             const auto path = _currentPath.u8string(); // 한글 경로도 그대로(string()은 변환 실패 때 예외)

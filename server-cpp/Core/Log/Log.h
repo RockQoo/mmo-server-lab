@@ -2,9 +2,9 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <iterator>
 #include <memory>
 #include <source_location>
@@ -49,6 +49,35 @@ namespace Log
         std::thread::id threadId{};
         std::source_location location{};
     };
+
+    namespace Detail
+    {
+        // UTC 시각 → 현지 시각. 시간대 조회(time_zone::get_info)는 오프셋이 바뀔 때(서머타임 경계 등)만 한다.
+        // MSVC 는 zoned_time·to_local 을 부를 때마다 OS 시간대 DB(ICU)를 조회해 한 줄에 수 µs 가 들었다(LogBench).
+        // 로그 Lane 스레드 하나만 쓰므로 락이 없다.
+        class LocalClock
+        {
+        public:
+            LocalClock() : _zone(std::chrono::current_zone())
+            {
+            }
+
+            [[nodiscard]] std::chrono::local_time<std::chrono::milliseconds> ToLocal(
+                const std::chrono::system_clock::time_point time)
+            {
+                const auto ms = std::chrono::floor<std::chrono::milliseconds>(time);
+                if (ms < _info.begin || ms >= _info.end)
+                {
+                    _info = _zone->get_info(ms);
+                }
+                return std::chrono::local_time<std::chrono::milliseconds>{(ms + _info.offset).time_since_epoch()};
+            }
+
+        private:
+            const std::chrono::time_zone* _zone;
+            std::chrono::sys_info _info{}; // 처음엔 begin == end 라 첫 호출에 채운다
+        };
+    } // namespace Detail
 
     // 로그를 쓰는 곳(콘솔, 파일). 로그 Lane 스레드에서만 불리므로 구현에 락이 필요 없다.
     class LogSink
@@ -106,10 +135,18 @@ namespace Log
         void Open(std::chrono::local_days day);
 
         std::filesystem::path _pathTemplate;
-        const std::chrono::time_zone* _zone;
+        Detail::LocalClock _clock{};
         std::chrono::local_days _day{};
         std::filesystem::path _currentPath{};
-        std::ofstream _file{};
+        // std::ofstream 대신 C 파일: 줄마다 쓰고 flush 할 때 ofstream 은 한 줄에 µs 단위가 더 들었다(LogBench)
+        struct FileCloser
+        {
+            void operator()(std::FILE* file) const noexcept
+            {
+                static_cast<void>(std::fclose(file));
+            }
+        };
+        std::unique_ptr<std::FILE, FileCloser> _file{};
     };
 
     struct LogOptions

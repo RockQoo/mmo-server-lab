@@ -160,6 +160,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <li><a href="#c10">직렬화가 필드 하나에 4~5ns였다</a></li>
 <li><a href="#c11">Lane이 보장하는 것: 같은 ID는 순서대로, 락 없이</a></li>
 <li><a href="#c12">패킷 흐름과 MessageRouter</a></li>
+<li><a href="#c13">로그 한 줄이 12µs였다 → 0.4µs</a></li>
 <li><a href="#plan">앞으로 할 것 A~F</a></li>
 <li><a href="#talk">면접용 정리</a></li>
 </ol>
@@ -568,6 +569,47 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <p class="talk"><b>30초 답변.</b> 패킷은 IOCP 스레드들이 자르고 검사하고 역직렬화까지 한 뒤, 패킷 번호 표로 목적지 Processor와 키를 골라 그 Lane에 넣습니다. 수신 하나에 든 패킷은 Lane별로 묶어 한 번에 넣어 잠금 횟수를 줄였고, 다음 수신을 걸기 전에 내보내서 순서를 지킵니다. 처리 중에 다른 Processor가 필요하면 MessageRouter에 Processor 타입과 키를 넘기는데, 키 타입과 받는 메시지가 맞는지 컴파일러가 검사하므로 잘못 보내는 실수가 빌드에서 걸립니다.</p>
 </div>
 
+<!-- ===================== 사례 13 ===================== -->
+<h2 id="c13">13. 로그 한 줄이 12µs였다 → 0.4µs</h2>
+<div class="card">
+<div class="case-head"><h3>C++ 로거를 직접 만들고(Serilog와 같은 기능) 재 보니 시각 형식이 범인</h3><span class="date">2026-11-27 · <code>Core/Log</code>, <code>Bench/LogBench.cpp</code>·<code>LogBench.cs</code></span></div>
+<div class="steps">
+<div class="step s1"><b>증상</b>아무 데도 안 쓰는 sink(Null)인데 로그 Lane이 한 줄에 <strong>약 12µs</strong>, 초당 8만 줄밖에 못 썼다. 파일 sink는 18µs</div>
+<div class="step s2"><b>원인</b>① 줄마다 <code>zoned_time</code>으로 현지 시각을 만들 때 MSVC가 OS 시간대 DB(ICU)를 조회 ② <code>{:%Y-%m-%d %H:%M:%S}</code> chrono 형식 지정이 로캘 스트림을 거침 ③ 파일을 추가 모드(<code>"ab"</code>)로 열어 CRT가 쓸 때마다 파일 끝으로 다시 seek</div>
+<div class="step s3"><b>해결</b>① 시간대 정보(<code>sys_info</code>)를 들고 있다가 오프셋이 바뀔 때만 다시 조회 ② 날짜·시각을 정수로 직접 찍고 줄 버퍼 재사용 ③ <code>FILE*</code>로 열고 끝으로 한 번만 seek. 하나씩 고치고 매번 쟀다</div>
+<div class="step s4"><b>결과</b>Null <strong>11,980 → 389ns(31배)</strong>, File <strong>18,330 → 2,228ns(8배)</strong>. C# Serilog(Null 1,122 / File 2,639ns)보다 둘 다 빠르다</div>
+</div>
+<div class="table-wrap"><table>
+<tr><th>한 줄 끝까지(ns, 1스레드, 65,536줄)</th><th class="num">Null</th><th style="width:30%">Null 막대</th><th class="num">File</th><th style="width:30%">File 막대</th></tr>
+<tr><td class="cpp">처음: <code>zoned_time</code> + chrono 형식 + <code>ofstream</code>(추가 모드)</td><td class="num">11,980</td><td><span class="bar warn" style="width:65%"></span></td><td class="num">18,330</td><td><span class="bar warn" style="width:100%"></span></td></tr>
+<tr><td class="cpp">① 시간대 조회 캐시(<code>LocalClock</code>)</td><td class="num">2,320</td><td><span class="bar" style="width:13%"></span></td><td class="num">6,330</td><td><span class="bar" style="width:35%"></span></td></tr>
+<tr><td class="cpp">② 시각을 정수로 직접 + 줄 버퍼 재사용</td><td class="num">389</td><td><span class="bar" style="width:2%"></span></td><td class="num">4,776</td><td><span class="bar" style="width:26%"></span></td></tr>
+<tr><td class="cpp">③-1 <code>ofstream</code> → <code>FILE*</code></td><td class="num">389</td><td><span class="bar" style="width:2%"></span></td><td class="num">4,089</td><td><span class="bar" style="width:22%"></span></td></tr>
+<tr><td class="cpp">③-2 추가 모드 빼기(끝으로 한 번만 seek)</td><td class="num"><strong>389</strong></td><td><span class="bar" style="width:2%"></span></td><td class="num"><strong>2,228</strong></td><td><span class="bar" style="width:12%"></span></td></tr>
+<tr><td class="cs">C# Serilog + Sinks.Async(같은 줄 모양)</td><td class="num">1,122</td><td><span class="bar cs" style="width:6%"></span></td><td class="num">2,639</td><td><span class="bar cs" style="width:14%"></span></td></tr>
+</table></div>
+<div class="table-wrap"><table>
+<tr><th>스레드 수별(ns, 끝까지)</th><th class="num">1</th><th class="num">4</th><th class="num">8</th><th>읽는 법</th></tr>
+<tr><td class="cpp">C++ Null / File</td><td class="num">389 / 2,228</td><td class="num">435 / 2,319</td><td class="num">491 / 2,350</td><td rowspan="2">쓰는 쪽(로그 스레드)은 하나라 스레드를 늘려도 빨라지지 않는다. 파일은 줄마다 flush(크래시 직전 줄까지 남김, Serilog 기본과 같음)가 대부분</td></tr>
+<tr><td class="cs">C# Null / File</td><td class="num">1,122 / 2,639</td><td class="num">1,056 / 3,676</td><td class="num">1,263 / 3,412</td></tr>
+<tr><td class="cpp">C++ 게임 스레드가 한 줄에 쓴 시간</td><td class="num">약 230</td><td class="num">약 480</td><td class="num">약 1,150</td><td>넣기만 한 시간. 8스레드는 로그 Lane 하나의 잠금을 다툰다(사례 8과 같은 N:1)</td></tr>
+</table></div>
+<div class="diagram">
+<svg viewBox="0 0 900 170" role="img" aria-label="게임 스레드는 한 줄을 만들어 로그 Lane에 넣고, 로그 Lane이 시각을 찍고 sink에 쓴다. 고친 세 곳은 모두 로그 Lane 쪽이다">
+<rect class="d-cpp" x="20" y="40" width="170" height="50" rx="6"/><text class="d-t" x="105" y="62" text-anchor="middle">게임 스레드</text><text class="d-m" x="105" y="80" text-anchor="middle">문장 + KV 만들기 → Post</text>
+<rect class="d-ok" x="250" y="40" width="130" height="50" rx="6"/><text class="d-t" x="315" y="70" text-anchor="middle">로그 Lane 큐</text>
+<rect class="d-warn" x="440" y="22" width="200" height="86" rx="6"/><text class="d-t" x="540" y="42" text-anchor="middle">로그 Lane 스레드</text>
+<text class="d-m" x="452" y="64">① 현지 시각(시간대 조회)</text><text class="d-m" x="452" y="82">② 줄 만들기(시각 형식)</text><text class="d-m" x="452" y="100">→ sink</text>
+<rect class="d-box" x="700" y="40" width="180" height="50" rx="6"/><text class="d-t" x="790" y="62" text-anchor="middle">FileSink</text><text class="d-m" x="790" y="80" text-anchor="middle">③ 쓰기 + flush</text>
+<path class="d-line" d="M190,65 L248,65"/><path class="d-line" d="M380,65 L438,65"/><path class="d-line" d="M640,65 L698,65"/>
+<text class="d-m" x="20" y="140">고친 ①②③은 모두 로그 Lane 쪽이다. 게임 스레드 비용(약 230ns)은 그대로라 게임 스레드가 느려지지는 않았지만,</text>
+<text class="d-m" x="20" y="158">쓰는 쪽이 느리면 큐가 계속 쌓인다(C++ Lane은 상한이 없어 메모리가 늘고, C#은 큐 1만 칸이 차면 게임 스레드가 기다린다)</text>
+</svg>
+</div>
+<p><strong>C#과 다른 점.</strong> Serilog.Sinks.Async는 큐가 1만 칸이고 차면 기다리게 설정했다(<code>blockWhenFull</code>, 기본은 버림). 그래서 C#의 "게임 스레드 시간"은 쓰는 쪽 속도에 묶여 C++과 같은 뜻으로 비교할 수 없다. C++ Lane은 상한이 없어 쓰는 쪽보다 빨리 넣으면 메모리가 는다(앞으로 볼 것: 로그 큐 상한).</p>
+<p class="talk"><b>30초 답변.</b> 로거를 직접 만들고 재 보니 아무 데도 안 쓰는데도 한 줄에 12마이크로초가 걸렸습니다. 하나씩 고치며 재니 첫째는 MSVC가 현지 시각을 만들 때마다 OS 시간대 DB를 조회하던 것, 둘째는 chrono 형식 지정이 로캘 스트림을 거치던 것, 셋째는 파일을 추가 모드로 열어 쓸 때마다 seek이 한 번 더 들던 것이었습니다. 시간대 정보를 캐시하고, 시각을 정수로 직접 찍고, 파일을 끝으로 한 번만 옮겨 열어서 Null 기준 31배, 파일 기준 8배 빨라졌고 C# Serilog보다 빨라졌습니다. 편한 표준 기능이 핫 패스에서는 비쌀 수 있어서 직접 재 봐야 한다는 걸 배웠습니다.</p>
+</div>
+
 <!-- ===================== 계획 ===================== -->
 <h2 id="plan">앞으로 할 것</h2>
 
@@ -734,6 +776,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <tr><td>벤치마크를 믿을 수 있나</td><td>1, 6, 9</td><td>두 언어 같은 틀, Noop 기준선, 할당량까지 본다. 리뷰로 측정 틀의 버그를 찾았다</td></tr>
 <tr><td>멀티스레드 서버에서 락 없이 콘텐츠를 짜는 법</td><td>11</td><td>ID마다 정해진 Lane(전용 스레드)에서만 그 데이터를 만진다. 다른 ID의 데이터는 메시지로 요청하고, 기다리지 않고 답을 메시지로 받는다(액터 모델, Orleans grain과 같은 생각)</td></tr>
 <tr><td>패킷 처리 구조를 어떻게 짰나</td><td>12</td><td>IOCP 스레드가 자르기·검사·역직렬화까지 하고, 표로 목적지를 골라 Lane별로 묶어 넣는다. Processor 사이는 MessageRouter, 잘못 보내기는 컴파일 에러</td></tr>
+<tr><td>표준 라이브러리를 믿고 썼다가 느렸던 경험</td><td>13</td><td>MSVC의 <code>zoned_time</code>·chrono 형식·추가 모드 파일이 줄마다 µs를 썼다. 핫 패스는 편한 기능도 재 보고, 하나씩 고쳐 원인별 효과를 남긴다</td></tr>
 <tr><td>틀린 가정을 어떻게 바로잡았나</td><td>8</td><td>"C#은 lock-free라 빠르다"고 적었다가 .NET 소스를 직접 읽고 바로잡았다. 추측은 소스나 측정으로 확인한다</td></tr>
 <tr><td>설계 결정을 어떻게 했나</td><td>3, 7</td><td>후보를 같은 조건으로 재고, 얻은 것·잃은 것·결론이 깨지는 조건을 결정 기록으로 남긴다</td></tr>
 </table></div>

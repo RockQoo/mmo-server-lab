@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -25,7 +26,7 @@ public static class Logger
 
     private static volatile bool s_initialized;
 
-    // 로거를 만든다. 로그를 쓰는 코드보다 먼저(Main 시작) 한 번 부른다. sinks 는 테스트 등에서 더 붙일 곳.
+    // 로거를 만든다. 로그를 쓰는 코드보다 먼저(Main 시작) 한 번 부른다. sinks 는 테스트 등에서 더 붙일 곳(콘솔·파일과 같이 비동기, C++ 과 같다).
     public static void Initialize(LogOptions options, params IEnumerable<ILogEventSink> sinks)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -35,20 +36,27 @@ public static class Logger
         var config = new LoggerConfiguration()
             .MinimumLevel.Is(options.MinimumLevel)
             .Enrich.With<ThreadIdEnricher>();
-        if (options.Console)
-        {
-            config.WriteTo.Console(outputTemplate: OutputTemplate, formatProvider: System.Globalization.CultureInfo.InvariantCulture);
-        }
-        if (options.FilePath is not null)
-        {
-            // "logs/zone-.log" → logs/zone-20261127.log (C++ FileSink 과 같은 이름 규칙)
-            config.WriteTo.File(options.FilePath, outputTemplate: OutputTemplate, rollingInterval: RollingInterval.Day,
-                formatProvider: System.Globalization.CultureInfo.InvariantCulture);
-        }
-        foreach (var sink in sinks)
-        {
-            config.WriteTo.Sink(sink);
-        }
+        // 모든 sink 는 비동기(Serilog.Sinks.Async): 부른 스레드는 큐에 넣기만 하고 쓰기는 백그라운드 스레드가 한다(C++ 로그
+        // Lane 과 같은 구조). 큐가 차면 기다린다(blockWhenFull). 기본값은 버리기라 로그를 잃는다(C++ 은 잃지 않는다).
+        config.WriteTo.Async(
+            to =>
+            {
+                if (options.Console)
+                {
+                    to.Console(outputTemplate: OutputTemplate, formatProvider: CultureInfo.InvariantCulture);
+                }
+                if (options.FilePath is not null)
+                {
+                    // "logs/zone-.log" → logs/zone-20261127.log (C++ FileSink 과 같은 이름 규칙)
+                    to.File(options.FilePath, outputTemplate: OutputTemplate, rollingInterval: RollingInterval.Day,
+                        formatProvider: CultureInfo.InvariantCulture);
+                }
+                foreach (var sink in sinks)
+                {
+                    to.Sink(sink);
+                }
+            },
+            blockWhenFull: true);
         Serilog.Log.Logger = config.CreateLogger();
         s_initialized = true;
     }

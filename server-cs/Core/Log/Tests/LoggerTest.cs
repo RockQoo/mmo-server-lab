@@ -19,6 +19,7 @@ public sealed class LoggerTest : IDisposable
         var log = Logger.For(TestCategory.Battle);
 
         log.Information("skill hit attacker={Attacker} state={State} name={Name}", 7, TestState.Dead, "검사");
+        Logger.Shutdown(); // sink 는 비동기라 닫아야(남은 것을 다 써야) 읽을 수 있다(C++ Log::Flush 자리)
 
         var line = Assert.Single(_sink.Lines);
         Assert.Contains("[INF] [Battle] skill hit attacker=7 state=Dead name=검사 (T", line, StringComparison.Ordinal);
@@ -32,6 +33,7 @@ public sealed class LoggerTest : IDisposable
 
         log.Information("hidden");
         log.Warning("shown");
+        Logger.Shutdown();
 
         var line = Assert.Single(_sink.Lines);
         Assert.Contains("[WRN] [System] shown", line, StringComparison.Ordinal);
@@ -66,7 +68,8 @@ public sealed class LoggerTest : IDisposable
         Dead,
     }
 
-    // 줄 모양을 확인하려고 Logger 와 같은 템플릿으로 그려 모은다. 이 테스트들은 같은 스레드에서 쓰므로 락이 없다.
+    // 줄 모양을 확인하려고 Logger 와 같은 템플릿으로 그려 모은다. Emit 은 비동기 sink 의 백그라운드 스레드 하나가
+    // 부르고, 테스트는 Shutdown(그 스레드가 끝날 때까지 기다림) 뒤에 읽는다.
     private sealed class MemorySink : ILogEventSink
     {
         private readonly MessageTemplateTextFormatter _formatter = new(Logger.OutputTemplate, CultureInfo.InvariantCulture);
