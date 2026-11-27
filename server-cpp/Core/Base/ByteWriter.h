@@ -97,7 +97,14 @@ namespace Base
             }
             else if constexpr (ByteWritable<T>)
             {
-                value.Write(*this);
+                if constexpr (Blittable<T>)
+                {
+                    WriteBytes(&value, sizeof(T)); // 필드마다 쓴 것과 같은 바이트(ByteTraits.h Blittable)
+                }
+                else
+                {
+                    value.Write(*this);
+                }
             }
             else if constexpr (KeyValueContainer<T>)
             {
@@ -187,7 +194,18 @@ namespace Base
         {
             static_assert(!IsZeroSize<std::ranges::range_value_t<C>>,
                           "크기가 0인 원소(monostate, 빈 tuple)의 컨테이너는 지원하지 않는다");
-            if (WriteCount(static_cast<std::size_t>(std::ranges::size(values))))
+            using Element = std::ranges::range_value_t<C>;
+            const auto count = static_cast<std::size_t>(std::ranges::size(values));
+            if (!WriteCount(count))
+            {
+                return;
+            }
+            if constexpr (Blittable<Element> && std::ranges::contiguous_range<C>)
+            {
+                // 원소마다 쓰지 않고 한 번에(vector<Slot>, array<int32_t, N>, T[N] ...)
+                WriteBytes(std::ranges::data(values), count * sizeof(Element));
+            }
+            else
             {
                 for (const auto& value : values)
                 {

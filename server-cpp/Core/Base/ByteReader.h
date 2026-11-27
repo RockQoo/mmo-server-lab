@@ -94,7 +94,17 @@ namespace Base
             }
             else if constexpr (ByteReadable<T>)
             {
-                value.Read(*this);
+                if constexpr (Blittable<T>)
+                {
+                    if (!ReadBytes(&value, sizeof(T))) // 필드마다 읽은 것과 같다(ByteTraits.h Blittable)
+                    {
+                        value = T{};
+                    }
+                }
+                else
+                {
+                    value.Read(*this);
+                }
             }
             else if constexpr (FixedArray<T>)
             {
@@ -256,9 +266,19 @@ namespace Base
             {
                 _valid = false;
             }
-            for (auto& value : values)
+            if constexpr (Blittable<std::ranges::range_value_t<A>>)
             {
-                *this >> value;
+                if (_valid)
+                {
+                    ReadBytes(std::data(values), std::size(values) * sizeof(std::ranges::range_value_t<A>));
+                }
+            }
+            else
+            {
+                for (auto& value : values)
+                {
+                    *this >> value;
+                }
             }
             if (!_valid)
             {
@@ -288,28 +308,44 @@ namespace Base
         {
             static_assert(!IsZeroSize<typename C::value_type>,
                           "크기가 0인 원소(monostate, 빈 tuple)의 컨테이너는 지원하지 않는다");
+            using Element = typename C::value_type;
             values.clear();
             const auto count = ReadCount();
-            if constexpr (requires { values.reserve(count); })
+            if constexpr (Blittable<Element> && std::ranges::contiguous_range<C> && requires { values.resize(count); })
             {
-                values.reserve(count);
-            }
-            for (auto i = std::size_t{}; i < count && _valid; ++i)
-            {
-                auto value = typename C::value_type{};
-                *this >> value;
-                if constexpr (requires { values.emplace_back(std::move(value)); })
+                // 한 번에 읽는다(vector<Slot> ...). 바이트가 모자라면 늘리기 전에 실패한다(큰 개수로 할당하지 않게).
+                const auto bytes = count * sizeof(Element);
+                if (!_valid || bytes > _data.size() - _readPos)
                 {
-                    values.emplace_back(std::move(value)); // vector, deque, list
+                    _valid = false;
+                    return;
                 }
-                else
-                {
-                    values.insert(std::move(value)); // set, unordered_set, multiset
-                }
+                values.resize(count);
+                ReadBytes(values.data(), bytes);
             }
-            if (!_valid)
+            else
             {
-                values.clear();
+                if constexpr (requires { values.reserve(count); })
+                {
+                    values.reserve(count);
+                }
+                for (auto i = std::size_t{}; i < count && _valid; ++i)
+                {
+                    auto value = Element{};
+                    *this >> value;
+                    if constexpr (requires { values.emplace_back(std::move(value)); })
+                    {
+                        values.emplace_back(std::move(value)); // vector, deque, list
+                    }
+                    else
+                    {
+                        values.insert(std::move(value)); // set, unordered_set, multiset
+                    }
+                }
+                if (!_valid)
+                {
+                    values.clear();
+                }
             }
         }
 

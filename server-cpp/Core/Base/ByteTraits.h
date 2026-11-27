@@ -140,6 +140,67 @@ namespace Base
         typename T::value_type;
         container.clear();
     };
+
+    // ---- 통째 복사(blittable): 메모리를 그대로 복사한 바이트가 필드마다 쓴 바이트와 같은 타입
+    // 이런 타입의 배열(vector, array, T[N])은 원소마다 쓰지 않고 memcpy 한 번으로 쓰고 읽는다
+    // (performance.html 사례 10).
+    //   - bool 을 뺀 정수, 실수, enum (bool 은 읽을 때 0/1 검사가 필요하다)
+    //   - SERIALIZE_FIELDS 클래스 중 ① 필드가 모두 blittable ② 필드를 선언 순서대로 적었고 ③ 필드 크기 합 = sizeof
+    //     (빠진 필드도 빈틈도 없다). ①~③은 컴파일할 때 검사한다. 하나라도 아니면 지금처럼 필드마다 쓴다(바이트는 같다).
+    // 빠른 길을 꼭 타야 하는 타입은 static_assert(Base::Blittable<T>); 를 붙인다(구조가 바뀌면 빌드 에러).
+    namespace Detail
+    {
+        template <typename T>
+        consteval bool IsBlittable();
+    } // namespace Detail
+
+    template <typename T>
+    concept Blittable = Detail::IsBlittable<T>();
+
+    namespace Detail
+    {
+        // SERIALIZE_FIELDS 가 만든 IsBlittableLayout() 이 부른다.
+        // 주소가 적은 순서대로 커지고 크기 합이 sizeof 와 같은지.
+        template <typename Self, typename... Fields>
+        consteval bool IsPackedInOrder(const Self& /*self*/, const Fields&... fields)
+        {
+            if constexpr (!(Blittable<Fields> && ...) || (sizeof(Fields) + ...) != sizeof(Self))
+            {
+                return false;
+            }
+            else
+            {
+                const std::array<const void*, sizeof...(Fields)> addresses{{static_cast<const void*>(&fields)...}};
+                for (auto i = std::size_t{1}; i < addresses.size(); ++i)
+                {
+                    if (!(addresses[i - 1] < addresses[i]))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+
+        template <typename T>
+        consteval bool IsBlittable()
+        {
+            if constexpr (Primitive<T>)
+            {
+                return !std::is_same_v<T, bool>;
+            }
+            // 기본 생성한 값을 컴파일 시간에 만들 수 있어야 검사할 수 있다. 못 만들면 그냥 아니라고 본다.
+            else if constexpr (std::is_trivially_copyable_v<T> && std::is_default_constructible_v<T> &&
+                               requires { typename std::bool_constant<T{}.template IsBlittableLayout<T>()>; })
+            {
+                return T{}.template IsBlittableLayout<T>();
+            }
+            else
+            {
+                return false;
+            }
+        }
+    } // namespace Detail
 } // namespace Base
 
 // 클래스 안에 적으면 Write/Read 멤버 함수를 만든다. 적은 순서가 곧 직렬화 순서다.
@@ -159,4 +220,10 @@ namespace Base
     void Read(Base::ByteReader& reader)                                                                                \
     {                                                                                                                  \
         reader.ReadFields(__VA_ARGS__);                                                                                \
+    }                                                                                                                  \
+    /* Base::Blittable 검사용(템플릿이라 검사할 때만 만들어진다) */                                                    \
+    template <typename Self>                                                                                           \
+    consteval bool IsBlittableLayout() const                                                                           \
+    {                                                                                                                  \
+        return Base::Detail::IsPackedInOrder(static_cast<const Self&>(*this), __VA_ARGS__);                            \
     }

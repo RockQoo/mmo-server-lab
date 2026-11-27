@@ -88,6 +88,7 @@ set_target_properties(Base PROPERTIES FOLDER Core/Base)
 
 add_executable(BaseTests
     Core/Base/Tests/AssertTest.cpp
+    Core/Base/Tests/BlittableTest.cpp
     Core/Base/Tests/BuildInfoTest.cpp
     Core/Base/Tests/CrashDumpTest.cpp
     Core/Base/Tests/ByteFormatTest.cpp

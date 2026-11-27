@@ -395,6 +395,23 @@ namespace
         }
         state.SetItemsProcessed(state.iterations());
     }
+
+    // 직렬화 읽기만: 객체 하나를 다시 쓰며 읽기(ObjectPool 에서 빌린 객체에 읽는 경우. vector 용량이 남아 할당이 없다)
+    template <typename Msg>
+    void ReadReuse(benchmark::State& state)
+    {
+        auto writer = Base::ByteWriter{};
+        writer << Msg::Sample();
+        const auto data = writer.Data();
+        auto message = Msg{};
+        for (auto iteration : state)
+        {
+            auto reader = Base::ByteReader{data};
+            reader >> message;
+            benchmark::DoNotOptimize(message);
+        }
+        state.SetItemsProcessed(state.iterations());
+    }
 } // namespace
 
 // 인자: 생산자 스레드 수 N, Lane 수 M(Lane마다 스레드 하나). 물리 코어 8개라 8:4(12스레드)는 코어가 모자란 경우다
@@ -440,3 +457,4 @@ BENCHMARK(WriteOnly<Chat>)->Name("MessageCodec/Chat/Write");
 BENCHMARK(ReadOnly<Chat>)->Name("MessageCodec/Chat/Read");
 BENCHMARK(WriteOnly<Inventory>)->Name("MessageCodec/Inventory/Write");
 BENCHMARK(ReadOnly<Inventory>)->Name("MessageCodec/Inventory/Read");
+BENCHMARK(ReadReuse<Inventory>)->Name("MessageCodec/Inventory/ReadReuse");
