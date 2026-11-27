@@ -60,6 +60,8 @@ add_library(Base STATIC
     Core/Base/Assert.h
     Core/Base/BuildInfo.cpp
     Core/Base/BuildInfo.h
+    Core/Base/CrashDump.cpp
+    Core/Base/CrashDump.h
     Core/Base/ByteReader.cpp
     Core/Base/ByteReader.h
     Core/Base/ByteTraits.h
@@ -73,11 +75,13 @@ add_library(Base STATIC
     Core/Base/Utf8.h
 )
 target_include_directories(Base PUBLIC ${CORE_DIR})
+target_link_libraries(Base PUBLIC dbghelp) # MiniDumpWriteDump(CrashDump)
 set_target_properties(Base PROPERTIES FOLDER Core/Base)
 
 add_executable(BaseTests
     Core/Base/Tests/AssertTest.cpp
     Core/Base/Tests/BuildInfoTest.cpp
+    Core/Base/Tests/CrashDumpTest.cpp
     Core/Base/Tests/ByteFormatTest.cpp
     Core/Base/Tests/ByteRWTest.cpp
     Core/Base/Tests/RuidGeneratorTest.cpp
