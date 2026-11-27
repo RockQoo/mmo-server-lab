@@ -151,15 +151,19 @@ if(MSVC)
 endif()
 gtest_discover_tests(SchedulingTests EXTRA_ARGS --gtest_catch_exceptions=0)
 
-# ---- Metrics: 서버 안에서 계속 재는 숫자. MetricCounter(칸 나누기 카운터). 다음: LatencyHistogram
+# ---- Metrics: 서버 안에서 계속 재는 숫자. MetricCounter(칸 나누기 카운터), LatencyHistogram(로그 구간 버킷) + ScopedTimer
 add_library(Metrics STATIC
+    Core/Metrics/LatencyHistogram.cpp
+    Core/Metrics/LatencyHistogram.h
     Core/Metrics/MetricCounter.cpp
     Core/Metrics/MetricCounter.h
+    Core/Metrics/ScopedTimer.h
 )
 target_link_libraries(Metrics PUBLIC Base)
 set_target_properties(Metrics PROPERTIES FOLDER Core/Metrics)
 
 add_executable(MetricsTests
+    Core/Metrics/Tests/LatencyHistogramTest.cpp
     Core/Metrics/Tests/MetricCounterTest.cpp
 )
 target_link_libraries(MetricsTests PRIVATE Metrics GTest::gtest_main)
@@ -216,6 +220,7 @@ add_executable(Bench
     Bench/BufferPoolBench.cpp
     Bench/CrashDumpBench.cpp
     Bench/LogBench.cpp
+    Bench/LatencyHistogramBench.cpp
     Bench/MessageQueueBench.cpp
     Bench/MetricCounterBench.cpp
     Bench/ObjectPoolBench.cpp
