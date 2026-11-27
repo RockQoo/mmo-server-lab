@@ -20,7 +20,7 @@
 namespace
 {
     // ticker 가 count 바퀴 더 돌 때까지 기다린다
-    void WaitLaps(const std::atomic<std::uint64_t>& laps, const std::uint64_t count)
+    void WaitLaps(const std::atomic<uint64_t>& laps, const uint64_t count)
     {
         const auto target = laps.load(std::memory_order_acquire) + count;
         while (laps.load(std::memory_order_acquire) < target)
@@ -49,9 +49,9 @@ namespace
         }
 
         std::atomic<bool> running{true};
-        std::atomic<std::int64_t> maxGapNs{0};
+        std::atomic<int64_t> maxGapNs{0};
         std::atomic<bool> measuring{false};
-        std::atomic<std::uint64_t> laps{0}; // ticker 가 한 바퀴 돌 때마다 +1
+        std::atomic<uint64_t> laps{0}; // ticker 가 한 바퀴 돌 때마다 +1
         std::jthread ticker{[&]
                             {
                                 auto last = std::chrono::steady_clock::now();

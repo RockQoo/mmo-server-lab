@@ -23,9 +23,9 @@
 // sink: Null(버림, 로그 틀 자체 비용) / File(날짜별 파일, 줄마다 flush, 실제 모양).
 namespace
 {
-    constexpr std::int64_t TotalLines = std::int64_t{1} << 16; // 65,536. 1·4·8 로 나누어떨어진다
+    constexpr int64_t TotalLines = int64_t{1} << 16; // 65,536. 1·4·8 로 나누어떨어진다
 
-    enum class BenchCategory : std::uint8_t
+    enum class BenchCategory : uint8_t
     {
         System,
         Battle,
@@ -65,7 +65,7 @@ namespace
             team.Run(
                 [perThread](int)
                 {
-                    for (auto i = std::int64_t{0}; i < perThread; ++i)
+                    for (auto i = int64_t{0}; i < perThread; ++i)
                     {
                         Log::Info(BenchCategory::Battle, "skill hit").KV("attacker", i).KV("damage", 350);
                     }

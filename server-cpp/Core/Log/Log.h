@@ -29,7 +29,7 @@
 namespace Log
 {
     // 이름과 세 글자 표기(VRB DBG INF WRN ERR FTL)는 Serilog 와 같다.
-    enum class Level : std::uint8_t
+    enum class Level : uint8_t
     {
         Verbose,
         Debug,

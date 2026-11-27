@@ -28,7 +28,7 @@
 
 namespace
 {
-    constexpr std::int64_t TotalOps = std::int64_t{1} << 23;
+    constexpr int64_t TotalOps = int64_t{1} << 23;
 
     // ---- 0) 측정 틀의 한계: 아무 일도 하지 않는 반복(ThreadTeam)
 
@@ -42,8 +42,8 @@ namespace
             team.Run(
                 [ops](int)
                 {
-                    volatile std::int64_t sink{};
-                    for (auto i = std::int64_t{0}; i < ops; ++i)
+                    volatile int64_t sink{};
+                    for (auto i = int64_t{0}; i < ops; ++i)
                     {
                         sink = i;
                     }
@@ -54,29 +54,29 @@ namespace
 
     struct Plain
     {
-        std::uint64_t id{};
+        uint64_t id{};
         void Reset() noexcept
         {
             id = 0;
         }
-        void Use(const std::int64_t i)
+        void Use(const int64_t i)
         {
-            id = static_cast<std::uint64_t>(i);
+            id = static_cast<uint64_t>(i);
         }
     };
 
     struct WithList
     {
-        std::uint64_t id{};
+        uint64_t id{};
         std::vector<int> values;
         void Reset() noexcept
         {
             id = 0;
             values.clear();
         }
-        void Use(const std::int64_t i)
+        void Use(const int64_t i)
         {
-            id = static_cast<std::uint64_t>(i);
+            id = static_cast<uint64_t>(i);
             values.push_back(1);
         }
     };
@@ -115,7 +115,7 @@ namespace
                 [ops](int)
                 {
                     void* volatile sink{}; // 스레드마다 자기 변수(BufferPoolBench 주석 "DoNotOptimize")
-                    for (auto i = std::int64_t{0}; i < ops; ++i)
+                    for (auto i = int64_t{0}; i < ops; ++i)
                     {
                         auto object = Renter::Rent();
                         object->Use(i);
@@ -134,7 +134,7 @@ namespace
         const auto renters = static_cast<int>(state.range(0));
         const auto returners = static_cast<int>(state.range(1));
         Bench::RentReturnGrid<typename Renter::Handle> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
-        auto ops = std::int64_t{};                                               // 한 횟수(= RentReturnOps)
+        auto ops = int64_t{};                                                    // 한 횟수(= RentReturnOps)
         for (auto iteration : state)
         {
             ops = grid.Run(Bench::RentReturnOps,
@@ -154,11 +154,11 @@ namespace
     {
         const auto renters = static_cast<int>(state.range(0));
         const auto returners = static_cast<int>(state.range(1));
-        Bench::RentReturnGrid<std::uint64_t> grid(renters, returners);
-        auto ops = std::int64_t{}; // 한 횟수(= RentReturnOps)
+        Bench::RentReturnGrid<uint64_t> grid(renters, returners);
+        auto ops = int64_t{}; // 한 횟수(= RentReturnOps)
         for (auto iteration : state)
         {
-            ops = grid.Run(Bench::RentReturnOps, [] { return std::uint64_t{1}; });
+            ops = grid.Run(Bench::RentReturnOps, [] { return uint64_t{1}; });
         }
         state.SetItemsProcessed(state.iterations() * ops);
     }

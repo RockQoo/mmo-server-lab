@@ -24,13 +24,13 @@
 namespace
 {
     // 서버(게임 레이어)가 정의하는 카테고리의 예
-    enum class TestCategory : std::uint8_t
+    enum class TestCategory : uint8_t
     {
         System,
         Battle,
     };
 
-    enum class TestState : std::uint8_t
+    enum class TestState : uint8_t
     {
         Alive,
         Dead,

@@ -50,17 +50,17 @@
 
 namespace
 {
-    constexpr std::int64_t TotalMessages = std::int64_t{1} << 20;
-    constexpr std::int64_t Window = 1024;   // 생산자 하나가 처리 안 된 채로 둘 수 있는 메시지 수
-    constexpr std::int64_t CheckEvery = 64; // 흐름 제어 확인 간격(매번 읽으면 Lane이 쓰는 줄을 계속 읽는다)
+    constexpr int64_t TotalMessages = int64_t{1} << 20;
+    constexpr int64_t Window = 1024;   // 생산자 하나가 처리 안 된 채로 둘 수 있는 메시지 수
+    constexpr int64_t CheckEvery = 64; // 흐름 제어 확인 간격(매번 읽으면 Lane이 쓰는 줄을 계속 읽는다)
 
     struct Move
     {
-        std::uint64_t id{};
+        uint64_t id{};
         float x{};
         float y{};
         float z{};
-        std::uint32_t flags{};
+        uint32_t flags{};
 
         SERIALIZE_FIELDS(id, x, y, z, flags)
 
@@ -72,15 +72,15 @@ namespace
         {
             return {.id = 1, .x = 1.0F, .y = 2.0F, .z = 3.0F, .flags = 7};
         }
-        [[nodiscard]] std::uint64_t Sum() const noexcept
+        [[nodiscard]] uint64_t Sum() const noexcept
         {
-            return id + static_cast<std::uint64_t>(x + y + z) + flags;
+            return id + static_cast<uint64_t>(x + y + z) + flags;
         }
     };
 
     struct Chat
     {
-        std::uint64_t id{};
+        uint64_t id{};
         std::string text;
 
         SERIALIZE_FIELDS(id, text)
@@ -94,7 +94,7 @@ namespace
         {
             return {.id = 1, .text = std::string(96, 'a')};
         }
-        [[nodiscard]] std::uint64_t Sum() const noexcept
+        [[nodiscard]] uint64_t Sum() const noexcept
         {
             auto sum = id;
             for (const auto c : text)
@@ -107,16 +107,16 @@ namespace
 
     struct Slot
     {
-        std::uint32_t itemId{};
-        std::uint32_t count{};
-        std::uint64_t uid{};
+        uint32_t itemId{};
+        uint32_t count{};
+        uint64_t uid{};
 
         SERIALIZE_FIELDS(itemId, count, uid)
     };
 
     struct Inventory
     {
-        std::uint64_t owner{};
+        uint64_t owner{};
         std::vector<Slot> slots;
 
         SERIALIZE_FIELDS(owner, slots)
@@ -129,13 +129,13 @@ namespace
         static Inventory Sample()
         {
             auto inventory = Inventory{.owner = 1, .slots = {}};
-            for (auto i = std::uint32_t{0}; i < 60; ++i)
+            for (auto i = uint32_t{0}; i < 60; ++i)
             {
-                inventory.slots.push_back({.itemId = i, .count = i + 1, .uid = std::uint64_t{i} * 1000});
+                inventory.slots.push_back({.itemId = i, .count = i + 1, .uid = uint64_t{i} * 1000});
             }
             return inventory;
         }
-        [[nodiscard]] std::uint64_t Sum() const noexcept
+        [[nodiscard]] uint64_t Sum() const noexcept
         {
             auto sum = owner;
             for (const auto& slot : slots)
@@ -157,8 +157,8 @@ namespace
         Flow(Flow&&) = delete;
         Flow& operator=(Flow&&) = delete;
 
-        std::atomic<std::int64_t> processed{};
-        std::uint64_t checksum{};
+        std::atomic<int64_t> processed{};
+        uint64_t checksum{};
         std::array<std::byte, 112> padding{};
 
         template <typename Msg>
@@ -188,7 +188,7 @@ namespace
         }
         const auto toNs = [](const FILETIME& time)
         {
-            const auto ticks = (static_cast<std::uint64_t>(time.dwHighDateTime) << 32U) | time.dwLowDateTime;
+            const auto ticks = (static_cast<uint64_t>(time.dwHighDateTime) << 32U) | time.dwLowDateTime;
             return static_cast<double>(ticks) * 100.0;
         };
         return {.userNs = toNs(user), .kernelNs = toNs(kernel)};
@@ -279,11 +279,11 @@ namespace
     {
         const auto producers = static_cast<std::size_t>(state.range(0));
         const auto lanes = static_cast<std::size_t>(state.range(1));
-        const auto perProducer = TotalMessages / static_cast<std::int64_t>(producers);
+        const auto perProducer = TotalMessages / static_cast<int64_t>(producers);
         Messaging::LaneGroup group("bench-lane", lanes);
         Bench::ThreadTeam team(static_cast<int>(producers));
         const auto flows = std::make_unique<Flow[]>(producers * lanes); // [생산자 * lanes + Lane]
-        std::atomic<std::int64_t> waits{}; // 생산자가 흐름 제어로 기다린 횟수(Lane이 못 따라온 정도)
+        std::atomic<int64_t> waits{}; // 생산자가 흐름 제어로 기다린 횟수(Lane이 못 따라온 정도)
         const auto cpuBefore = ProcessCpu();
 
         for (auto iteration : state)
@@ -291,19 +291,19 @@ namespace
             team.Run(
                 [&group, &flows, &waits, lanes, perProducer](const int producer)
                 {
-                    auto myWaits = std::int64_t{0};
+                    auto myWaits = int64_t{0};
                     auto* const myFlows = &flows[static_cast<std::size_t>(producer) * lanes];
-                    auto sent = std::vector<std::int64_t>(lanes); // Lane마다 보낸 수
+                    auto sent = std::vector<int64_t>(lanes); // Lane마다 보낸 수
                     for (auto l = std::size_t{0}; l < lanes; ++l)
                     {
                         myFlows[l].processed.store(0, std::memory_order_relaxed); // 이전 측정은 모두 처리됐다(latch)
                     }
                     auto sender = Sender{};
                     // 생산자마다 다른 키 범위. LaneGroup이 섞어서 나누므로 Lane이 골고루 섞인다.
-                    const auto keyBase = static_cast<std::uint64_t>(producer) << 32U;
-                    for (auto i = std::int64_t{0}; i < perProducer; ++i)
+                    const auto keyBase = static_cast<uint64_t>(producer) << 32U;
+                    for (auto i = int64_t{0}; i < perProducer; ++i)
                     {
-                        const auto key = keyBase + static_cast<std::uint64_t>(i);
+                        const auto key = keyBase + static_cast<uint64_t>(i);
                         const auto l = Messaging::LaneGroup::IndexFor(key, lanes);
                         auto& flow = myFlows[l];
                         if (sent[l] % CheckEvery == 0)
@@ -328,13 +328,13 @@ namespace
             drained.wait();
         }
 
-        auto checksum = std::uint64_t{0};
+        auto checksum = uint64_t{0};
         for (auto f = std::size_t{0}; f < producers * lanes; ++f)
         {
             checksum += flows[f].checksum;
         }
         benchmark::DoNotOptimize(checksum); // 측정 반복 밖에서 한 번
-        const auto messages = state.iterations() * perProducer * static_cast<std::int64_t>(producers);
+        const auto messages = state.iterations() * perProducer * static_cast<int64_t>(producers);
         state.SetItemsProcessed(messages);
 
         // 프로세스 전체 CPU 시간(모든 스레드 합). 벽시계 시간은 가장 느린 쪽에 묶이지만, 이 값은 메시지 하나에 모든

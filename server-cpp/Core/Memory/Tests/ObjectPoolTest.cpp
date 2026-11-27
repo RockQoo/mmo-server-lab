@@ -25,7 +25,7 @@ namespace
     template <int Tag>
     struct Item
     {
-        std::uint64_t id{};
+        uint64_t id{};
         std::vector<int> values;
 
         void Reset() noexcept
@@ -262,7 +262,7 @@ TEST(ObjectPool, ConcurrentRentNeverShares)
         threads.emplace_back(
             [t]
             {
-                const auto mark = static_cast<std::uint64_t>(t) + 1;
+                const auto mark = static_cast<uint64_t>(t) + 1;
                 std::vector<PooledPtr<Item<8>>> held; // 가끔 여러 개를 들고 있어 캐시가 넘치고 비게 한다
                 for (auto i = 0; i < Rounds; ++i)
                 {
@@ -299,7 +299,7 @@ TEST(ObjectPool, CrossThreadRentReturnNeverShares)
         Channel& operator=(Channel&&) = delete;
 
         std::mutex mutex;
-        std::queue<std::pair<std::uint64_t, PooledPtr<Type>>> items;
+        std::queue<std::pair<uint64_t, PooledPtr<Type>>> items;
     };
     std::array<Channel, PairCount> channels{};
     {
@@ -312,7 +312,7 @@ TEST(ObjectPool, CrossThreadRentReturnNeverShares)
                 {
                     for (auto i = 0; i < PerPair; ++i)
                     {
-                        const auto id = ((static_cast<std::uint64_t>(p) + 1) << 32) | static_cast<std::uint64_t>(i);
+                        const auto id = ((static_cast<uint64_t>(p) + 1) << 32) | static_cast<uint64_t>(i);
                         auto item = Pool<9>().Rent();
                         item->id = id;
                         const std::scoped_lock lock(channel.mutex);
@@ -325,7 +325,7 @@ TEST(ObjectPool, CrossThreadRentReturnNeverShares)
                     auto received = 0;
                     while (received < PerPair)
                     {
-                        std::pair<std::uint64_t, PooledPtr<Type>> entry;
+                        std::pair<uint64_t, PooledPtr<Type>> entry;
                         {
                             const std::scoped_lock lock(channel.mutex);
                             if (channel.items.empty())

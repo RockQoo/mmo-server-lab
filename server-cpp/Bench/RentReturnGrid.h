@@ -26,7 +26,7 @@ namespace Bench
     // 물리 8코어·논리 16 PC 에서는 1:1, 1:8, 8:1, 4:4 / 1:16, 16:1, 8:8 / 1:20, 20:1, 10:10. 목록은 여기 하나에서만
     // 고친다.
     // 풀 N:M 측정의 전체 횟수: 2^18 x 50 = 13,107,200(64 의 배수, C# 과 같은 수). 조합과 상관없이 정확히 이만큼 한다.
-    inline constexpr std::int64_t RentReturnOps = std::int64_t{50} << 18;
+    inline constexpr int64_t RentReturnOps = int64_t{50} << 18;
 
     inline std::vector<std::pair<int, int>> RentReturnShapes()
     {
@@ -96,13 +96,13 @@ namespace Bench
         // totalOps 는 BlockSize 의 배수여야 한다. 블록을 빌리는 스레드에 나눠 주고 남는 것은 앞 스레드가 하나씩 더
         // 맡는다(코어 수가 2의 거듭제곱이 아닌 PC 에서도 모든 조합이 같은 횟수를 한다. Codex 리뷰 2차 R1).
         template <typename Rent>
-        std::int64_t Run(const std::int64_t totalOps, const Rent& rent)
+        int64_t Run(const int64_t totalOps, const Rent& rent)
         {
-            if (totalOps <= 0 || totalOps % std::int64_t{BlockSize} != 0)
+            if (totalOps <= 0 || totalOps % int64_t{BlockSize} != 0)
             {
                 std::terminate(); // 측정 조건 실수
             }
-            const auto totalBlocks = totalOps / std::int64_t{BlockSize};
+            const auto totalBlocks = totalOps / int64_t{BlockSize};
 
             _team.Run(
                 [this, &rent, totalBlocks](const int t)
@@ -145,27 +145,27 @@ namespace Bench
         }
 
         // 빌리는 스레드 renter 가 맡는 블록 수: 고르게 나누고 남는 것은 앞 스레드가 하나씩 더.
-        [[nodiscard]] std::int64_t BlocksOfRenter(const std::int64_t totalBlocks, const int renter) const noexcept
+        [[nodiscard]] int64_t BlocksOfRenter(const int64_t totalBlocks, const int renter) const noexcept
         {
-            const auto renters = static_cast<std::int64_t>(_renters);
+            const auto renters = static_cast<int64_t>(_renters);
             return totalBlocks / renters + (renter < totalBlocks % renters ? 1 : 0);
         }
 
         // renter 가 returner 에게 보내는 블록 수. renter 는 블록 번호 % M 으로 보내므로 앞 returner 가 하나씩 더
         // 받는다.
-        [[nodiscard]] std::int64_t BlocksBetween(const std::int64_t totalBlocks, const int renter,
-                                                 const int returner) const noexcept
+        [[nodiscard]] int64_t BlocksBetween(const int64_t totalBlocks, const int renter,
+                                            const int returner) const noexcept
         {
             const auto blocks = BlocksOfRenter(totalBlocks, renter);
-            const auto returners = static_cast<std::int64_t>(_returners);
+            const auto returners = static_cast<int64_t>(_returners);
             return blocks / returners + (returner < blocks % returners ? 1 : 0);
         }
 
         template <typename Rent>
-        void RunRenter(const int renter, const std::int64_t blocks, const Rent& rent)
+        void RunRenter(const int renter, const int64_t blocks, const Rent& rent)
         {
             auto next = std::vector<std::size_t>(static_cast<std::size_t>(_returners)); // 쌍마다 다음에 채울 블록
-            for (auto b = std::int64_t{0}; b < blocks; ++b)
+            for (auto b = int64_t{0}; b < blocks; ++b)
             {
                 const auto returner = static_cast<int>(b % _returners); // 반납하는 쪽을 차례로 바꾼다
                 auto& cell = CellAt(renter, returner);
@@ -184,14 +184,14 @@ namespace Bench
             }
         }
 
-        void RunReturner(const int returner, const std::int64_t totalBlocks)
+        void RunReturner(const int returner, const int64_t totalBlocks)
         {
-            auto expected = std::int64_t{0};
+            auto expected = int64_t{0};
             for (auto renter = 0; renter < _renters; ++renter)
             {
                 expected += BlocksBetween(totalBlocks, renter, returner);
             }
-            auto received = std::int64_t{0};
+            auto received = int64_t{0};
             while (received < expected)
             {
                 auto progressed = false;

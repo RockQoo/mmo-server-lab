@@ -265,7 +265,7 @@ TEST(BufferPool, CrossThreadRentReturnNeverShares)
         Channel& operator=(Channel&&) = delete;
 
         std::mutex mutex;
-        std::queue<std::pair<std::uint64_t, PooledBuffer>> items;
+        std::queue<std::pair<uint64_t, PooledBuffer>> items;
     };
     std::array<Channel, PairCount> channels{};
     {
@@ -278,7 +278,7 @@ TEST(BufferPool, CrossThreadRentReturnNeverShares)
                 {
                     for (auto i = 0; i < PerPair; ++i)
                     {
-                        const auto id = (static_cast<std::uint64_t>(p) << 32) | static_cast<std::uint64_t>(i);
+                        const auto id = (static_cast<uint64_t>(p) << 32) | static_cast<uint64_t>(i);
                         auto buffer = Pool().Rent(Small);
                         std::memcpy(buffer.Data(), &id, sizeof(id));
                         const std::scoped_lock lock(channel.mutex);
@@ -291,7 +291,7 @@ TEST(BufferPool, CrossThreadRentReturnNeverShares)
                     auto received = 0;
                     while (received < PerPair)
                     {
-                        std::pair<std::uint64_t, PooledBuffer> item;
+                        std::pair<uint64_t, PooledBuffer> item;
                         {
                             const std::scoped_lock lock(channel.mutex);
                             if (channel.items.empty())
@@ -301,7 +301,7 @@ TEST(BufferPool, CrossThreadRentReturnNeverShares)
                             item = std::move(channel.items.front());
                             channel.items.pop();
                         }
-                        auto written = std::uint64_t{};
+                        auto written = uint64_t{};
                         std::memcpy(&written, item.second.Data(), sizeof(written));
                         ASSERT_EQ(written, item.first);
                         item.second.Reset(); // 이 스레드 캐시로 반납

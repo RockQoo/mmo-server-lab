@@ -19,14 +19,14 @@
 // 디버거가 붙어 있으면 처리 안 된 예외는 디버거가 먼저 받는다(덤프 대신 그 자리에서 멈춤).
 namespace Base
 {
-    enum class DumpKind : std::uint8_t
+    enum class DumpKind : uint8_t
     {
         Mini, // 스레드·스택·전역 변수·핸들(수 MB). 크래시 기본
         Full, // 프로세스 메모리 전체(GB 단위일 수 있음)
     };
 
     // 살아 있는 서버 덤프(Write)의 방법
-    enum class DumpMethod : std::uint8_t
+    enum class DumpMethod : uint8_t
     {
         // 프로세스의 순간 복사본(PssCaptureSnapshot, copy-on-write)을 떠서 그것을 쓴다. 서버가 멈추는 것은 복사본을
         // 뜨는 짧은 순간뿐이다(Full 덤프도). 기본

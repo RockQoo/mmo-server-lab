@@ -34,7 +34,7 @@
 
 namespace
 {
-    constexpr std::int64_t TotalOps = std::int64_t{1} << 23; // 약 840만. 1, 2, 4, 8 과 64(묶음)로 나누어떨어진다
+    constexpr int64_t TotalOps = int64_t{1} << 23; // 약 840만. 1, 2, 4, 8 과 64(묶음)로 나누어떨어진다
 
     // 스레드 count개를 띄워 body(스레드 번호, 맡은 횟수)를 돌리고 모두 끝날 때까지 기다린다.
     template <typename Body>
@@ -103,10 +103,10 @@ namespace
         for (auto iteration : state)
         {
             RunOnThreads(threads,
-                         [](int, const std::int64_t ops)
+                         [](int, const int64_t ops)
                          {
-                             volatile std::int64_t sink{}; // 스레드마다 자기 변수(아래 주석 "DoNotOptimize")
-                             for (auto i = std::int64_t{0}; i < ops; ++i)
+                             volatile int64_t sink{}; // 스레드마다 자기 변수(아래 주석 "DoNotOptimize")
+                             for (auto i = int64_t{0}; i < ops; ++i)
                              {
                                  sink = i;
                              }
@@ -125,10 +125,10 @@ namespace
         for (auto iteration : state)
         {
             RunOnThreads(threads,
-                         [size](int, const std::int64_t ops)
+                         [size](int, const int64_t ops)
                          {
                              std::byte* volatile sink{}; // 스레드마다 자기 변수(아래 주석 "DoNotOptimize")
-                             for (auto i = std::int64_t{0}; i < ops; ++i)
+                             for (auto i = int64_t{0}; i < ops; ++i)
                              {
                                  auto buffer = Renter::Rent(size);
                                  buffer.Data()[0] = std::byte{1};
@@ -148,7 +148,7 @@ namespace
         const auto returners = static_cast<int>(state.range(1));
         const auto size = static_cast<std::size_t>(state.range(2));
         Bench::RentReturnGrid<typename Renter::Buffer> grid(renters, returners); // 스레드는 측정 밖에서 한 번 만든다
-        auto ops = std::int64_t{};                                               // 한 횟수(= RentReturnOps)
+        auto ops = int64_t{};                                                    // 한 횟수(= RentReturnOps)
         for (auto iteration : state)
         {
             ops = grid.Run(Bench::RentReturnOps,

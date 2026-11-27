@@ -62,5 +62,14 @@ if ($tidyExit -and -not $diagnostics) {
     $out | Where-Object { $_ -notmatch 'Processing file' } | Select-Object -First 20 | ForEach-Object { Write-Output "  $_" }
 }
 
+# 3) 도구가 못 보는 프로젝트 규칙(docs/coding-style.md). 고정 폭 정수는 std:: 없이(int32_t, std::int32_t 아님).
+foreach ($file in $files) {
+    $hits = Select-String -Path $file -Pattern 'std::u?int(8|16|32|64)_t' -Encoding UTF8
+    foreach ($hit in $hits) {
+        $problems++
+        Write-Output "style: ${file}:$($hit.LineNumber): fixed-width integer without std:: (int32_t)"
+    }
+}
+
 Write-Output "lint: $problems problem(s)"
 if ($problems) { exit 1 }
