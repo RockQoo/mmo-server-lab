@@ -274,7 +274,22 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <p class="muted">"한 주인으로 복사·lock을 없애는 것이 더 이득"이라는 가설이다. 같은 Core·같은 봇 시나리오로 서버 레이어만 바꿔 재 본다(PROGRESS "구조 비교 ①", 1단계 끝). 틱 시작 지연 p99나 브로드캐스트 비율이 기준을 넘으면 8장의 대책 → 전용 스레드 순으로 바꾼다.</p>
 
 <h2>4. 기다려야 하는 일: 결과는 주인에게 돌아온다</h2>
-<p>예: 아이템 구매(재화 = 즉시 트랜잭션). 존 Lane은 DB를 기다리지 않는다. 요청을 보내고 다음 일을 하다가, 결과가 오면 같은 Lane에서 이어서 처리한다.</p>
+<h3 id="save-kinds">DB 저장은 두 가지: 대부분은 기다리지 않는다</h3>
+<div class="table-wrap"><table>
+<tr><th></th><th>Fire-and-Forget</th><th>확정형(기다림)</th></tr>
+<tr><td>순서</td><td>메모리 적용 → 클라에 응답 → DB에 보냄(기다리지 않음)</td><td>DB에 보냄 → 트랜잭션 성공 → 메모리 확정 → 클라에 응답</td></tr>
+<tr><td>반응</td><td><strong>즉시</strong></td><td>DB 왕복만큼(보통 수 ms)</td></tr>
+<tr><td>Zone이 죽으면</td><td>마지막 저장 이후 변경을 잃는다(되돌아감)</td><td>확정된 것은 남는다</td></tr>
+<tr><td>쓰는 곳</td><td><strong>거의 전부</strong>: 위치·HP·경험치·버프(모아서 주기 저장), NPC 상점 구매·아이템 획득(바로 보냄)</td><td><strong>일부</strong>: 플레이어 간 거래, 유료 재화, 우편 첨부</td></tr>
+</table></div>
+<ul>
+<li><strong>기준은 하나: 되돌아가도 손해 보는 사람이 없나.</strong> NPC 구매는 Zone이 죽으면 골드와 아이템이 같이 되돌아가 손해가 없다. 거래는 한쪽만 저장되면 복사·증발이 생기고 되돌릴 수 없다. 유료 재화는 실제 돈이다.</li>
+<li>Fire-and-Forget도 결과는 받는다(실패하면 로그·재시도). 아무도 기다리지 않을 뿐이다. 같은 플레이어 저장은 DbWriter에서 같은 Lane(플레이어 id 키)으로 보내 순서가 뒤바뀌지 않게 한다.</li>
+<li>코드 모양을 다르게 해 섞이지 않게 한다(예): <code>db.Save(playerId, changes)</code>(돌려받는 것 없음), <code>db.Transact(trade, ownerLane, onResult)</code>(결과가 주인 Lane으로). 데이터별 표는 결정 001 4단계(DbWriter + 저장 기준표)에서 정한다.</li>
+</ul>
+
+<h3 id="confirmed">확정형: 스레드가 아니라 거래가 기다린다</h3>
+<p>예: 플레이어 간 거래. 존 Lane은 DB를 기다리지 않는다. 요청을 보내고 다음 일을 하다가, 결과가 메시지로 다시 큐에 들어오면 같은 Lane에서 이어서 처리한다. 기다리는 것은 <strong>그 플레이어의 그 거래 하나</strong>("진행 중" 상태)이고, 스레드는 한순간도 기다리지 않는다.</p>
 <div class="diagram">
 <svg viewBox="0 0 960 300" role="img" aria-label="존 Lane이 DbWriter에 요청하고 결과를 다시 존 Lane으로 받는 순서">
 <text class="d-t" x="130" y="28" text-anchor="middle" style="font-weight:600">Zone 1 Lane (Logic)</text>
@@ -284,7 +299,8 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <line x1="480" y1="40" x2="480" y2="290" stroke="var(--ok)" stroke-width="3"/>
 <line x1="830" y1="40" x2="830" y2="290" stroke="var(--warn)" stroke-width="3"/>
 <line class="d-line" x1="130" y1="70" x2="826" y2="70"/>
-<text class="d-m" x="480" y="62" text-anchor="middle">① 구매 요청(요청 번호 77) 보냄 — 재화는 "예약"으로 잠가 둔다</text>
+<text class="d-m" x="305" y="62" text-anchor="middle">① 거래 요청(요청 번호 77) 보냄</text>
+<text class="d-m" x="655" y="62" text-anchor="middle">아이템은 "예약"으로 잠가 둔다</text>
 <rect class="d-cpp" x="20" y="90" width="220" height="56" rx="6"/>
 <text class="d-t" x="130" y="114" text-anchor="middle">② 기다리지 않고 다음 일</text>
 <text class="d-m" x="130" y="134" text-anchor="middle">다른 패킷 · 다음 Tick</text>
@@ -296,10 +312,24 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <line x1="476" y1="215" x2="134" y2="215" stroke="var(--ok)" stroke-width="2" marker-end="url(#arrowOk)"/>
 <text class="d-ot" x="305" y="207" text-anchor="middle">⑤ 주인 Lane 에 Post</text>
 <rect class="d-cpp" x="20" y="232" width="220" height="50" rx="6"/>
-<text class="d-t" x="130" y="262" text-anchor="middle">⑥ 예약 확정, 아이템 지급</text>
+<text class="d-t" x="130" y="262" text-anchor="middle">⑥ 예약 확정, 아이템 이동</text>
 </svg>
 </div>
-<p class="muted">기다리는 동안 그 플레이어의 다른 구매는 "진행 중"으로 막거나 차례로 쌓는다. 이 규칙은 콘텐츠마다 정한다. 다른 서버(ServiceServer의 길드)에 묻는 것도 같은 모양이다.</p>
+<p>같은 스레드에서 시간 순서로 보면(존 하나에 플레이어 수백 명이 한 Lane을 같이 쓴다):</p>
+<pre><code>0ms  P1 거래 요청  → 아이템 예약(잠금), DbWriter 에 보냄, 끝   ← 스레드는 바로 다음 일
+0ms  P2 이동       → 처리
+1ms  P3 스킬       → 처리
+2ms  P1 이동       → 처리   (P1 도 거래 진행 중에 움직이고 싸울 수 있다)
+ …
+5ms  [DB 결과: 요청 77 성공] 메시지 → 예약 확정, 아이템 이동, P1 에게 응답</code></pre>
+<div class="table-wrap"><table>
+<tr><th>"진행 중"인 동안 그 플레이어의 행동</th><th>처리</th></tr>
+<tr><td>이동, 전투, 채팅</td><td>평소대로</td></tr>
+<tr><td>예약된 아이템 팔기·버리기</td><td>막는다(예약 중)</td></tr>
+<tr><td>같은 거래를 또 요청(연타)</td><td>요청 번호로 무시</td></tr>
+<tr><td>다른 거래</td><td>콘텐츠마다 정한다(막기 또는 차례로 쌓기)</td></tr>
+</table></div>
+<p class="muted">병목이 되는 것은 존 스레드에서 DB를 직접 부르고 기다리는 코드다(<code>odbc.Execute(...)</code>): 그 몇 ms 동안 같은 Lane의 모든 플레이어가 멈추고, 거래가 몰리면 틱도 밀린다(6장 금지 목록 첫 줄). 다른 서버(ServiceServer의 길드)에 묻는 것도 같은 모양이다. DB 왕복 지연 p99를 메트릭으로 재 확정형 응답이 체감될 만큼 늦는지 본다.</p>
 
 <h2>5. 프로세스마다 스레드 (8코어 예, 숫자는 봇 부하 테스트로 정한다)</h2>
 <div class="table-wrap"><table>
