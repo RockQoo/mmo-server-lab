@@ -162,6 +162,7 @@ td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-n
 <li><a href="#c12">패킷 흐름과 MessageRouter</a></li>
 <li><a href="#c13">로그 한 줄이 12µs였다 → 0.4µs</a></li>
 <li><a href="#c14">크래시 덤프: 덤프 전용 스레드가 쓴다</a></li>
+<li><a href="#c15">타이머 자료구조: TimerHeap vs TimerWheel</a></li>
 <li><a href="#plan">앞으로 할 것 A~F</a></li>
 <li><a href="#talk">면접용 정리</a></li>
 </ol>
@@ -661,6 +662,66 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <p class="talk"><b>30초 답변.</b> 크래시 덤프는 크래시 난 스레드가 직접 쓰지 않고 미리 만든 덤프 전용 스레드가 씁니다. 스택 오버플로처럼 크래시 난 스레드에 스택이 거의 없어도 덤프를 남길 수 있고, 그 스레드의 스택이 멈춘 그대로 덤프에 들어갑니다. 만들면서 MSVC의 terminate 처리기가 스레드마다 따로라는 걸 테스트로 확인해서, 다른 스레드의 terminate는 프로세스 전체에 걸리는 SIGABRT로 잡았습니다. 같은 경로로 살아 있는 서버도 죽이지 않고 덤프를 뜹니다. 다만 Full 덤프는 쓰는 동안 서버 전체가 멈춰서, 1GB에서 510ms였던 멈춤을 프로세스 스냅샷(copy-on-write 복사본)을 떠서 덤프하는 방식으로 21ms까지 줄였습니다.</p>
 </div>
 
+<!-- ===================== 사례 15 ===================== -->
+<h2 id="c15">15. 타이머 자료구조: TimerHeap vs TimerWheel</h2>
+<div class="card">
+<div class="case-head"><h3>설계 결정 · 2~3배 빠른 타이머 휠 대신 힙을 둔다</h3><span class="date">2026-11-28 · <code>Scheduling/TimerHeap</code>, <code>Bench/TimerBench.cpp</code>·<code>TimerWheel.h</code></span></div>
+<div class="steps">
+<div class="step s1"><b>질문</b>존 하나에 버프·도트·리스폰 타이머가 수만~수십만 개 생긴다. 흔한 답은 타이머 휠(넣기·지우기 O(1))인데, <code>TimerHeap</code>은 우선순위 큐(넣기·꺼내기 O(log n))다. 휠로 가야 하나?</div>
+<div class="step s2"><b>분석</b>비교용 한 단계 휠(칸 1ms × 4096, 한 바퀴 약 4.1초)을 Bench에만 만들어 같은 모양으로 감싸고 넣기·지우기·실행·섞어 쓰기를 1만·10만·100만 개로 쟀다. 휠은 지우기에서 가장 크게 이긴다(목록에서 바로 빼기 O(1) vs 해시 erase + 지운 칸이 쌓이면 힙 다시 만들기)</div>
+<div class="step s3"><b>결정</b><strong><code>TimerHeap</code> 유지.</strong> 10만 개 존에서 힙은 50ms 틱당 약 75µs(코어의 약 0.15%), 휠은 약 30µs. 아끼는 약 45µs보다 휠의 비용(최대 1ms 늦음, 칸 안 순서 없음, 칸 크기·개수 고르기)이 크다</div>
+<div class="step s4"><b>결과</b>10만 섞어 쓰기 <strong>108 vs 36~47ns</strong>, 지우기 <strong>57 vs 11~16ns</strong>. 100만이면 둘 다 메모리에 묶여 차이가 줄어든다(213~235 vs 142~201ns). 휠은 Core에 넣지 않고 Bench에만 둔다</div>
+</div>
+<div class="diagram">
+<svg viewBox="0 0 700 280" role="img" aria-label="타이머 10만 개에서 연산 하나의 시간. 네 측정 모두 휠이 빠르고, 지우기에서 차이가 가장 크다">
+<text class="d-t" x="20" y="20" font-weight="600">타이머 10만 개, 연산 하나의 시간(ns, 낮을수록 좋음)</text>
+<line class="d-axis" x1="70" y1="40" x2="70" y2="220"/><line class="d-axis" x1="70" y1="220" x2="650" y2="220"/>
+<text class="d-m" x="62" y="224" text-anchor="end">0</text><text class="d-m" x="62" y="149" text-anchor="end">50</text><text class="d-m" x="62" y="74" text-anchor="end">100</text>
+<line class="d-axis" x1="70" y1="145" x2="650" y2="145" stroke-dasharray="2 4"/><line class="d-axis" x1="70" y1="70" x2="650" y2="70" stroke-dasharray="2 4"/>
+<rect class="d-cpp" x="105" y="100" width="36" height="120"/><rect class="d-ok" x="149" y="142" width="36" height="78"/>
+<rect class="d-cpp" x="250" y="134.5" width="36" height="85.5"/><rect class="d-ok" x="294" y="199" width="36" height="21"/>
+<rect class="d-cpp" x="395" y="83.5" width="36" height="136.5"/><rect class="d-ok" x="439" y="172" width="36" height="48"/>
+<rect class="d-cpp" x="540" y="58" width="36" height="162"/><rect class="d-ok" x="584" y="157" width="36" height="63"/>
+<text class="d-ct" x="123" y="94" text-anchor="middle">75~84</text><text class="d-ot" x="167" y="136" text-anchor="middle">52</text>
+<text class="d-ct" x="268" y="128" text-anchor="middle">57</text><text class="d-ot" x="312" y="193" text-anchor="middle">11~16</text>
+<text class="d-ct" x="413" y="77" text-anchor="middle">91</text><text class="d-ot" x="457" y="166" text-anchor="middle">32</text>
+<text class="d-ct" x="558" y="52" text-anchor="middle">108</text><text class="d-ot" x="602" y="151" text-anchor="middle">36~47</text>
+<text class="d-m" x="145" y="240" text-anchor="middle">넣기(Add)</text><text class="d-m" x="290" y="240" text-anchor="middle">지우기(Cancel)</text><text class="d-m" x="435" y="240" text-anchor="middle">실행(RunDue)</text><text class="d-m" x="580" y="240" text-anchor="middle">섞어 쓰기(Mixed)</text>
+<rect class="d-cpp" x="80" y="258" width="12" height="10"/><text class="d-m" x="98" y="267">TimerHeap(우선순위 큐 + 해시)</text>
+<rect class="d-ok" x="330" y="258" width="12" height="10"/><text class="d-m" x="348" y="267">TimerWheel(1ms × 4096칸, 비교용, Bench만)</text>
+</svg>
+</div>
+<div class="table-wrap"><table>
+<tr><th>연산 하나(ns, release, 2회 중앙값)</th><th class="num">개수</th><th class="num">TimerHeap</th><th style="width:24%">힙 막대</th><th class="num">TimerWheel</th><th style="width:24%">휠 막대</th></tr>
+<tr><td rowspan="3">넣기(Add): 1ms~60초에 고르게</td><td class="num">1만</td><td class="num">68</td><td><span class="bar" style="width:24%"></span></td><td class="num">25</td><td><span class="bar muted" style="width:9%"></span></td></tr>
+<tr><td class="num">10만</td><td class="num">75~84</td><td><span class="bar" style="width:28%"></span></td><td class="num">52</td><td><span class="bar muted" style="width:19%"></span></td></tr>
+<tr><td class="num">100만</td><td class="num">132~180</td><td><span class="bar" style="width:56%"></span></td><td class="num">48</td><td><span class="bar muted" style="width:17%"></span></td></tr>
+<tr><td rowspan="3">지우기(Cancel): 모두, 섞은 순서로</td><td class="num">1만</td><td class="num">42</td><td><span class="bar" style="width:15%"></span></td><td class="num">7</td><td><span class="bar muted" style="width:3%"></span></td></tr>
+<tr><td class="num">10만</td><td class="num">57</td><td><span class="bar" style="width:20%"></span></td><td class="num">11~16</td><td><span class="bar muted" style="width:5%"></span></td></tr>
+<tr><td class="num">100만</td><td class="num">174~209</td><td><span class="bar" style="width:68%"></span></td><td class="num">36</td><td><span class="bar muted" style="width:13%"></span></td></tr>
+<tr><td rowspan="3">실행(RunDue): 1ms씩 올리며 모두, 실행한 일 하나당</td><td class="num">1만</td><td class="num">68</td><td><span class="bar" style="width:24%"></span></td><td class="num">20</td><td><span class="bar muted" style="width:7%"></span></td></tr>
+<tr><td class="num">10만</td><td class="num">91</td><td><span class="bar" style="width:33%"></span></td><td class="num">32</td><td><span class="bar muted" style="width:11%"></span></td></tr>
+<tr><td class="num">100만</td><td class="num">240~265</td><td><span class="bar" style="width:90%"></span></td><td class="num">120~147</td><td><span class="bar muted" style="width:48%"></span></td></tr>
+<tr><td rowspan="3">섞어 쓰기(Mixed): 긴 버프 0.9N(30초~30분) + 1초 도트 0.1N, 50ms 틱 10초, 틱마다 N/1000개 추가·해제</td><td class="num">1만</td><td class="num">78</td><td><span class="bar" style="width:28%"></span></td><td class="num">21</td><td><span class="bar muted" style="width:8%"></span></td></tr>
+<tr><td class="num">10만</td><td class="num"><strong>108</strong></td><td><span class="bar" style="width:39%"></span></td><td class="num"><strong>36~47</strong></td><td><span class="bar muted" style="width:15%"></span></td></tr>
+<tr><td class="num">100만</td><td class="num">213~235</td><td><span class="bar" style="width:80%"></span></td><td class="num">142~201</td><td><span class="bar muted" style="width:61%"></span></td></tr>
+</table></div>
+<ul>
+<li><b>틱당 비용 계산(10만 개):</b> 섞어 쓰기의 50ms 틱 하나는 버프 추가 100 + 해제 100 + 도트 실행 약 500(1만 개가 1초마다) = 약 700연산이다. 힙 700 × 108ns ≈ <b>75µs</b>, 휠 700 × 36~47ns ≈ <b>25~33µs</b>. 50ms 틱의 0.15%와 0.06%라 둘 다 틱을 위협하지 않는다.</li>
+<li><b>100만에서 차이가 주는 이유:</b> 둘 다 캐시에 안 들어가 메모리 접근이 대부분이 된다. 또 한 단계 휠은 한 바퀴(4.1초)보다 먼 일도 같은 칸에 두고 칸을 지날 때마다 "아직이면 그대로" 훑는다. 30초~30분 버프 90만 개가 10초 동안 두 바퀴 넘게 훑여 휠의 장점을 깎는다. 없애려면 계층 휠(칸 단위가 다른 휠 여러 개)이 필요하다.</li>
+<li><b>휠을 쓰면 잃는 것:</b> ① 시각을 칸(1ms) 단위로 올림해 최대 1ms 늦다 ② 같은 칸 안 실행 순서가 넣은 순서가 아니다. 힙은 시각 → 넣은 순서로 결과가 늘 같아 테스트와 재현이 쉽다 ③ 칸 크기·개수를 골라야 하고, 긴 타이머가 많으면 계층 휠까지 만들어야 한다.</li>
+<li class="muted">잰 휠 설정은 1ms × 4096칸 하나뿐이다. 타이머 하나당 메모리는 재지 않았다. 한 스레드 측정이라(TimerHeap은 존 스레드나 타이머 스레드 하나만 쓴다) 여러 스레드 규칙(Noop, N:M)은 해당하지 않는다.</li>
+</ul>
+<p><strong>C#에는 TimerHeap이 없다.</strong> C# <code>Scheduler</code>는 BCL <code>TimeProvider.CreateTimer</code>(런타임 타이머)에 맡기고 콜백은 Lane에 넣기만 한다. 주기 일의 다음 시각을 .NET 소스로 확인했다(2026-11-28, dotnet/runtime main).</p>
+<ul>
+<li><code>TimeProvider.System.CreateTimer</code>는 <code>SystemTimeProviderTimer</code>를 만들고, 그 안은 <code>TimerQueueTimer</code>다(<code>TimeProvider.cs</code>). 그래서 <code>System.Threading.Timer</code>와 같은 <code>TimerQueue</code> 규칙을 따른다.</li>
+<li><code>Timer.cs</code>의 <code>TimerQueue.FireNextTimers</code>: 주기 타이머는 <code>_startTicks = nowTicks</code>로 두고, 늦은 만큼(<code>elapsed - _dueTime</code>)을 주기에서 빼서 다음 대기를 정한다. 늦음이 주기보다 작으면 <b>다음 = 이전 예정 시각 + 주기</b>(밀리지 않음, C++과 같다). 주기 이상 늦었으면 몰아서 실행하지 않고 <b>1ms 뒤 한 번</b> 실행하고, 거기서부터 다시 주기를 센다(예정 칸이 1ms 뒤로 옮겨진다). C++ <code>TimerHeap</code>은 다음 칸으로 건너뛰어 원래 칸을 지킨다. 이 차이는 주기보다 길게 늦었을 때만 보인다.</li>
+<li>다시 예약은 콜백 전에 잠금 안에서 하고 콜백은 스레드 풀에서 돈다. 그래서 앞 콜백이 아직 돌아도 다음 콜백이 겹쳐 돌 수 있다. C# <code>Scheduler</code>의 콜백은 Lane에 넣기만 해서 겹쳐도 일은 Lane에서 하나씩 돈다.</li>
+<li><b>테스트용 <code>FakeTimeProvider</code>는 다르다</b>(dotnet/extensions <code>FakeTimeProvider.cs</code>의 <code>Advance</code> → <code>WakeWaiters</code>): 시간을 먼저 다 옮긴 뒤 깨어날 일을 고르고, 주기 일은 <code>WakeupTime += Period</code>로 한 칸씩 올려 다시 고른다. 그래서 한 번에 주기 여러 개를 넘기면 <b>놓친 주기마다 콜백이 한 번씩</b> 연달아 불린다(실제 런타임은 한 번 + 1ms 뒤 한 번). 지금 테스트는 한 주기씩 넘겨 영향이 없다. 주기 여러 개를 한 번에 넘기는 테스트는 이 차이를 알고 써야 한다.</li>
+</ul>
+<p class="talk"><b>30초 답변.</b> 타이머는 우선순위 큐로 만들었습니다. 흔히 타이머 휠이 빠르다고 해서 비교용 휠을 만들어 1만·10만·100만 개로 넣기, 지우기, 실행, 존 흉내 섞어 쓰기를 재 보니 휠이 2~3배 빨랐고, 특히 지우기에서 차이가 컸습니다. 그런데 10만 개 존에서 힙도 50ms 틱당 75마이크로초, 코어의 0.15%라 병목이 아니었습니다. 휠은 최대 1밀리초 늦고 같은 칸 안 순서가 정해지지 않으며, 긴 버프가 많으면 계층 휠까지 필요합니다. 그래서 결과가 늘 같은 힙을 두고, 휠 코드는 벤치마크에만 남겼습니다. 숫자가 빠른 쪽이 아니라 틱 예산 안에서 단순하고 결정적인 쪽을 골랐습니다.</p>
+</div>
+
 <!-- ===================== 계획 ===================== -->
 <h2 id="plan">앞으로 할 것</h2>
 
@@ -829,6 +890,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 <tr><td>패킷 처리 구조를 어떻게 짰나</td><td>12</td><td>IOCP 스레드가 자르기·검사·역직렬화까지 하고, 표로 목적지를 골라 Lane별로 묶어 넣는다. Processor 사이는 MessageRouter, 잘못 보내기는 컴파일 에러</td></tr>
 <tr><td>표준 라이브러리를 믿고 썼다가 느렸던 경험</td><td>13</td><td>MSVC의 <code>zoned_time</code>·chrono 형식·추가 모드 파일이 줄마다 µs를 썼다. 핫 패스는 편한 기능도 재 보고, 하나씩 고쳐 원인별 효과를 남긴다</td></tr>
 <tr><td>서버 크래시를 어떻게 조사하나</td><td>14</td><td>덤프 전용 스레드가 크래시 스레드 대신 덤프를 쓴다(스택 오버플로에도). 다른 스레드의 terminate는 SIGABRT로 잡는다. 살아 있는 서버는 수동 덤프</td></tr>
+<tr><td>자료구조를 어떻게 골랐나</td><td>15</td><td>빠른 쪽(타이머 휠, 2~3배)이 아니라 틱 예산 안에서 단순하고 결과가 늘 같은 쪽(힙). 10만 개 존에서 틱당 75µs라 병목이 아님을 재서 정했다</td></tr>
 <tr><td>틀린 가정을 어떻게 바로잡았나</td><td>8</td><td>"C#은 lock-free라 빠르다"고 적었다가 .NET 소스를 직접 읽고 바로잡았다. 추측은 소스나 측정으로 확인한다</td></tr>
 <tr><td>설계 결정을 어떻게 했나</td><td>3, 7</td><td>후보를 같은 조건으로 재고, 얻은 것·잃은 것·결론이 깨지는 조건을 결정 기록으로 남긴다</td></tr>
 </table></div>

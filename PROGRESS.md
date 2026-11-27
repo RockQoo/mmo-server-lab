@@ -34,8 +34,8 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 | 1 | ✅ Lane 개선 1단계(2026-11-27: stop 확인 → `bool`, `condition_variable_any` → `std::condition_variable`, 메모리 배치. 4:4 72.7 → 53.5ns, C# 45.7ns의 약 1.17배. lock-free MPSC는 보류: 아래 후순위) | Messaging | N:M에서 C# `Channel`보다 약 1.5배 느렸다. 위의 모든 것이 Lane 위에서 돈다 |
 | 2 | ~~MessageRouter~~ → **2단계(존 이동)로 미룸**(2026-11-27) | Messaging | 설계는 끝남(결정 004). 1단계 ZoneServer 안 Processor는 사실상 `ZoneProcessor` 하나라 보낼 곳이 없다(패킷 입구는 `PacketDispatcher`, 같은 존 안은 직접 호출). 첫 실제 사용처는 존↔존(2단계), 다음이 DbWriter(4)·ServiceServer(5)로 보내기(다른 서버, 직렬화) |
 | 3 | Log | Log | 네트워크부터는 로그 없이 디버깅이 어렵다. 🔨 C++ 1·2조각(2026-11-27: 카테고리 enum + magic_enum, `.KV()`, 로그 Lane, ConsoleSink, FileSink 날짜별), C# Serilog(Console·File·Async). 한 줄 비용 벤치(performance.html 사례 13: Null 11,980 → 389ns, File 18,330 → 2,228ns, C# 1,122 / 2,639ns). 다음: 리뷰 |
-| 4 | CrashDump | Base | 네트워크 개발 중 크래시 덤프. 🔨 1조각(2026-11-27: C++ 덤프 전용 스레드·처리기·수동 Write, C# 수동 Write). 2조각: Full 스냅샷(1GB 멈춤 513 → 21ms). 3조각: 덤프 뒤 로그 flush(afterCrash, 시간 제한). 수동 덤프 명령은 관리 콘솔(Network 뒤) |
-| 5 | Timer(예약 실행, 고정 틱 루프) | Timer | 틱 R&D(노트 계획 G), ZoneServer 바탕. Network와 순서 바꿔도 된다 |
+| 4 | CrashDump | Base | 네트워크 개발 중 크래시 덤프. 🔨 1조각(2026-11-27: C++ 덤프 전용 스레드·처리기·수동 Write, C# 수동 Write). 2조각: Full 스냅샷(1GB 멈춤 513 → 21ms). 3조각: 덤프 뒤 로그 flush(afterCrash, 시간 제한). C# `Write`는 일부 복사 실패(`ERROR_PARTIAL_COPY`)면 한 번 다시 쓴다(2026-11-28). 수동 덤프 명령은 관리 콘솔(Network 뒤) |
+| 5 | Timer(예약 실행, 고정 틱 루프) | Scheduling | 틱 R&D(노트 계획 G), ZoneServer 바탕. Network와 순서 바꿔도 된다. 🔨 2026-11-28: C++ `TimerHeap`·`Scheduler`(타이머 스레드 + Lane `Post`), C# `Scheduler`(BCL `TimeProvider.CreateTimer` + `Lane.TryPost`), `Base::SetCurrentThreadName`. 힙 vs 휠 벤치 → `TimerHeap` 유지(performance.html 사례 15). namespace는 C# `System.Threading.Timer`와 겹쳐 `Scheduling`. 고정 틱 루프는 ZoneServer 때(`Scheduler::Every`로 충분한지). 다음: 리뷰 |
 | 6 | Metrics(카운터, 지연 히스토그램) | Metrics | 부하 테스트의 틱 지연 p99, GC 비교(노트 계획 F) |
 | 7 | 직렬화 필드 비용(노트 계획 D) | Base | 패킷마다 쓰인다 |
 | 8 | CodeGen | 도구 | 프로토콜보다 먼저(규칙) |
@@ -56,8 +56,8 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 | 2 | **Messaging** | `Messaging` | 메시지 큐, 생산자-소비자 N:M, 스레드 어피니티(레인), 레인 스레드(이름 ✅, 코어 고정은 벤치마크로) | 생산자·소비자 수 조합, 순서 보장, 어피니티. 객체 큐 vs 직렬화 큐 ✅ 객체(decisions/002) | 🔨 `Lane`, `LaneGroup` | 🔨 `Lane`, `LaneGroup` |
 | 3 | Memory | `Memory` | BufferPool(+ PooledBuffer 핸들), ObjectPool, 참조 카운트(보류: Network에서 `shared_ptr`와 비교) / C#: `ArrayPool`, `Microsoft.Extensions.ObjectPool` | new/delete vs 풀, C# GC 할당량, BufferPool 1판(등급마다 mutex) vs 2판(스레드 캐시 + 전역 묶음) ✅ 2판 채택(journal/bufferpool), 3판은 Network에서. ObjectPool vs new/delete vs C# DefaultObjectPool ✅(journal/objectpool) | 🔨 `BufferPool` 2판, `ObjectPool` | ➖ BCL `ArrayPool`, NuGet `ObjectPool`(Bench만) |
 | 4 | Log | `Log` | 비동기 로거 (Messaging 큐 사용) / C#: Serilog (2026-11-26, NuGet 설치는 그때 확인) | 동기 vs 비동기 비용 | ⬜ | ⬜ |
-| 5 | Metrics | `Metrics` | 카운터, 지연 히스토그램(p50/p99) | 측정 비용 | ⬜ | ⬜ |
-| 6 | Timer | `Timer` | 예약 실행, 고정 틱 루프 | 우선순위 큐 vs 타이머 휠 | ⬜ | ⬜ |
+| 5 | Scheduling | `Scheduling` | 예약 실행(`Scheduler`, `TimerHeap`, `TimerId`), 고정 틱 루프(ZoneServer 때) / C#: BCL `TimeProvider.CreateTimer`(TimerHeap 없음) | 우선순위 큐 vs 타이머 휠 ✅ TimerHeap 유지(performance.html 사례 15) | 🔨 `TimerHeap`, `Scheduler` | 🔨 `Scheduler` |
+| 6 | Metrics | `Metrics` | 카운터, 지연 히스토그램(p50/p99) | 측정 비용 | ⬜ | ⬜ |
 | 7 | Network | `Network` | C++: IOCP / C#: `Socket` + `System.IO.Pipelines`. Listener, Connector, Session, 송수신 버퍼, 패킷 프레이밍 | I/O 레인 1→N, Nagle, 모아 보내기 | ⬜ | ⬜ |
 | 8 | DB | `DB` | ODBC / ADO.NET, 커넥션 풀, DB 큐 | 동기 vs 비동기 vs 모아서 쓰기 | ⬜ | ⬜ |
 | - | CrashDump | Base (2026-11-26) | 크래시 때 미니덤프 저장 | 일부러 크래시 내서 덤프 확인 | ⬜ | ⬜ |
@@ -117,7 +117,7 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 
 | 패턴 | 언제 | 이유 |
 |---|---|---|
-| Actor(Processor + Lane), `MessageRouter`, `PacketDispatcher`, 스케줄러(Timer), AOI 격자 | 1단계 | 뼈대. AOI 는 게임 레이어 |
+| Actor(Processor + Lane), `MessageRouter`, `PacketDispatcher`, 스케줄러(`Scheduling`), AOI 격자 | 1단계 | 뼈대. AOI 는 게임 레이어 |
 | 세션 상태(접속 → 로그인 → 존 안 → 존 이동 중) | 1~2단계 | enum + 전이 함수로 충분. 범용 FSM 틀은 만들지 않는다 |
 | 게임 데이터 테이블(기획 데이터, CodeGen 으로 표 클래스) | 아이템·스킬이 생길 때(1단계 끝~2단계) | 1단계는 이동·공격 1종이라 최소한 |
 | 요청 제한(세션별 초당 패킷 수) | 1단계 Gateway 에 간단히 | 선택 |

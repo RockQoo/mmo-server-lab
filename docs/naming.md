@@ -29,10 +29,14 @@
 | Base | `RuidGenerator` | 있음(`std::atomic` CAS, `Clock` 함수 주입, `alignas`) | 있음(`Interlocked.CompareExchange`, BCL `TimeProvider`, 패딩 구조체) | 같은 역할: (시각, 순번)을 원자 변수 하나에 담아 CAS, 단조 시계, 512개 소진 시 다음 ms까지 양보, `InitializeGlobal`/`Global` |
 | Log | 로그 함수·`Logger` | 있음(namespace `Log`: `Log::Initialize(options, sinks)`, `Log::Info(카테고리 enum, "문장").KV(키, 값)`, `Shutdown`/`Flush`. `LogSink`·`ConsoleSink`·`FileSink`, 로그 전용 Lane) | 있음(`Log.Logger`: `Initialize(LogOptions, sinks)`, `For(카테고리 enum)` → Serilog `ILogger`, `Shutdown`) | 같은 역할: 레벨 6개(VRB~FTL), 카테고리 `[Battle]`, 키·값, 날짜별 파일(`zone-.log` → `zone-20261127.log`), 같은 줄 모양. C#은 Serilog(메시지 템플릿 `attacker={Attacker}`), 파일:줄 없음. C# 은 namespace `Log` 와 같은 이름의 클래스를 둘 수 없어(CA1724) `Logger`. `Serilog.Core` 를 쓰는 파일(sink 구현)에서는 `Serilog.Core.Logger` 와 겹쳐 `using Logger = Log.Logger;` 로 고른다 |
 | Base | `CrashDump`, `DumpKind` | 있음(`CrashDump::Install(options)`: 덤프 전용 스레드 + 처리기, `CrashDump::Write(Mini/Full, 이유)`) | 있음(`CrashDump.Write(kind, reason, dir)`만) | 같은 역할: 파일 이름 `<프로세스>_<날짜>_<시각>_pid<번호>_<이유>.dmp`. C# 자동 덤프는 코드가 아니라 런타임 환경 변수(`DOTNET_DbgEnableMiniDump` 등, 시작 때만 읽음)라 `Install` 이 없다. 수동은 MS 공식 `DiagnosticsClient.WriteDump` |
+| Base | `SetCurrentThreadName` | 있음(함수 `Base::SetCurrentThreadName(name)`, UTF-8 → `SetThreadDescription`, OS 코드는 `ThreadName.cpp` 한 곳. Lane·Scheduler·CrashDump 가 쓴다) | **없음** | 아래 참고 |
 | Base | `StrongId<Tag>` | 있음(템플릿, `std::hash`·`std::formatter`·ByteWriter 지원) | **없음**(ID마다 `record struct`) | 아래 참고 |
 | Base | `RwLocked<T>` | 예정 | **없음** | 아래 참고 |
 | Memory | `BufferPool` / `PooledBuffer` | 있음(2판: 전역 하나 `Shared()`, 스레드 캐시 + 전역 묶음 이동, 크기 등급 5개 256B~64KB, RAII 반납 핸들) | **없음**(BCL `ArrayPool<byte>.Shared`) | 아래 참고 |
 | Memory | `ObjectPool<T>` / `PooledPtr<T>` | 있음(템플릿, 타입마다 전역 하나 `Shared()`, 스레드 캐시 64 + 전역 묶음 32, 반납 때 `Reset()`, 핸들은 `unique_ptr` 별칭 8B) | **없음**(MS NuGet `Microsoft.Extensions.ObjectPool`의 `DefaultObjectPool<T>` + 정책 `Return`) | 같은 역할: 객체를 소멸시키지 않고 비워서 다시 쓴다. 아래 참고 |
+| Scheduling | `Scheduler` | 있음(타이머 스레드 하나(`std::jthread`) + `TimerHeap` + 시각이 되면 담당 Lane 에 `Post`. `After`/`Every`/`Cancel`/`Stop`) | 있음(BCL `TimeProvider.CreateTimer`(런타임 타이머) + 콜백은 `Lane.TryPost` 만. `After`/`Every`/`Cancel`/`Dispose`, 테스트는 `FakeTimeProvider`) | 같은 역할: "몇 초 뒤", "몇 초마다" 일을 등록할 때 넘긴 Lane 에서 실행, 어느 스레드에서 불러도 됨, `Cancel` 이 true 면 Lane 에 이미 넣은 회차까지 막음. 주기 일이 크게 늦을 때 규칙만 다르다(C++ 다음 칸으로 건너뜀, C# 런타임 규칙: 1ms 뒤 한 번 실행 후 거기서 다시 셈. `docs/journal/performance.html` 사례 15). namespace 를 `Timer` 로 하지 않은 것은 C# `System.Threading.Timer` 와 겹쳐서다 |
+| Scheduling | `TimerHeap` | 있음(`priority_queue` + `unordered_map`, 같은 시각은 넣은 순서, 주기는 고정 간격, `Cancel` 은 표시만, 스레드 안전하지 않음) | **없음** | 아래 참고 |
+| Scheduling | `TimerId` | 있음(`using TimerId = Base::StrongId<struct TimerTag, uint64_t>`, 0 = 없음) | 있음(`readonly record struct TimerId(ulong Value)`, `default` = 없음) | `Scheduler`(C++ 은 `TimerHeap` 도)가 발급하는 번호. 1부터 |
 
 ## 한쪽에만 있는 것
 
@@ -70,6 +74,22 @@ C#에 만들지 않는 이유(2026-11-26):
 
 - MS 공식 `Microsoft.Extensions.ObjectPool`(`DefaultObjectPool<T>` + `PooledObjectPolicy<T>.Return`이 C++ `Reset()` 자리)이 같은 역할이다. 쓰는 법은 `Get` + `try/finally Return`.
 - 다만 측정해 보니 `DefaultObjectPool`은 스레드 캐시가 없어(공유 배열 + Interlocked) 스레드가 늘수록 느려지고, 작은 객체는 그냥 `new`(GC 할당)가 더 빠르다(스레드 1개: 풀 약 10ns, `new` 약 1.4~2.1ns, 8개에서는 풀이 약 130배 느림). 그래서 C#은 **만들기 비싼 객체(큰 버퍼, StringBuilder 등)만 풀에 넣고, 작은 객체는 `new`** 한다. 측정은 `docs/journal/objectpool.html`.
+
+### `TimerHeap` (C++만)
+
+시각 순서로 정리된 약속 목록(`Add(due, job, period)`, `Cancel(id)`, `RunDue(now)`, `NextDue()`). 시계도 스레드도 없다: 부르는 쪽이 "지금"을 넘긴다. 존 틱이 틱 시각으로 직접 부르고(버프 만료, 리스폰), `Scheduler` 의 타이머 스레드가 안에 하나 둔다. 같은 시각은 넣은 순서대로라 결과가 늘 같다. 타이머 휠과 비교해 이 구조를 둔 이유는 `docs/journal/performance.html` 사례 15(2026-11-28).
+
+C#에 만들지 않는 이유(2026-11-28):
+
+- C# `Scheduler` 는 BCL `TimeProvider.CreateTimer`(안은 런타임 `TimerQueue`)가 시각 순서 관리와 깨우기를 맡는다. 같은 일을 하는 목록을 다시 만들 이유가 없다.
+- C++ 은 표준에 타이머가 없어(`std::chrono` 는 시계뿐) 직접 만든다.
+- 존 틱 안 타이머(C++ 은 존이 `TimerHeap` 을 직접 가짐)의 C# 자리는 ZoneServer 단위 때 정한다(후보: BCL `PriorityQueue<TElement, TPriority>`, 아직 정하지 않음).
+
+### `SetCurrentThreadName` (C++만)
+
+지금 스레드에 이름을 붙이는 함수(UTF-8). 표준에 없어 OS 함수(`SetThreadDescription`)를 쓰고, 그 코드는 `Base/ThreadName.cpp` 한 곳에 둔다. 이름은 크래시 덤프(WinDbg `~`), VS 스레드 창, 프로파일러에 보인다(2026-11-28: Mini 덤프에 이름이 남는 것을 확인). `Lane`(`"Zone-3"`), `Scheduler`, `CrashDump` 의 전용 스레드가 쓴다.
+
+C#에 만들지 않는 이유: C# `Lane` 과 `Scheduler` 는 전용 스레드 없이 스레드 풀에서 돈다(`LaneGroup` 처럼 이름이 없다). 풀 스레드는 일마다 바뀌어 이름을 붙여도 뜻이 없다. 전용 스레드가 필요하면 BCL `Thread.Name` 이 있다.
 
 ## C# 에만 있는 것
 

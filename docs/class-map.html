@@ -27,7 +27,7 @@ ul{padding-left:20px;margin:6px 0}
 <body>
 <main>
 <h1>mmo-server-lab · C++ / C# Core 대응표</h1>
-<div class="sub">2026-11-26 · 보고서 006(LaneGroup)까지 반영 · 확정 이름의 원본은 <code>docs/naming.md</code>, 순서는 <code>PROGRESS.md</code> · <b>"제안" 이름은 만들 때 다시 후보를 보여 드리고 정한다</b></div>
+<div class="sub">2026-11-26 · 보고서 006(LaneGroup)까지 반영 · 11-28 Scheduling(Timer 단위) 반영 · 확정 이름의 원본은 <code>docs/naming.md</code>, 순서는 <code>PROGRESS.md</code> · <b>"제안" 이름은 만들 때 다시 후보를 보여 드리고 정한다</b></div>
 
 <h2>원칙</h2>
 <div class="card"><ul>
@@ -49,7 +49,7 @@ ul{padding-left:20px;margin:6px 0}
 <tr><th>모듈</th><th>클래스 (공통 이름)</th><th>하는 일</th><th>C++ (<code>server-cpp/Core</code>)</th><th>C# (<code>server-cs/Core</code>)</th><th>상태</th></tr>
 
 <!-- Base -->
-<tr><td class="mod" rowspan="11">Base</td>
+<tr><td class="mod" rowspan="12">Base</td>
 <td><code>ByteWriter</code> / <code>ByteReader</code><br><span class="b bcl">확정</span></td><td>값을 바이트로 쓰고 읽기</td>
 <td><span class="b impl">직접 만듦</span><code>&lt;&lt;</code> <code>&gt;&gt;</code>, 쓰기는 vector 소유, 읽기는 span. 타입 판별 <code>ByteTraits.h</code></td>
 <td><span class="b impl">직접 만듦</span><code>IBufferWriter&lt;byte&gt;</code> 위 ref struct 커서</td><td class="st">✅ ✅</td></tr>
@@ -62,6 +62,9 @@ ul{padding-left:20px;margin:6px 0}
 <td><span class="b impl">직접 만듦</span>매크로 + RaiseException</td><td><span class="b bcl">BCL·표준</span><code>Trace.Assert</code> / <code>Debug.Assert</code></td><td class="st">✅ ✅</td></tr>
 <tr><td>Utf8<br><span class="b bcl">확정</span></td><td>UTF-8 변환·검사</td>
 <td><span class="b impl">직접 만듦</span><code>Utf8.h</code></td><td><span class="b bcl">BCL·표준</span><code>Encoding.UTF8</code></td><td class="st">✅ ➖</td></tr>
+<tr><td><code>SetCurrentThreadName</code><br><span class="b bcl">확정</span></td><td>지금 스레드에 이름 붙이기(덤프·VS 스레드 창에 보임). 11-28</td>
+<td><span class="b impl">직접 만듦</span>함수, UTF-8 → <code>SetThreadDescription</code>(OS 코드는 <code>ThreadName.cpp</code> 한 곳). Lane·Scheduler·CrashDump가 씀</td>
+<td><span class="b no">없음</span>Lane·Scheduler가 스레드 풀이라 이름 없음(전용 스레드면 BCL <code>Thread.Name</code>)</td><td class="st">🔨 ➖</td></tr>
 <tr><td><code>StrongId&lt;Tag&gt;</code><br><span class="b bcl">확정</span></td><td>종류가 다른 ID끼리 섞이지 않는 정수 ID 타입</td>
 <td><span class="b impl">직접 만듦</span>템플릿 + <code>std::hash</code>·<code>std::formatter</code>·ByteWriter 지원</td>
 <td><span class="b no">없음</span>ID마다 <code>readonly record struct</code>(별칭은 진짜 타입이 아님)</td><td class="st">✅ ➖</td></tr>
@@ -119,12 +122,18 @@ ul{padding-left:20px;margin:6px 0}
 <td><span class="b impl">직접 만듦</span>로그 구간 버킷</td>
 <td><span class="b impl">직접 만듦</span>BCL <code>Histogram&lt;T&gt;</code>은 분위수를 직접 계산하지 않음</td><td class="st">⬜ ⬜</td></tr>
 
-<!-- Timer -->
-<tr><td class="mod" rowspan="2">Timer<br><span class="b red">이름 겹침</span></td>
-<td><code>TimerQueue</code><br><span class="b warn">제안</span></td><td>예약 실행(n초 뒤, 주기)</td>
-<td><span class="b impl">직접 만듦</span>우선순위 큐 vs 타이머 휠 벤치마크</td>
-<td><span class="b bcl">BCL·표준</span><code>Task.Delay</code>, <code>TimeProvider</code>(만들 필요 없을 수 있음)</td><td class="st">⬜ ⬜</td></tr>
-<tr><td><code>TickLoop</code><br><span class="b warn">제안</span></td><td>고정 틱(존마다 50ms 등)</td>
+<!-- Scheduling -->
+<tr><td class="mod" rowspan="4">Scheduling<br><span class="b bcl">확정</span></td>
+<td><code>Scheduler</code><br><span class="b bcl">확정</span></td><td>예약 실행(n초 뒤, n초마다). 일은 등록할 때 넘긴 Lane에서 돈다. 11-28</td>
+<td><span class="b impl">직접 만듦</span>타이머 스레드 하나(<code>std::jthread</code>) + <code>TimerHeap</code> + 시각이 되면 Lane에 <code>Post</code>. <code>Cancel</code>은 Lane에 넣은 회차까지 막음</td>
+<td><span class="b impl">직접 만듦</span>BCL <code>TimeProvider.CreateTimer</code> + 콜백은 <code>Lane.TryPost</code>만(얇음). 테스트는 <code>FakeTimeProvider</code></td><td class="st">🔨 🔨</td></tr>
+<tr><td><code>TimerHeap</code><br><span class="b bcl">확정</span></td><td>시각 순서 약속 목록(시계·스레드 없음, "지금"을 넘겨 실행). 존 틱이 직접 쓰고 Scheduler 안에도 하나</td>
+<td><span class="b impl">직접 만듦</span><code>priority_queue</code> + <code>unordered_map</code>, 같은 시각은 넣은 순서. 타이머 휠보다 2~3배 느리지만 10만 개에 틱당 약 75µs라 유지(노트 사례 15)</td>
+<td><span class="b no">없음</span>런타임 타이머(<code>TimerQueue</code>)가 맡음</td><td class="st">🔨 ➖</td></tr>
+<tr><td><code>TimerId</code><br><span class="b bcl">확정</span></td><td>타이머 번호(0 = 없음)</td>
+<td><span class="b impl">직접 만듦</span><code>StrongId&lt;TimerTag, uint64_t&gt;</code></td>
+<td><span class="b impl">직접 만듦</span><code>readonly record struct TimerId(ulong)</code></td><td class="st">🔨 🔨</td></tr>
+<tr><td><code>TickLoop</code><br><span class="b warn">제안</span></td><td>고정 틱(존마다 50ms 등). <code>Scheduler.Every(50ms, zoneLane, …)</code>로 충분한지 ZoneServer 때 정한다(threading.html 초안)</td>
 <td><span class="b impl">직접 만듦</span>Lane 위에서 다음 틱 예약, 밀림 보정</td>
 <td><span class="b impl">직접 만듦</span><code>PeriodicTimer</code> 위 얇은 루프</td><td class="st">⬜ ⬜</td></tr>
 
@@ -189,7 +198,8 @@ ul{padding-left:20px;margin:6px 0}
 
 <h2>정해야 할 것</h2>
 <div class="card"><ul>
-<li><span class="b red">이름 겹침</span> <code>Counter</code>, <code>DbConnection</code>/<code>DbCommand</code>, namespace <code>Timer</code>(C# <code>System.Threading.Timer</code>와 겹침). 해당 단위 때 후보를 보고 정함(11-26 결정).</li>
+<li><span class="b red">이름 겹침</span> <code>Counter</code>, <code>DbConnection</code>/<code>DbCommand</code>. 해당 단위 때 후보를 보고 정함(11-26 결정).</li>
+<li>[정함 11-28] namespace <code>Timer</code>(C# <code>System.Threading.Timer</code>와 겹침) → <code>Scheduling</code>. 클래스는 <code>Scheduler</code>, <code>TimerHeap</code>, <code>TimerId</code>.</li>
 <li>[정함 11-26] Log C#은 Serilog.</li>
 <li>[정함 11-26] Config 형식은 JSON(주석 허용). C++ nlohmann/json, C# System.Text.Json. 두 서버가 같은 파일을 읽음.</li>
 <li>[정함 11-26] CrashDump, Config는 둘 다 Base에.</li>
