@@ -18,6 +18,22 @@ namespace Log
         // Serilog 의 {Level:u3} 와 같은 세 글자
         constexpr std::array<std::string_view, 6> LevelCodes{{"VRB", "DBG", "INF", "WRN", "ERR", "FTL"}};
 
+        // 파일 sink 의 문제를 표준 오류에 알린다. 로그 Lane 안에서 부르므로 예외를 던지지 않는다(밖으로 나가면 Lane
+        // 스레드가 terminate, Codex 리뷰 2차 R1). 경로는 UTF-8 로(한글 경로. path::string()은 변환 실패 때 예외).
+        void WarnToStderr(const std::string_view message, const std::filesystem::path& path) noexcept
+        {
+            try
+            {
+                const auto text = path.u8string();
+                std::println(stderr, "Log: {} {}", message,
+                             std::string_view{reinterpret_cast<const char*>(text.data()), text.size()});
+            }
+            catch (...)
+            {
+                static_cast<void>(std::fputs("Log: file error\n", stderr));
+            }
+        }
+
         // 경로에서 파일 이름만(로그 줄을 짧게)
         std::string_view FileName(const std::string_view path) noexcept
         {
@@ -112,7 +128,15 @@ namespace Log
 
     void ConsoleSink::Write(const LogEvent&, const std::string_view line)
     {
-        std::println("{}", line);
+        // 로그 Lane 안이라 예외가 나가면 terminate 다(콘솔이 닫힌 경우 등). 콘솔에 못 쓰면 버린다(Codex 리뷰 2차 R1)
+        try
+        {
+            std::println("{}", line);
+        }
+        catch (...)
+        {
+            static_cast<void>(std::fputs("Log: console write failed\n", stderr));
+        }
     }
 
     void ConsoleSink::Flush()
@@ -160,9 +184,7 @@ namespace Log
         if (!_failing)
         {
             _failing = true;
-            const auto path = _currentPath.u8string();
-            std::println(stderr, "Log: cannot write {}",
-                         std::string_view{reinterpret_cast<const char*>(path.data()), path.size()});
+            WarnToStderr("cannot write", _currentPath);
         }
     }
 
@@ -196,9 +218,7 @@ namespace Log
         if (_file == nullptr)
         {
             // 로그 파일을 못 열어도 서버는 계속 돈다. 표준 오류에 한 번 알린다(이 날짜 동안 쓰기는 아무 일 안 함)
-            const auto path = _currentPath.u8string(); // 한글 경로도 그대로(string()은 변환 실패 때 예외)
-            std::println(stderr, "Log: cannot open {}",
-                         std::string_view{reinterpret_cast<const char*>(path.data()), path.size()});
+            WarnToStderr("cannot open", _currentPath);
         }
     }
 
