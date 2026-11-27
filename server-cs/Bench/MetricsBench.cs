@@ -11,7 +11,7 @@ namespace Bench;
 //   GetTimestamp      시계를 한 번 읽는 비용(C++ steady_clock::now 자리)
 //   HistogramRecord   Histogram<long>.Record 하나(수집기가 듣는 중)
 //   ScopedTimerEmpty  빈 블록 = 시계 두 번 + Record
-//   CounterAdd        Counter<long>.Add 를 스레드 N 개가 같이(수집기의 합은 Interlocked 하나라 다툰다). 기준선은 NoopBench.Team
+//   CounterAdd        Counter<long>.Add 를 스레드 N 개가 같이(수집기의 합은 CPU 번호로 고른 칸 16개, C++ MetricCounter 자리). 기준선은 NoopBench.Team
 [MemoryDiagnoser]
 public class MetricsBench
 {

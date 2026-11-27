@@ -78,14 +78,35 @@ public sealed class MetricsCollector : IDisposable
     // 받기를 멈춘다. 그 뒤 기록한 값은 모이지 않는다.
     public void Dispose() => _listener.Dispose();
 
-    // 카운터 합 하나. C++ MetricCounter 처럼 칸을 나누지 않았다(Interlocked 하나). 여러 스레드 경합 비용은
-    // Bench/MetricsBench.cs 가 잰다.
+    // 카운터 합 하나. C++ MetricCounter 처럼 캐시 줄마다 띄운 칸 StripeCount 개에 나눠 더하고, 읽을 때 모두 더한다
+    // (Interlocked 하나면 여러 스레드가 같은 캐시 줄을 두고 다툰다. 비교는 Bench/MetricsBench.cs).
+    // 칸 고르기: C++ 은 스레드마다 정한 번호(thread_local), C# 은 지금 도는 CPU 번호(Thread.GetCurrentProcessorId, BCL).
+    // 같은 CPU 에서 도는 스레드는 동시에 돌지 않으므로 다투지 않는다. CPU 가 StripeCount 보다 많으면 칸을 나눠 쓴다.
+    // Value 는 C++ 처럼 더하는 동안 올린 것이 들어갈 수도 빠질 수도 있다(늘기만 하므로 다음에 읽으면 들어간다).
     private sealed class CounterTotal
     {
-        private long _value;
+        private const int StripeCount = 16;              // 2의 거듭제곱(& 로 고른다)
+        private const int Stride = 64 / sizeof(long);    // 칸 사이 간격 = 캐시 줄 하나(64B)
+        // 앞 한 칸은 비운다: 배열 머리(길이, 범위 검사가 읽는다)와 첫 칸이 같은 캐시 줄에 들지 않게
+        private readonly long[] _stripes = new long[(StripeCount + 1) * Stride];
 
-        public long Value => Volatile.Read(ref _value);
+        public long Value
+        {
+            get
+            {
+                var sum = 0L;
+                for (var i = 1; i <= StripeCount; i++)
+                {
+                    sum += Volatile.Read(ref _stripes[i * Stride]);
+                }
+                return sum;
+            }
+        }
 
-        public void Add(long delta) => Interlocked.Add(ref _value, delta);
+        public void Add(long delta)
+        {
+            var stripe = (Thread.GetCurrentProcessorId() & (StripeCount - 1)) + 1;
+            Interlocked.Add(ref _stripes[stripe * Stride], delta);
+        }
     }
 }
