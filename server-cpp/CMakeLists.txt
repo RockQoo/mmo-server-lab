@@ -30,6 +30,12 @@ if(MSVC)
     # 정적 분석(/analyze): 컴파일하면서 널 역참조·버퍼 넘침·초기화 안 된 값 같은 버그를 찾는다. 경고와 같이 에러가 된다.
     add_compile_options(/analyze /analyze:external-)
 
+    # release 도 심볼(.pdb)을 만든다. 없으면 크래시 덤프가 함수 이름·줄 번호 없이 주소만 남는다(performance.html 사례 14).
+    # 최적화는 그대로다: /Zi 는 pdb 만 따로 쓰고, /OPT:REF·/OPT:ICF 는 /DEBUG 가 끄는 링크 최적화를 다시 켠다.
+    # 배포할 때는 빌드마다 exe 와 pdb 를 같이 보관한다.
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT ProgramDatabase)
+    add_link_options($<$<CONFIG:Release>:/DEBUG> $<$<CONFIG:Release>:/OPT:REF> $<$<CONFIG:Release>:/OPT:ICF>)
+
     # VS Code clangd용. cl은 INCLUDE 환경 변수(VS 개발자 환경)로 표준 헤더를 찾지만
     # clangd는 그 경로를 모른다. compile_commands.json에 경로를 직접 넣어 준다.
     if(CMAKE_EXPORT_COMPILE_COMMANDS AND DEFINED ENV{INCLUDE})
