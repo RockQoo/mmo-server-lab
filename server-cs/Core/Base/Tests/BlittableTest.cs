@@ -16,6 +16,8 @@ public class BlittableTest
 
     private readonly struct SlotCodec : IByteCodec<Slot>
     {
+        public static bool IsPlainCopy => true;
+
         public static void Write(ref ByteWriter writer, Slot value)
         {
             writer.Write(value.ItemId);
@@ -30,6 +32,8 @@ public class BlittableTest
     // 쓰는 순서가 메모리 순서와 다르다 → 통째 복사하면 바이트가 달라진다
     private readonly struct ReorderedSlotCodec : IByteCodec<Slot>
     {
+        public static bool IsPlainCopy => true;
+
         public static void Write(ref ByteWriter writer, Slot value)
         {
             writer.Write(value.Count);
@@ -48,6 +52,8 @@ public class BlittableTest
     // 필드 하나를 안 쓴다
     private readonly struct MissingSlotCodec : IByteCodec<Slot>
     {
+        public static bool IsPlainCopy => true;
+
         public static void Write(ref ByteWriter writer, Slot value)
         {
             writer.Write(value.ItemId);
@@ -61,6 +67,8 @@ public class BlittableTest
 
     private readonly struct PaddedCodec : IByteCodec<Padded>
     {
+        public static bool IsPlainCopy => true;
+
         public static void Write(ref ByteWriter writer, Padded value)
         {
             writer.Write(value.Kind);
@@ -74,6 +82,8 @@ public class BlittableTest
 
     private readonly struct FlaggedCodec : IByteCodec<Flagged>
     {
+        public static bool IsPlainCopy => true;
+
         public static void Write(ref ByteWriter writer, Flagged value)
         {
             writer.Write(value.Id);
@@ -90,6 +100,8 @@ public class BlittableTest
 
     private readonly struct UnitCodec : IByteCodec<Unit>
     {
+        public static bool IsPlainCopy => true;
+
         public static void Write(ref ByteWriter writer, Unit value)
         {
             writer.Write(value.X);
@@ -119,6 +131,54 @@ public class BlittableTest
         Assert.False(Blittable<Padded, PaddedCodec>.IsBlittable);
         Assert.False(Blittable<Flagged, FlaggedCodec>.IsBlittable);
         Assert.False(Blittable<string, StringCodec>.IsBlittable);
+    }
+
+    // 음수는 실패로 치는 코덱(IsPlainCopy 를 밝히지 않음). 통째 복사로 바꾸면 이 검사를 건너뛴다(리뷰 R1)
+    private readonly struct NonNegativeCodec : IByteCodec<int>
+    {
+        public static void Write(ref ByteWriter writer, int value)
+        {
+            if (value < 0)
+            {
+                writer.Fail();
+                return;
+            }
+            writer.Write(value);
+        }
+
+        public static int Read(ref ByteReader reader) => reader.Read<int>();
+    }
+
+    // 범위 밖 값(0~100 밖)이면 읽을 때 예외를 던지는 코덱. 아무 바이트로 써 보면 타입 초기화가 영원히 실패한다(리뷰 R2)
+    private readonly struct PercentCodec : IByteCodec<int>
+    {
+        public static void Write(ref ByteWriter writer, int value) => writer.Write(value);
+
+        public static int Read(ref ByteReader reader)
+        {
+            var value = reader.Read<int>();
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 100);
+            return value;
+        }
+    }
+
+    [Fact]
+    public void CodecWithoutPlainCopyKeepsItsOwnRules()
+    {
+        Assert.False(Blittable<int, NonNegativeCodec>.IsBlittable);
+        Assert.False(Blittable<int, PercentCodec>.IsBlittable); // 판별이 예외를 던지지 않는다
+
+        var output = new ArrayBufferWriter<byte>();
+        var writer = new ByteWriter(output);
+        writer.Write<int[], ArrayCodec<int, NonNegativeCodec>>([1, -2]);
+        Assert.False(writer.IsValid);
+
+        var percents = new ArrayBufferWriter<byte>();
+        var percentWriter = new ByteWriter(percents);
+        percentWriter.Write<int[], ArrayCodec<int, PercentCodec>>([0, 55, 100]);
+        var reader = new ByteReader(percents.WrittenSpan);
+        Assert.Equal([0, 55, 100], reader.Read<int[], ArrayCodec<int, PercentCodec>>());
+        Assert.True(reader.IsValid);
     }
 
     // 한 번에 쓴 바이트 = 필드마다 쓴 바이트(형식이 바뀌지 않는다. C++ 과 주고받는 근거)

@@ -15,6 +15,10 @@ public interface IByteCodec<T>
 {
     static abstract void Write(ref ByteWriter writer, T value);
     static abstract T Read(ref ByteReader reader);
+
+    // 값을 검사·변환하지 않고 T 의 필드를 메모리 순서 그대로 쓰고 읽는 코덱이라는 약속(C++ SERIALIZE_FIELDS 자리).
+    // true 로 밝힌 코덱만 Blittable 판별 후보가 된다. 기본형 코덱과 CodeGen 이 만든 코덱이 밝힌다.
+    static virtual bool IsPlainCopy => false;
 }
 
 // ---- 통째 복사(blittable) 판별. C++ Base::Blittable 자리 ----
@@ -25,12 +29,14 @@ public interface IByteCodec<T>
 // 순서가 다르거나, 빈틈·빠진 필드가 있거나, bool(1 로 바꿔 쓴다)이 있으면 달라서 false 다. 2 부터 채우는 것은 bool 자리에
 // 0·1 이 와서 우연히 같아지지 않게, 무늬 두 개(주기 200, 199)는 멀리 떨어진 같은 크기 필드가 바뀐 것도 잡으려는 것이다.
 // 참조가 있는 타입(클래스, string 이 든 struct)은 늘 false. 결과는 static readonly 라 JIT 가 상수로 접는다.
+// 써 보는 것은 코덱이 IsPlainCopy 로 밝힌 경우뿐이다(리뷰 R1·R2): 값을 검사하는 코덱은 무늬 두 개로는 검사를 건너뛰는지
+// 알 수 없고, 범위가 있는 값의 코덱은 아무 바이트나 넣으면 예외를 던져 이 타입 초기화가 영원히 실패한다.
 public static class Blittable<T, TCodec> where TCodec : IByteCodec<T>
 {
     public static readonly bool IsBlittable = Check();
 
     private static bool Check() =>
-        !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && Matches(period: 200) && Matches(period: 199);
+        TCodec.IsPlainCopy && !RuntimeHelpers.IsReferenceOrContainsReferences<T>() && Matches(period: 200) && Matches(period: 199);
 
     private static bool Matches(int period)
     {
@@ -79,12 +85,14 @@ public readonly struct IntegerCodec<T> : IByteCodec<T> where T : unmanaged, IBin
 {
     public static void Write(ref ByteWriter writer, T value) => writer.Write(value);
     public static T Read(ref ByteReader reader) => reader.Read<T>();
+    public static bool IsPlainCopy => true;
 }
 
 public readonly struct EnumCodec<T> : IByteCodec<T> where T : unmanaged, Enum
 {
     public static void Write(ref ByteWriter writer, T value) => writer.WriteEnum(value);
     public static T Read(ref ByteReader reader) => reader.ReadEnum<T>();
+    public static bool IsPlainCopy => true;
 }
 
 public readonly struct BoolCodec : IByteCodec<bool>
@@ -97,12 +105,14 @@ public readonly struct SingleCodec : IByteCodec<float>
 {
     public static void Write(ref ByteWriter writer, float value) => writer.Write(value);
     public static float Read(ref ByteReader reader) => reader.ReadSingle();
+    public static bool IsPlainCopy => true;
 }
 
 public readonly struct DoubleCodec : IByteCodec<double>
 {
     public static void Write(ref ByteWriter writer, double value) => writer.Write(value);
     public static double Read(ref ByteReader reader) => reader.ReadDouble();
+    public static bool IsPlainCopy => true;
 }
 
 public readonly struct StringCodec : IByteCodec<string>
@@ -117,6 +127,7 @@ public readonly struct RuidCodec : IByteCodec<Ruid>
 {
     public static void Write(ref ByteWriter writer, Ruid value) => writer.Write(value.Value);
     public static Ruid Read(ref ByteReader reader) => new(reader.Read<long>());
+    public static bool IsPlainCopy => true;
 }
 
 // ---- 값이 있을 수도 없을 수도 (C++ std::optional: bool(있음) + 값) ----

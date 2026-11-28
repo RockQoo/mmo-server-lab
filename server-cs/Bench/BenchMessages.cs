@@ -80,6 +80,8 @@ internal readonly record struct Slot(uint ItemId, uint Count, ulong Uid);
 
 internal readonly struct SlotCodec : IByteCodec<Slot>
 {
+    public static bool IsPlainCopy => true;
+
     public static void Write(ref ByteWriter writer, Slot value)
     {
         writer.Write(value.ItemId);
