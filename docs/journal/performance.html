@@ -538,7 +538,7 @@ static Action ToJob(Action&lt;Envelope&gt; h, Envelope e)
 </table></div>
 <ul>
 <li><b>통째 복사 조건(컴파일 검사):</b> ① 필드가 모두 blittable(<code>bool</code>을 뺀 정수·실수·enum, 또는 같은 조건을 통과한 클래스) ② 선언 순서대로 적었다(필드 주소가 적은 순서대로 커진다) ③ 필드 크기 합 = <code>sizeof</code>(빠진 필드도 빈틈도 없다). 하나라도 아니면 지금처럼 필드마다 써서 바이트는 늘 같다. 빠른 길을 꼭 타야 하는 타입은 <code>static_assert(Base::Blittable&lt;T&gt;)</code>로 지킨다. 테스트: 순서 바꿈, 빠진 필드, 중복, 빈틈, <code>bool</code>, <code>string</code>은 거절, <code>float</code>·enum·중첩 구조체는 통과. 한 번에 쓴 바이트 = 필드마다 쓴 바이트, 두 언어 정답 hex 파일 통과.</li>
-<li><b>C#은 컴파일할 때 검사할 수 없어서</b>(코덱은 그냥 함수라 필드 순서를 모른다) 타입마다 처음 한 번 메모리를 서로 다른 바이트(2, 3, 4 …)로 채워, 코덱으로 쓴 것과 읽은 것이 그 메모리와 같은지 본다. 결과는 <code>static readonly bool</code>이라 JIT가 상수로 접는다.</li>
+<li><b>C#은 컴파일할 때 검사할 수 없어서</b>(코덱은 그냥 함수라 필드 순서를 모른다) 타입마다 처음 한 번 메모리를 서로 다른 바이트(2, 3, 4 …)로 채워, 코덱으로 쓴 것과 읽은 것이 그 메모리와 같은지 본다. 결과는 <code>static readonly bool</code>이라 JIT가 상수로 접는다. <b>써 보는 것은 코덱이 <code>IsPlainCopy => true</code>로 "검사·변환 없이 필드를 그대로 쓴다"고 밝힌 경우뿐이다</b>(Codex 리뷰 R1·R2. C++ <code>SERIALIZE_FIELDS</code> 자리). 처음 판은 모든 코덱을 써 봤는데, 음수를 실패로 치는 코덱은 무늬 두 개로는 통과해 통째 복사가 그 검사를 건너뛰었고, 범위 밖 값에 예외를 던지는 코덱은 타입 초기화가 영원히 실패했다. 기본형 코덱과 CodeGen이 만드는 코덱만 밝힌다.</li>
 <li><b>읽기 안전:</b> 바이트가 개수만큼 없으면 <code>vector</code>를 늘리기 전에 실패한다(거짓 개수로 큰 메모리를 잡지 못하게). <code>bool</code>을 빼는 이유도 안전이다(2 같은 값을 <code>bool</code>에 그대로 복사하면 미정의 동작).</li>
 </ul>
 <h3>C++과 C#이 다른 곳과 이유</h3>

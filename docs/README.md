@@ -57,3 +57,4 @@
 | [009-objectpool.html](units/009-objectpool.html) | Memory: ObjectPool(반납 때 Reset, 스레드 캐시 + 전역 묶음), C++ 풀 vs C# DefaultObjectPool·new, 측정 틀 ThreadTeam |
 | [010-scheduling.html](units/010-scheduling.html) | Scheduling: TimerHeap(시각 순서 약속 목록), Scheduler(타이머 → 담당 Lane), 힙 vs 휠 벤치, SetCurrentThreadName, 정수 고정 폭 규칙 |
 | [011-metrics.html](units/011-metrics.html) | Metrics: MetricCounter(칸 나누기 카운터), LatencyHistogram(528칸, p99), ScopedTimer, MetricsReporter(로그 한 줄), C# MetricsCollector(BCL Meter) |
+| [012-serialization-optimization.html](units/012-serialization-optimization.html) | 직렬화 최적화: WriteBytes·ReadBytes 인라인, 통째 복사(Blittable) 배열 memcpy 한 번. Inventory 쓰기 789 → 13ns, C# IsPlainCopy(리뷰 R1·R2) |

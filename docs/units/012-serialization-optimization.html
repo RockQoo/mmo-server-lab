@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>012 직렬화 최적화</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>012 · 직렬화 최적화: 인라인, 통째 복사(Blittable)</h1>
+<p class="sub">C++ · C# · 2026-11-28 · 커밋 <code>194f20a</code> ~ <code>8717d3d</code></p>
+
+<div class="card">
+<p><strong>무엇을 했나.</strong> 970바이트 인벤토리 패킷(칸 60개 × 필드 3개)을 쓰는 데 C++ 789ns, 읽는 데 958ns가 들었다(<code>performance.html</code> 사례 10, 계획 D). 원인을 하나씩 나눠 재며 두 단계로 고쳤다. ① 바이트 쓰기·읽기 함수를 헤더로 옮겨 인라인하고 쓰기는 <code>vector::insert</code> 대신 <code>resize + memcpy</code>, ② 메모리를 그대로 복사해도 같은 바이트인 타입(<strong>Blittable</strong>)은 배열을 <code>memcpy</code> 한 번으로. 쓰기는 <strong>789 → 12.9ns(61배)</strong>, C#도 208 → 10.5ns가 됐다.</p>
+<p><strong>바이트 형식은 바뀌지 않는다.</strong> 통째 복사는 "필드마다 쓴 바이트와 같을 때만" 쓰는 빠른 길이라, 두 언어 정답 hex 파일 테스트가 그대로 통과한다. <code>SERIALIZE_FIELDS</code> 쓰는 법과 CodeGen이 만들 코드도 그대로다.</p>
+</div>
+
+<h2>정한 것</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>결정</th><th>이유</th></tr>
+<tr><td>① 인라인</td><td>C++ <code>WriteBytes</code>·<code>ReadBytes</code>를 <code>.cpp</code>에서 헤더로. 쓰기는 <code>resize</code> 뒤 <code>memcpy</code></td><td>필드마다 다른 번역 단위 함수를 불러 인라인이 안 됐다. 인라인만 하면 읽기는 줄었는데 쓰기는 그대로라 <code>insert</code>가 원인임을 따로 확인했다</td></tr>
+<tr><td>C#에는 ① 없음</td><td>바꾸지 않음</td><td>C# 필드 하나 쓰기는 약 1.3ns로 이미 JIT가 인라인한다(측정)</td></tr>
+<tr><td>② 통째 복사 판별(C++)</td><td>concept <code>Base::Blittable&lt;T&gt;</code>. <code>bool</code>을 뺀 기본형, 또는 <code>SERIALIZE_FIELDS</code> 클래스 중 필드가 모두 blittable · 선언 순서 그대로(필드 주소가 커지는 순서, consteval 비교) · 필드 크기 합 = <code>sizeof</code></td><td>컴파일할 때 정해져 실행 비용이 없다. 하나라도 아니면 예전처럼 필드마다 써서 바이트는 늘 같다. 따로 매크로를 두지 않고 <code>SERIALIZE_FIELDS</code> 하나가 알아서 고른다(꼭 빠른 길이어야 하면 <code>static_assert(Base::Blittable&lt;T&gt;)</code>)</td></tr>
+<tr><td>② 통째 복사 판별(C#)</td><td><code>Blittable&lt;T, TCodec&gt;.IsBlittable</code>: 코덱이 <code>IsPlainCopy => true</code>로 밝혔을 때만, 타입마다 처음 한 번 메모리를 무늬(2, 3, 4 …, 주기 200·199)로 채워 코덱으로 쓴 것·읽은 것과 비교. <code>static readonly</code></td><td>C# 코덱은 그냥 함수라 필드 순서를 컴파일할 때 알 수 없다. JIT가 결과를 상수로 접어 분기도 사라진다. 써 보는 범위는 리뷰 R1·R2로 좁혔다(아래)</td></tr>
+<tr><td>빠른 길이 쓰이는 곳</td><td>C++ 객체 자신, <code>vector</code>·<code>array</code>·<code>T[N]</code>. C# 배열·<code>List</code>(<code>CollectionsMarshal</code>)</td><td>패킷 안 반복 칸이 비용의 대부분이다</td></tr>
+<tr><td>읽기 안전</td><td>바이트가 개수만큼 없으면 <code>resize</code> 전에 실패. <code>bool</code>은 통째 복사 안 함</td><td>거짓 개수로 큰 메모리를 잡지 못하게. 2 같은 값을 <code>bool</code>에 그대로 넣으면 미정의 동작</td></tr>
+</table></div>
+
+<h2>흐름</h2>
+<div class="diagram">
+<svg viewBox="0 0 960 250" role="img" aria-label="직렬화 경로 선택">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+<rect class="d-box" x="20" y="95" width="170" height="60" rx="8"/>
+<text class="d-t" x="105" y="120" text-anchor="middle">writer.Write(inventory)</text>
+<text class="d-m" x="105" y="140" text-anchor="middle">vector&lt;Slot&gt; / List&lt;Slot&gt;</text>
+<rect class="d-box" x="250" y="85" width="230" height="80" rx="8"/>
+<text class="d-t" x="365" y="112" text-anchor="middle">Slot 이 Blittable 인가?</text>
+<text class="d-m" x="365" y="132" text-anchor="middle">C++ concept (컴파일할 때)</text>
+<text class="d-m" x="365" y="150" text-anchor="middle">C# IsPlainCopy + 처음 한 번 써 보기</text>
+<rect class="d-ok" x="560" y="30" width="370" height="70" rx="8"/>
+<text class="d-t" x="745" y="58" text-anchor="middle">예: 개수 + memcpy 한 번 (960B)</text>
+<text class="d-m" x="745" y="80" text-anchor="middle">C++ 789 → 12.9ns · C# 208 → 10.5ns</text>
+<rect class="d-box" x="560" y="150" width="370" height="70" rx="8"/>
+<text class="d-t" x="745" y="178" text-anchor="middle">아니오: 칸마다 필드마다 (예전 길)</text>
+<text class="d-m" x="745" y="200" text-anchor="middle">① 인라인 덕에 789 → 250ns</text>
+<path class="d-line" d="M190,125 L248,125"/>
+<path class="d-line" d="M480,110 L558,68"/>
+<path class="d-line" d="M480,140 L558,182"/>
+<text class="d-m" x="745" y="243" text-anchor="middle">두 길의 바이트는 같다 (정답 hex 파일, BlockWriteMatchesFieldByFieldBytes)</text>
+</svg>
+</div>
+
+<h2>클래스</h2>
+<div class="table-wrap"><table>
+<tr><th>클래스</th><th>하는 일</th><th>주요 함수</th></tr>
+<tr><td><code>Blittable&lt;T&gt;</code> <span class="tag cpp">C++</span></td><td>concept. 메모리를 그대로 복사해도 필드마다 쓴 것과 같은 바이트인 타입. <code>SERIALIZE_FIELDS</code>가 만드는 <code>IsBlittableLayout&lt;Self&gt;()</code>(consteval)로 필드 순서·크기 합을 본다</td><td><code>Detail::IsBlittable&lt;T&gt;()</code>, <code>Detail::IsPackedInOrder</code></td></tr>
+<tr><td><code>ByteWriter</code>·<code>ByteReader</code> <span class="tag cpp">C++</span></td><td>인라인 <code>WriteBytes</code>·<code>ReadBytes</code>. <code>if constexpr (Blittable&lt;T&gt;)</code>면 객체·연속 컨테이너를 한 번에</td><td><code>WriteSequence</code>, <code>ReadSequence</code>, <code>ReadFixedArray</code></td></tr>
+<tr><td><code>Blittable&lt;T, TCodec&gt;</code> <span class="tag cs">C#</span></td><td>타입·코덱 쌍마다 처음 한 번 판별한 결과(<code>static readonly bool</code>)</td><td><code>IsBlittable</code></td></tr>
+<tr><td><code>IByteCodec&lt;T&gt;.IsPlainCopy</code> <span class="tag cs">C#</span></td><td><code>static virtual</code>, 기본 false. "값을 검사·변환하지 않고 필드를 그대로 쓴다"는 코덱의 약속. 기본형 코덱(정수, enum, float, double, Ruid)과 CodeGen 코덱이 true</td><td>-</td></tr>
+<tr><td><code>ArrayCodec</code>·<code>ListCodec</code> <span class="tag cs">C#</span></td><td><code>IsBlittable</code>이면 <code>BlittableBytes.Of</code>(복사 없는 바이트 보기)로 한 번에 쓰고 읽음</td><td><code>Write</code>, <code>Read</code></td></tr>
+</table></div>
+
+<h2>같은 역할, 다른 방법</h2>
+<div class="table-wrap"><table>
+<tr><th>역할</th><th>C++</th><th>C#</th></tr>
+<tr><td>판별 시점</td><td class="cpp">컴파일할 때(concept, consteval)</td><td class="cs">타입마다 처음 한 번 실행(써 보고 비교), 결과는 JIT 상수</td></tr>
+<tr><td>후보가 되는 조건</td><td class="cpp"><code>SERIALIZE_FIELDS</code>로 필드를 적은 클래스(손으로 쓴 <code>Write</code>는 후보 아님)</td><td class="cs">코덱이 <code>IsPlainCopy => true</code>로 밝힘</td></tr>
+<tr><td>필드 순서 확인</td><td class="cpp">필드 주소가 적은 순서대로 커지는지</td><td class="cs">무늬로 채운 메모리와 코덱이 쓴 바이트가 같은지</td></tr>
+<tr><td>빈틈·빠진 필드</td><td class="cpp">필드 크기 합 = <code>sizeof</code></td><td class="cs">쓴 바이트 수와 내용이 메모리와 같은지</td></tr>
+<tr><td>① 인라인</td><td class="cpp">필요(<code>.cpp</code> 함수 → 헤더)</td><td class="cs">필요 없음(JIT가 이미 인라인)</td></tr>
+</table></div>
+
+<h2>벤치마크</h2>
+<p class="muted">그림, 원인 분석, 30초 답변은 <code>docs/journal/performance.html</code> 사례 10. 모두 5회 중앙값, 같은 날 세 상태를 다시 빌드해 연달아 쟀다(PC 부하 7~22%).</p>
+<div class="table-wrap"><table>
+<tr><th>C++ (ns)</th><th>고치기 전</th><th>① 인라인</th><th>② 통째 복사</th></tr>
+<tr><td>Move 쓰기 / 읽기</td><td>21.4 / 15.3</td><td>9.4 / 2.4</td><td><strong>3.6 / 1.8~2.2</strong></td></tr>
+<tr><td>Chat 쓰기 / 읽기</td><td>15.8 / 74</td><td>10.5 / 72.7</td><td>10.3~12.1 / 69.6~89</td></tr>
+<tr><td>Inventory 쓰기 / 읽기</td><td>789 / 958</td><td>250 / 327</td><td><strong>12.9~16.4 / 110~121</strong></td></tr>
+<tr><td>Inventory 읽기, 객체 다시 씀</td><td>-</td><td>-</td><td>22.7</td></tr>
+</table></div>
+<div class="table-wrap" style="margin-top:12px"><table>
+<tr><th>C# (ns)</th><th>고치기 전</th><th>② 통째 복사</th></tr>
+<tr><td>Move 쓰기 / 읽기</td><td>6.3 / 5.0</td><td>6.4 / 5.1</td></tr>
+<tr><td>Chat 쓰기 / 읽기</td><td>12.7 / 19.6</td><td>12.7 / 19.4</td></tr>
+<tr><td>Inventory 쓰기 / 읽기</td><td>208 / 104</td><td><strong>10.5 / 27.3</strong></td></tr>
+</table></div>
+<ul>
+<li><b>Inventory 읽기 C++ 110 vs C# 27ns:</b> C++은 새 <code>vector</code>(960B)를 반복마다 <code>malloc</code>·<code>free</code>한다. 객체를 다시 쓰면 22.7ns라 약 87ns가 할당 비용이다(<code>ReadReuse</code> 벤치를 추가해 확인). C#은 GC 힙 할당이 싸고 비용이 나중에 GC로 온다.</li>
+<li><b>Chat 읽기 C++ 70 vs C# 20ns:</b> 이번에 바꾸지 않았다. UTF-8 검사 차이(BCL SIMD)로 보이지만 확인 전이라 계획 H에 가설과 합격선(30ns 이하)만 적었다.</li>
+<li><b>Move C++ 3.6 vs C# 6.4ns:</b> C# 벤치의 <code>Move</code>는 클래스(참조 형식)라 통째 복사 대상이 아니다.</li>
+</ul>
+
+<h2>바로잡음</h2>
+<ul>
+<li><b>빈틈 검사:</b> 계획 D에 적은 <code>has_unique_object_representations</code>는 <code>float</code>이 든 구조체를 늘 거절해서 쓰지 않았다. 크기 합 = <code>sizeof</code> 검사가 빈틈까지 잡는다.</li>
+<li><b>C# 첫 측정(Inventory 쓰기 842ns)은 벤치 틀 문제였다.</b> 메시지를 제네릭 함수로 부르면(T가 클래스라 공유 코드, 인라인 안 됨) Move가 7.3 → 16.1ns, <code>ByteWriter</code>를 돌려주는 도우미 함수가 6.4 → 14.3ns를 더했다. <code>CodecBench</code>로 바로 부르게 고치고 전후를 같은 틀로 다시 쟀다(<code>0bfe5dd</code>). 처음 추측("C#에는 ①이 필요 없다")이 맞았다.</li>
+</ul>
+
+<h2>테스트</h2>
+<div class="table-wrap"><table>
+<tr><th>확인하는 것</th><th>C++ gtest</th><th>C# xUnit</th></tr>
+<tr><td>판별: 정수·실수·enum·중첩 구조체는 통과, 순서 바꿈·빠진 필드·빈틈·<code>bool</code>·<code>string</code>은 거절</td><td><code>static_assert</code>(Slot, Vec3, Unit / Reordered, Missing, Duplicated, Padded, WithBool, Named)</td><td><code>DecidesBlittableTypes</code></td></tr>
+<tr><td>한 번에 쓴 바이트 = 필드마다 쓴 바이트</td><td><code>BlockWriteMatchesFieldByFieldBytes</code></td><td><code>BlockWriteMatchesFieldByFieldBytes</code></td></tr>
+<tr><td>통째 읽기 왕복</td><td><code>BlockReadRoundTrips</code></td><td><code>BlockReadRoundTrips</code></td></tr>
+<tr><td>바이트가 모자라면 늘리기 전에 실패</td><td><code>ShortBufferFailsWithoutGrowing</code></td><td><code>ShortBufferFails</code></td></tr>
+<tr><td>약속을 밝히지 않은 코덱은 자기 규칙 그대로(검사 실패, 예외 없음) (R1·R2)</td><td>-(손으로 쓴 <code>Write</code>는 후보가 아님)</td><td><code>CodecWithoutPlainCopyKeepsItsOwnRules</code></td></tr>
+<tr><td>두 언어 같은 바이트</td><td colspan="2">기존 정답 hex 파일 테스트 그대로 통과</td></tr>
+</table></div>
+
+<h2>결과</h2>
+<ul>
+<li>C++: Base 정적 라이브러리 변경 + <code>BlittableTest</code>. Release 경고 0, lint 0, gtest 169개(debug 171개) 통과. Bench: <code>MessageCodec/Inventory/ReadReuse</code> 추가</li>
+<li>C#: Base 변경 + <code>BlittableTest</code> 5개. xUnit 96개 통과, lint OK. Bench: <code>CodecBench</code>(메시지를 바로 부르는 틀), <code>BenchMessages.cs</code>로 메시지 분리</li>
+</ul>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap"><table>
+<tr><th>차수</th><th>범위</th><th>결과</th></tr>
+<tr><td>1차</td><td><code>8c94f61..f725dc0</code>(커밋 5개, 파일 16개: C++ 8, C# 5, docs 3)</td><td>2건, 둘 다 동의, 수정(<code>8717d3d</code>).
+<ul>
+<li><b>R1</b>(medium) C#이 모든 코덱을 무늬 두 개로 써 보고 같으면 통째 복사로 바꿔, 값을 검사하는 코덱(음수면 <code>Fail</code>)의 검사를 건너뛸 수 있다.</li>
+<li><b>R2</b>(medium) 아무 바이트로 사용자 코덱을 돌리다 예외가 나면 <code>static readonly</code> 초기화가 실패해, 그 타입의 배열은 계속 <code>TypeInitializationException</code>.</li>
+</ul>
+→ <code>IByteCodec&lt;T&gt;.IsPlainCopy</code>(기본 false)를 밝힌 코덱만 써 본다. C++이 <code>SERIALIZE_FIELDS</code> 클래스만 후보로 보는 것과 같은 모양. 고친 줄을 빼면 새 테스트가 실패하는 것을 확인했다. (리뷰가 든 DateTime 예는 무늬 값이 유효 범위 안이라 재현되지 않아, 0~100만 받는 코덱으로 테스트했다)</td></tr>
+<tr><td>2차</td><td><code>f725dc0..8717d3d</code>(커밋 1개, 파일 3개: C# 3)</td><td>0건</td></tr>
+</table></div>
+
+<h2>나중에</h2>
+<ul>
+<li>계획 H: C++ Chat 읽기 70ns(UTF-8 검사) 원인 확인과 개선.</li>
+<li><code>IntegerArrayCodec</code>은 이제 <code>ArrayCodec&lt;T, IntegerCodec&lt;T&gt;&gt;</code>가 같은 속도라 지울지 본다.</li>
+<li>CodeGen(8번)이 만드는 C# 코덱에 <code>IsPlainCopy => true</code>를 넣는다(필드를 선언 순서대로 그대로 쓰는 코덱만).</li>
+</ul>
+
+<h2>다음</h2>
+<p>PROGRESS 개발 순서의 8 CodeGen(<code>proto/</code> → C++·C# 코드 생성).</p>
+</main>
+</body>
+</html>
