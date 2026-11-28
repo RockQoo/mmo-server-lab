@@ -4,7 +4,8 @@
   "dependencies": [
     "benchmark",
     "gtest",
-    "magic-enum"
+    "magic-enum",
+    "nlohmann-json"
   ],
   "builtin-baseline": "8f363bdc11359ede4bc51e5eb32a2617538049c8"
 }

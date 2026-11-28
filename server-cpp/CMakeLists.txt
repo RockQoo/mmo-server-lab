@@ -73,6 +73,8 @@ add_library(Base STATIC
     Core/Base/ByteTraits.h
     Core/Base/ByteWriter.cpp
     Core/Base/ByteWriter.h
+    Core/Base/ConfigReader.cpp
+    Core/Base/ConfigReader.h
     Core/Base/Ruid.h
     Core/Base/RuidGenerator.cpp
     Core/Base/RuidGenerator.h
@@ -84,6 +86,11 @@ add_library(Base STATIC
 )
 target_include_directories(Base PUBLIC ${CORE_DIR})
 target_link_libraries(Base PUBLIC dbghelp) # MiniDumpWriteDump(CrashDump)
+# 설정 읽기(ConfigReader). DIAGNOSTICS: 오류 글에 JSON 위치(/network/port)를 붙인다. 이 정의는 쓰는 모든 곳이 같아야 해서 PUBLIC.
+# IMPLICIT_CONVERSIONS=0: json → 값 변환을 get<T>() 로만 하게 해서 모르게 바뀌는 일을 막는다.
+find_package(nlohmann_json CONFIG REQUIRED)
+target_link_libraries(Base PUBLIC nlohmann_json::nlohmann_json)
+target_compile_definitions(Base PUBLIC JSON_DIAGNOSTICS=1 JSON_USE_IMPLICIT_CONVERSIONS=0)
 set_target_properties(Base PROPERTIES FOLDER Core/Base)
 
 add_executable(BaseTests
@@ -93,6 +100,7 @@ add_executable(BaseTests
     Core/Base/Tests/CrashDumpTest.cpp
     Core/Base/Tests/ByteFormatTest.cpp
     Core/Base/Tests/ByteRWTest.cpp
+    Core/Base/Tests/ConfigReaderTest.cpp
     Core/Base/Tests/RuidGeneratorTest.cpp
     Core/Base/Tests/RuidTest.cpp
     Core/Base/Tests/StrongIdTest.cpp

@@ -22,6 +22,7 @@ vcpkg·NuGet에 있다는 것은 "빌드가 된다"는 확인일 뿐 코드 품�
 |---|---|---|---|---|---|
 | GoogleTest | 단위 테스트 | ✗ | 2026-11-17 | ★ 3.98만, 2015~, BSD-3 (11-27) | C++ 테스트의 사실상 표준 |
 | magic_enum (`magic-enum`) | enum ↔ 이름 문자열(로그 카테고리, 이후 상태·설정 값) | ✓ (Log) | 2026-11-27 (vcpkg 0.9.8) | ★ 6,256, 2019~, MIT(LICENSE 확인) (11-27). **예외**: 사용량 선(1만) 미달이지만 헤더 하나라 복사해서 쓰는 경우가 많아 스타가 실제 사용량보다 적게 보인다. C++26 리플렉션을 MSVC가 지원하면 바꾼다 | C++에는 enum 이름을 얻는 표준 기능이 없다. 대안(이름 표+static_assert, X-macro, Boost.Describe)은 enum 을 고치거나 값을 두 번 적어야 한다 |
+| nlohmann/json (`nlohmann-json`) | JSON 읽기(설정 `Base::ConfigReader`, 이후 프로토콜 스키마·기획 데이터) | ✓ (Base) | 2026-11-28 (vcpkg 3.12.0) | ★ 5.1만, 2013~, MIT(LICENSE.MIT 확인), 최근 커밋 11-27 (11-28) | C++ 표준에 JSON 파서가 없다. C++ JSON 라이브러리 중 가장 많이 쓴다. 데이터 형식을 JSON 하나로 맞춘 이유도 이것(C++ YAML·XML 라이브러리는 사용량 선 미달, `docs/journal/codegen.html`) |
 | Google Benchmark (`benchmark`) | 마이크로 벤치마크(`server-cpp/Bench`) | ✗ | 2026-11-26 | ★ 1.05만, 2013~, Apache-2.0 (11-27) | C++ 마이크로 벤치마크의 사실상 표준. 반복 횟수·워밍업·스레드별 측정과 합산을 처리한다 |
 
 ## C# (NuGet)
@@ -42,6 +43,5 @@ vcpkg·NuGet에 있다는 것은 "빌드가 된다"는 확인일 뿐 코드 품�
 | 라이브러리 | 언어 | 단위 | 수치(2026-11-27) |
 |---|---|---|---|
 | ~~spdlog (+ fmt)~~ | C++ | Log | ★ 2.98만, 2014~. **쓰지 않음(2026-11-27)**: C# Serilog 와 같은 기능(카테고리 enum + 키·값)을 Lane 위에 직접 만들었다(`Core/Log`) |
-| nlohmann/json | C++ | Config | ★ 5.1만, 2013~, MIT |
 | Dapper | C# | DB(4단계) 후보 | 8.5억 다운로드, Apache-2.0 |
 | Quill | C++ | Log 대안 | ★ 3.1천, 2020~ — 사용량 선 미달. spdlog가 느릴 때만 다시 본다 |
