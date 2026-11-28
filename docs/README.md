@@ -59,3 +59,4 @@
 | [010-scheduling.html](units/010-scheduling.html) | Scheduling: TimerHeap(시각 순서 약속 목록), Scheduler(타이머 → 담당 Lane), 힙 vs 휠 벤치, SetCurrentThreadName, 정수 고정 폭 규칙 |
 | [011-metrics.html](units/011-metrics.html) | Metrics: MetricCounter(칸 나누기 카운터), LatencyHistogram(528칸, p99), ScopedTimer, MetricsReporter(로그 한 줄), C# MetricsCollector(BCL Meter) |
 | [012-serialization-optimization.html](units/012-serialization-optimization.html) | 직렬화 최적화: WriteBytes·ReadBytes 인라인, 통째 복사(Blittable) 배열 memcpy 한 번. Inventory 쓰기 789 → 13ns, C# IsPlainCopy(리뷰 R1·R2) |
+| [013-configreader.html](units/013-configreader.html) | ConfigReader: JSON 설정을 엄격하게 읽기(빠진 키·오타 키·범위 밖 값·무한대·원소 null 은 실패). C++ 은 넣기 전에 검사(리뷰 R1~R3 로 "읽은 뒤 비교" 방식 바로잡음), C# 은 STJ 옵션 + setter 감싸기 |

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>013 ConfigReader</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #5d6670; --line: #d8dbe0;
+  --accent: #2f6fde; --accent-soft: #e8f0fd;
+  --cpp: #2f6fde; --cpp-soft: #e8f0fd; --cs: #7a4fd6; --cs-soft: #f0ebfb;
+  --ok: #1f8a4c; --ok-soft: #e7f5ec; --warn: #b54708; --warn-soft: #fdf0e6;
+  --code: #f1f2f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+    --accent: #6ea2ff; --accent-soft: #1f2b40;
+    --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+    --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+    --code: #262a30;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16181c; --card: #1e2127; --text: #e6e8eb; --muted: #9aa3ad; --line: #343941;
+  --accent: #6ea2ff; --accent-soft: #1f2b40;
+  --cpp: #6ea2ff; --cpp-soft: #1f2b40; --cs: #b69cf5; --cs-soft: #2a2340;
+  --ok: #5cc98a; --ok-soft: #1b2e23; --warn: #f0a060; --warn-soft: #33251a;
+  --code: #262a30;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.65 "Pretendard", "Malgun Gothic", system-ui, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+.tag.cpp { background: var(--cpp-soft); color: var(--cpp); }
+.tag.cs { background: var(--cs-soft); color: var(--cs); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.card.cpp { border-top: 3px solid var(--cpp); }
+.card.cs { border-top: 3px solid var(--cs); }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.cpp { border-left: 3px solid var(--cpp); }
+td.cs { border-left: 3px solid var(--cs); }
+ul { padding-left: 20px; margin: 6px 0; }
+.diagram { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+.d-cpp { fill: var(--cpp-soft); stroke: var(--cpp); stroke-width: 1.5; }
+.d-cs { fill: var(--cs-soft); stroke: var(--cs); stroke-width: 1.5; }
+.d-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+.d-t { fill: var(--text); font-size: 13px; font-family: inherit; }
+.d-m { fill: var(--muted); font-size: 11.5px; font-family: inherit; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.d-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>013 · ConfigReader: JSON 설정을 엄격하게 읽기</h1>
+<p class="sub">C++ · C# · 2026-11-28 · 커밋 <code>8b8c40c</code> ~ <code>18ef7c9</code></p>
+
+<div class="card">
+<p><strong>무엇을 했나.</strong> 서버가 시작할 때 JSON 설정 파일을 한 번 읽어 타입이 정해진 구조체(C#은 클래스)로 바꾸는 <code>Base::ConfigReader</code>를 만들었다. 포트, IOCP·Lane 수처럼 재빌드 없이 바꿀 값을 담을 틀이고, 처음 쓰는 곳은 다음 단위 Network와 ZoneServer <code>main</code>이다. <strong>읽기만</strong> 한다(쓰기, 실행 중 다시 읽기 없음).</p>
+<p><strong>엄격하게 읽는다(안전 &gt; 편의).</strong> 오타 키 하나, 범위 밖 숫자 하나가 조용히 무시되거나 잘려 들어가면 서버가 엉뚱한 값으로 뜬다. 두 언어 모두 같은 파일을 같은 규칙으로 읽고, 이상하면 위치를 적어 시작을 멈춘다.</p>
+</div>
+
+<h2>정한 것</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>결정</th><th>이유</th></tr>
+<tr><td>형식</td><td>JSON. 주석 허용, 끝 쉼표 금지</td><td>데이터 형식은 JSON 하나로 통일(CLAUDE.md, <code>journal/codegen.html</code>). C++·C# 모두 라이브러리 기준을 넘는 형식이 JSON뿐이다. 끝 쉼표는 두 언어가 확실히 같게 읽도록 막는다</td></tr>
+<tr><td>값 꺼내기</td><td>타입 구조체(<code>config.port</code>)</td><td>키 문자열(<code>Get&lt;int&gt;("port")</code>)은 오타가 실행해야 드러난다</td></tr>
+<tr><td>실패로 보는 것</td><td>빠진 키, 알 수 없는 키(오타), 담을 수 없는 값(70000 → <code>uint16_t</code>, -1 → 부호 없는 정수, 1.5·<code>true</code> → 정수, 1e100 → float), 타입 다름, 컬렉션 원소 <code>null</code>, 문법 오류</td><td>시작할 때 한 번이라 엄격해도 비용이 없다. 틀린 설정으로 뜨는 것이 가장 비싸다</td></tr>
+<tr><td>구조체는 누가</td><td>쓰는 쪽(<code>NetworkConfig</code>는 Network, <code>ZoneServerConfig</code>는 ZoneServer)</td><td>Core는 게임과 서버를 모른다. <code>ConfigReader</code>는 "JSON → 어떤 구조체든"만 한다</td></tr>
+<tr><td>C++ 라이브러리</td><td>nlohmann/json 3.12.0(vcpkg), <strong>파싱만</strong> 맡긴다</td><td>표준에 JSON 파서가 없다. 값 변환은 직접 검사한다(아래, 리뷰 R1~R3)</td></tr>
+<tr><td>C# 라이브러리</td><td>BCL <code>System.Text.Json</code></td><td>설치할 것이 없다. 옵션과 타입 정보 수정자로 같은 규칙이 된다</td></tr>
+<tr><td>키 이름</td><td>camelCase(C++ 필드 그대로, C#은 <code>JsonNamingPolicy.CamelCase</code>)</td><td>두 서버가 같은 파일을 읽는다</td></tr>
+</table></div>
+
+<h2>흐름</h2>
+<div class="diagram">
+<svg viewBox="0 0 960 300" role="img" aria-label="ConfigReader 흐름: 파일을 읽고 파싱한 뒤 필드마다 종류와 범위를 검사하고 넣는다. 하나라도 틀리면 위치를 적은 오류로 시작을 멈춘다">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+<rect class="d-box" x="20" y="40" width="160" height="60" rx="8"/>
+<text class="d-t" x="100" y="66" text-anchor="middle">zone.json</text>
+<text class="d-m" x="100" y="86" text-anchor="middle">주석 허용</text>
+<rect class="d-box" x="230" y="40" width="190" height="60" rx="8"/>
+<text class="d-t" x="325" y="66" text-anchor="middle">파싱</text>
+<text class="d-m" x="325" y="86" text-anchor="middle">C++ nlohmann · C# STJ</text>
+<rect class="d-cpp" x="470" y="20" width="230" height="100" rx="8"/>
+<text class="d-t" x="585" y="46" text-anchor="middle">필드마다 검사 → 넣기</text>
+<text class="d-m" x="585" y="66" text-anchor="middle">키: 빠짐·모름(오타)</text>
+<text class="d-m" x="585" y="84" text-anchor="middle">값: 종류·범위·유한·null</text>
+<text class="d-m" x="585" y="102" text-anchor="middle">구조체·vector 는 안으로 내려감</text>
+<rect class="d-ok" x="750" y="20" width="190" height="60" rx="8"/>
+<text class="d-t" x="845" y="46" text-anchor="middle">NetworkConfig</text>
+<text class="d-m" x="845" y="66" text-anchor="middle">서버가 그대로 씀</text>
+<rect class="d-box" x="750" y="110" width="190" height="80" rx="8"/>
+<text class="d-t" x="845" y="136" text-anchor="middle">오류 글 → 시작 멈춤</text>
+<text class="d-m" x="845" y="156" text-anchor="middle">zone.json: /lanes/0/count</text>
+<text class="d-m" x="845" y="174" text-anchor="middle">is missing</text>
+<path class="d-line" d="M180,70 L228,70"/>
+<path class="d-line" d="M420,70 L468,70"/>
+<path class="d-line" d="M700,50 L748,50"/>
+<path class="d-line" d="M700,100 L748,140"/>
+<path class="d-line" d="M325,100 L325,150 L748,150"/>
+<text class="d-m" x="460" y="168">문법 오류(끝 쉼표 포함)</text>
+<rect class="d-box" x="20" y="215" width="920" height="70" rx="8"/>
+<text class="d-t" x="40" y="242">C++ 은 <tspan font-weight="600">넣기 전에</tspan> 검사한다: 정수 자리는 정수 JSON 만, 64비트 값으로 꺼내 대상 타입 범위를 본 뒤에만 바꾼다</text>
+<text class="d-m" x="40" y="264">범위 밖 실수를 정수로 static_cast 하는 것은 C++ 에서 정의되지 않은 동작이라, 넣은 뒤 비교하는 방식으로는 막을 수 없다(리뷰 R2)</text>
+</svg>
+</div>
+
+<h2>클래스</h2>
+<div class="table-wrap"><table>
+<tr><th>이름</th><th>하는 일</th><th>주요 함수</th></tr>
+<tr><td><code>ConfigReader</code> <span class="tag cpp">C++</span></td><td>파일·글 → <code>T</code>. 실패는 <code>std::expected&lt;T, std::string&gt;</code>(파일 이름과 위치가 붙은 오류 글)</td><td><code>Read&lt;T&gt;(path)</code>, <code>Parse&lt;T&gt;(text, sourceName)</code></td></tr>
+<tr><td><code>CONFIG_FIELDS(...)</code> <span class="tag cpp">C++</span></td><td>구조체 안에 적는 매크로(<code>SERIALIZE_FIELDS</code>와 같은 모양). <code>ReadConfig</code>를 만들어 키 검사 후 필드를 적은 순서대로 읽는다. 이름은 <code>#__VA_ARGS__</code> 글에서 잘라 쓴다</td><td><code>Detail::ReadConfigFields</code>, <code>Detail::ReadConfigValue</code></td></tr>
+<tr><td><code>ConfigStruct</code> <span class="tag cpp">C++</span></td><td>concept. <code>CONFIG_FIELDS</code>를 가진 구조체</td><td>-</td></tr>
+<tr><td><code>ConfigReader</code> <span class="tag cs">C#</span></td><td>정적 클래스. 실패는 <code>InvalidDataException</code>(앞에 파일 경로), 파일 없음은 <code>FileNotFoundException</code></td><td><code>Read&lt;T&gt;(path)</code>, <code>Parse&lt;T&gt;(text, sourceName)</code></td></tr>
+</table></div>
+<pre><code>// C++
+struct NetworkConfig
+{
+    uint16_t port{};
+    int32_t laneCount{};
+    CONFIG_FIELDS(port, laneCount)
+};
+auto config = Base::ConfigReader::Read&lt;NetworkConfig&gt;("zone.json");
+if (!config) { /* config.error() 를 로그에 남기고 종료 */ }
+
+// C#
+public sealed class NetworkConfig
+{
+    public ushort Port { get; init; }
+    public int LaneCount { get; init; }
+}
+var config = ConfigReader.Read&lt;NetworkConfig&gt;("zone.json");</code></pre>
+
+<h2>같은 역할, 다른 방법</h2>
+<div class="table-wrap"><table>
+<tr><th>규칙</th><th>C++</th><th>C#</th></tr>
+<tr><td>필드 정하기</td><td class="cpp"><code>CONFIG_FIELDS(port, laneCount)</code></td><td class="cs">속성이 곧 키(따로 적지 않음). <code>init</code> 속성으로 쓴다</td></tr>
+<tr><td>빠진 키</td><td class="cpp">필드마다 <code>find</code>, 없으면 <code>/path is missing</code></td><td class="cs">타입 정보 수정자로 <strong>모든 속성을 필수</strong>로(<code>required</code>를 적지 않아도). 빼면 테스트가 실패하는 것 확인</td></tr>
+<tr><td>알 수 없는 키</td><td class="cpp">객체의 키가 모두 적은 이름 안에 있는지</td><td class="cs"><code>JsonUnmappedMemberHandling.Disallow</code></td></tr>
+<tr><td>범위 밖 정수, 실수 → 정수</td><td class="cpp">정수 JSON만 받고 64비트로 꺼내 범위 확인 뒤 변환</td><td class="cs">BCL 기본 동작이 실패</td></tr>
+<tr><td>float 에 담을 수 없는 값</td><td class="cpp"><code>numeric_limits&lt;T&gt;::max/lowest</code>로 확인</td><td class="cs">BCL 은 <strong>∞ 로 받는다</strong>(직접 확인) → setter 를 감싸 유한값만</td></tr>
+<tr><td><code>null</code></td><td class="cpp">타입이 다르니 실패(<code>expected object</code>)</td><td class="cs"><code>RespectNullableAnnotations</code> + 컬렉션 원소는 setter 감싸기(리뷰 R4)</td></tr>
+<tr><td>실패 전달</td><td class="cpp"><code>std::expected</code>(예외를 밖으로 던지지 않음)</td><td class="cs">예외(시작할 때 한 번이라 C#에서 자연스럽다)</td></tr>
+</table></div>
+
+<h2>바로잡음</h2>
+<ul>
+<li><b>C++ 첫 방식("읽은 뒤 다시 JSON으로 만들어 원본과 비교")은 틀렸다.</b> 비교 하나로 알 수 없는 키와 잘린 값을 다 잡는다고 적었지만, nlohmann 은 부호가 섞인 정수를 <code>int64</code>로 바꿔 비교해 -1 과 <code>UINT64_MAX</code>를 같다고 보고(R1), 범위 밖 실수 → 정수는 비교 전에 이미 정의되지 않은 동작이며(R2), float 무한대는 양쪽이 같아 통과했다(R3). 넣기 전에 검사하는 방식으로 다시 썼다(<code>117bc99</code>). 덕분에 <code>CONFIG_FIELDS</code>에 타입 이름이 필요 없어졌다.</li>
+<li><b>C#도 R3 과 같은 구멍이 있었다.</b> C++ 리뷰에서 나온 입력(<code>tickSeconds: 1e100</code>)을 C# 테스트에도 넣자 실패해, System.Text.Json 이 float 1e100 과 double 1e400 을 오류 없이 ∞ 로 받는 것을 작은 프로그램으로 확인했다.</li>
+</ul>
+
+<h2>테스트</h2>
+<div class="table-wrap"><table>
+<tr><th>확인하는 것</th><th>C++ gtest</th><th>C# xUnit</th></tr>
+<tr><td>중첩 구조체·vector·주석 읽기, 정수를 float 자리에</td><td><code>ReadsNestedStructsWithComments</code>, <code>IntegerForFloatFieldIsFine</code></td><td><code>ReadsNestedClassesWithComments</code>, <code>IntegerForFloatFieldIsFine</code></td></tr>
+<tr><td>빠진 키, 알 수 없는 키(중첩 안 포함)</td><td><code>MissingKeyFails</code>, <code>UnknownKeyFails</code></td><td>같은 이름</td></tr>
+<tr><td>담을 수 없는 값: 70000, -1, 1.5, <code>true</code>, 1e100(정수), ±1e100(float)</td><td><code>ValueThatDoesNotFitFails</code></td><td>같은 이름</td></tr>
+<tr><td>64비트 끝값은 받고 부호 틀린 값은 거절(R1)</td><td><code>SixtyFourBitLimits</code></td><td>같은 이름</td></tr>
+<tr><td>타입 다름, <code>lanes: [null]</code>(R4), 최상위가 객체 아님</td><td><code>WrongTypeFails</code></td><td>같은 이름</td></tr>
+<tr><td><code>path</code>·<code>json</code> 이름 필드, <code>vector&lt;bool&gt;</code>(2차 R1·R2)</td><td><code>FieldsNamedPathOrJsonAndBoolVector</code></td><td>-(C#에는 해당 없음)</td></tr>
+<tr><td>문법 오류, 끝 쉼표, 파일 읽기, 없는 파일</td><td><code>SyntaxErrorAndTrailingCommaFail</code>, <code>ReadsFileAndReportsMissingFile</code></td><td>같은 이름</td></tr>
+</table></div>
+
+<h2>결과</h2>
+<ul>
+<li>C++: <code>Base/ConfigReader.h·.cpp</code> + 테스트 10개. vcpkg <code>nlohmann-json</code> 추가(<code>docs/libraries.md</code>). release 경고 0, lint 0, gtest 179개(debug 181개) 통과</li>
+<li>C#: <code>Base/ConfigReader.cs</code> + 테스트 9개. 테스트용 설정 클래스는 리플렉션으로 만들어져 <code>CA1812</code>를 그 클래스에만 이유와 함께 끔. xUnit 105개 통과, lint OK</li>
+</ul>
+
+<h2>Codex 리뷰</h2>
+<div class="table-wrap"><table>
+<tr><th>차수</th><th>범위</th><th>결과</th></tr>
+<tr><td>1차</td><td><code>622a216..4c112aa</code>(커밋 2개, 파일 9개: C++ 5, C# 2, docs 2)</td><td>4건, 모두 동의, 수정(<code>117bc99</code>).
+<ul>
+<li><b>R1</b>(medium) <code>uint64</code>에 -1, <code>int64</code>에 <code>UINT64_MAX</code>가 비교를 통과한다(nlohmann 부호 섞인 비교).</li>
+<li><b>R2</b>(medium) 범위 밖 실수를 정수로 바꾸는 것이 비교보다 먼저라 정의되지 않은 동작.</li>
+<li><b>R3</b>(medium) float 에 1e100 이 무한대로 통과.</li>
+<li><b>R4</b>(medium) C# 컬렉션 원소 <code>null</code>은 <code>RespectNullableAnnotations</code>가 보지 않는다(MS 문서의 제한).</li>
+</ul>
+→ C++ 은 넣기 전에 검사로 다시 씀, C# 은 setter 감싸기(원소 <code>null</code> + 무한대). 두 검사를 빼면 테스트 2개가 실패하는 것 확인</td></tr>
+<tr><td>2차</td><td><code>4c112aa..117bc99</code>(커밋 1개, 파일 7개: C++ 4, C# 2, docs 1)</td><td>2건, 모두 동의, 수정(<code>18ef7c9</code>).
+<ul>
+<li><b>R1</b>(medium) <code>vector&lt;bool&gt;</code> 필드가 컴파일되지 않는다(원소가 <code>bool&amp;</code>가 아닌 프록시) → 원소를 지역 변수로 읽고 <code>push_back</code>.</li>
+<li><b>R2</b>(medium) 매크로가 만든 함수의 매개변수 <code>path</code>·<code>json</code>이 같은 이름 필드를 가린다 → 겹치기 어려운 이름으로.</li>
+</ul></td></tr>
+<tr><td>3차</td><td><code>117bc99..18ef7c9</code>(커밋 1개, 파일 2개: C++ 2)</td><td>0건</td></tr>
+</table></div>
+
+<h2>나중에</h2>
+<ul>
+<li>같은 키가 두 번 나오면 두 언어 모두 마지막 값으로 덮는다(같은 동작이라 지금은 둠). 막을지는 설정 파일이 커질 때 본다.</li>
+<li>enum 필드(<code>"logLevel": "Info"</code>)는 쓰는 곳이 생기면 이름으로 읽는다(C++ magic_enum).</li>
+<li>시간 길이 필드(<code>std::chrono</code> / <code>TimeSpan</code>)도 쓰는 곳이 생길 때.</li>
+</ul>
+
+<h2>다음</h2>
+<p>PROGRESS 개발 순서의 9 Network(1단계의 핵심. 패킷 머리 모양, 패킷은 손으로 쓰고 CodeGen은 그 뒤 검토).</p>
+</main>
+</body>
+</html>
