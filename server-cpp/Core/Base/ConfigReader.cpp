@@ -6,6 +6,29 @@
 
 namespace Base::Detail
 {
+    namespace
+    {
+        // "a, b, c" 의 다음 이름을 잘라 낸다. pos 는 다음 이름의 시작으로 옮겨진다.
+        std::string_view NextName(const std::string_view names, std::size_t& pos)
+        {
+            while (pos < names.size() && (names[pos] == ' ' || names[pos] == ','))
+            {
+                ++pos;
+            }
+            const auto start = pos;
+            while (pos < names.size() && names[pos] != ',' && names[pos] != ' ')
+            {
+                ++pos;
+            }
+            return names.substr(start, pos - start);
+        }
+
+        std::string_view ShowPath(const std::string& path)
+        {
+            return path.empty() ? std::string_view{"/"} : std::string_view{path};
+        }
+    } // namespace
+
     std::expected<nlohmann::json, std::string> ParseConfigJson(const std::string_view text)
     {
         // 콜백 없음, 예외 끔(실패하면 discarded 값), 주석 허용. 끝 쉼표는 기본으로 금지다.
@@ -32,55 +55,45 @@ namespace Base::Detail
         return text;
     }
 
-    std::string FindConfigMismatch(const nlohmann::json& source, const nlohmann::json& written, const std::string& path)
+    std::string CheckConfigKeys(const nlohmann::json& json, const std::string& path, const std::string_view names)
     {
-        if (source.is_object() && written.is_object())
+        if (!json.is_object())
         {
-            // 빠진 키는 get<T>() 가 먼저 막는다. 여기서는 원본에만 있는 키(오타)를 찾는다.
-            for (const auto& [key, value] : source.items())
-            {
-                const auto child = path + "/" + key;
-                const auto found = written.find(key);
-                if (found == written.end())
-                {
-                    return std::format("unknown key {}", child);
-                }
-                if (auto mismatch = FindConfigMismatch(value, *found, child); !mismatch.empty())
-                {
-                    return mismatch;
-                }
-            }
-            return {};
+            return ConfigTypeError(json, path, "object");
         }
-        if (source.is_array() && written.is_array())
+        for (const auto& [key, value] : json.items())
         {
-            if (source.size() != written.size())
+            auto known = false;
+            auto pos = std::size_t{};
+            for (auto name = NextName(names, pos); !name.empty(); name = NextName(names, pos))
             {
-                return std::format("{} has {} elements, expected {}", path.empty() ? "/" : path, source.size(),
-                                   written.size());
-            }
-            for (auto i = std::size_t{}; i < source.size(); ++i)
-            {
-                if (auto mismatch = FindConfigMismatch(source[i], written[i], std::format("{}/{}", path, i));
-                    !mismatch.empty())
+                if (name == key)
                 {
-                    return mismatch;
+                    known = true;
+                    break;
                 }
             }
-            return {};
+            if (!known)
+            {
+                return std::format("unknown key {}/{}", path, key);
+            }
         }
-        // float 필드: 0.1 은 float 로 담으면 0.100000001 로 돌아온다. float 정밀도에서 같으면 같은 값으로 본다.
-        if (source.is_number_float() && written.is_number_float() &&
-            static_cast<float>(source.get<double>()) == static_cast<float>(written.get<double>()))
+        return {};
+    }
+
+    std::string_view ConfigFieldName(const std::string_view names, const std::size_t index)
+    {
+        auto pos = std::size_t{};
+        auto name = NextName(names, pos);
+        for (auto i = std::size_t{}; i < index; ++i)
         {
-            return {};
+            name = NextName(names, pos);
         }
-        // 숫자끼리는 타입이 달라도 값으로 비교한다(5 == 5.0). 숫자와 bool 은 다른 값이다(1 != true).
-        if (source == written)
-        {
-            return {};
-        }
-        return std::format("{} value {} does not fit (read as {})", path.empty() ? "/" : path, source.dump(),
-                           written.dump());
+        return name;
+    }
+
+    std::string ConfigTypeError(const nlohmann::json& json, const std::string& path, const std::string_view expected)
+    {
+        return std::format("{} expected {}, got {}", ShowPath(path), expected, json.dump());
     }
 } // namespace Base::Detail

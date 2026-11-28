@@ -83,6 +83,33 @@ public class ConfigReaderTest
         ExpectError("""{ "port": -1, "verbose": false, "tickSeconds": 1, "lanes": [] }""", "$.port");
         ExpectError("""{ "port": 1.5, "verbose": false, "tickSeconds": 1, "lanes": [] }""", "$.port");
         ExpectError("""{ "port": true, "verbose": false, "tickSeconds": 1, "lanes": [] }""", "$.port");
+        // C++ 리뷰 R2·R3 과 같은 입력: 범위 밖 실수 → 정수, float 에 담을 수 없는 값
+        ExpectError("""{ "port": 1e100, "verbose": false, "tickSeconds": 1, "lanes": [] }""", "$.port");
+        ExpectError("""{ "port": 1, "verbose": false, "tickSeconds": 1e100, "lanes": [] }""", "$.tickSeconds");
+        ExpectError("""{ "port": 1, "verbose": false, "tickSeconds": -1e100, "lanes": [] }""", "$.tickSeconds");
+    }
+
+    [SuppressMessage("Performance", "CA1812", Justification = "System.Text.Json 이 리플렉션으로 만든다")]
+    private sealed class WideConfig
+    {
+        public ulong U { get; init; }
+        public long I { get; init; }
+    }
+
+    // C++ 리뷰 R1 과 같은 입력: 64비트 끝값은 받고, 부호가 맞지 않는 값은 거절한다.
+    [Fact]
+    public void SixtyFourBitLimits()
+    {
+        var edge = ConfigReader.Parse<WideConfig>("""{ "u": 18446744073709551615, "i": -9223372036854775808 }""", "test.json");
+        Assert.Equal(ulong.MaxValue, edge.U);
+        Assert.Equal(long.MinValue, edge.I);
+
+        var negative = Assert.Throws<InvalidDataException>(
+            () => ConfigReader.Parse<WideConfig>("""{ "u": -1, "i": 0 }""", "test.json"));
+        Assert.Contains("$.u", negative.Message, StringComparison.Ordinal);
+        var tooBig = Assert.Throws<InvalidDataException>(
+            () => ConfigReader.Parse<WideConfig>("""{ "u": 0, "i": 18446744073709551615 }""", "test.json"));
+        Assert.Contains("$.i", tooBig.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -93,6 +120,8 @@ public class ConfigReaderTest
         ExpectError("""{ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": {} }""", "$.lanes");
         ExpectError("""{ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": [ { "name": null, "count": 1 } ] }""",
             "name");
+        // 리뷰 R4: 컬렉션 원소 null(RespectNullableAnnotations 가 보지 않는 곳)
+        ExpectError("""{ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": [ null ] }""", "lanes");
     }
 
     [Fact]

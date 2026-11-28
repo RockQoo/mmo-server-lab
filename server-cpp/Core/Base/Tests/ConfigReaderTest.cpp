@@ -16,7 +16,15 @@ namespace
     {
         std::string name{};
         int32_t count{};
-        CONFIG_FIELDS(LaneConfig, name, count)
+        CONFIG_FIELDS(name, count)
+    };
+
+    // 64비트 끝값(리뷰 R1: nlohmann 의 부호 섞인 비교는 -1 과 UINT64_MAX 를 같다고 본다)
+    struct WideConfig
+    {
+        uint64_t u{};
+        int64_t i{};
+        CONFIG_FIELDS(u, i)
     };
 
     struct TestConfig
@@ -25,7 +33,7 @@ namespace
         bool verbose{};
         float tickSeconds{};
         std::vector<LaneConfig> lanes{};
-        CONFIG_FIELDS(TestConfig, port, verbose, tickSeconds, lanes)
+        CONFIG_FIELDS(port, verbose, tickSeconds, lanes)
     };
 
     constexpr auto Valid = R"({
@@ -68,8 +76,9 @@ TEST(ConfigReader, IntegerForFloatFieldIsFine)
 
 TEST(ConfigReader, MissingKeyFails)
 {
-    ExpectError(R"({ "port": 1, "verbose": false, "lanes": [] })", "tickSeconds");
-    ExpectError(R"({ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": [ { "name": "zone" } ] })", "count");
+    ExpectError(R"({ "port": 1, "verbose": false, "lanes": [] })", "/tickSeconds is missing");
+    ExpectError(R"({ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": [ { "name": "zone" } ] })",
+                "/lanes/0/count is missing");
 }
 
 TEST(ConfigReader, UnknownKeyFails)
@@ -82,17 +91,44 @@ TEST(ConfigReader, UnknownKeyFails)
 
 TEST(ConfigReader, ValueThatDoesNotFitFails)
 {
-    ExpectError(R"({ "port": 70000, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port value 70000");
-    ExpectError(R"({ "port": -1, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port value -1");
-    ExpectError(R"({ "port": 1.5, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port value 1.5");
-    ExpectError(R"({ "port": true, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port value true");
+    ExpectError(R"({ "port": 70000, "verbose": false, "tickSeconds": 1, "lanes": [] })",
+                "/port value 70000 is out of range");
+    ExpectError(R"({ "port": -1, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port value -1 is out of range");
+    ExpectError(R"({ "port": 1.5, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port expected integer");
+    ExpectError(R"({ "port": true, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port expected integer");
+    // 리뷰 R2: 범위 밖 실수 → 정수는 바꾸기 전에 거절한다(static_cast 하면 정의되지 않은 동작)
+    ExpectError(R"({ "port": 1e100, "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port expected integer");
+    // 리뷰 R3: float 에 담을 수 없는 값(바꾸면 무한대)
+    ExpectError(R"({ "port": 1, "verbose": false, "tickSeconds": 1e100, "lanes": [] })", "/tickSeconds value");
+    ExpectError(R"({ "port": 1, "verbose": false, "tickSeconds": -1e100, "lanes": [] })", "/tickSeconds value");
+}
+
+TEST(ConfigReader, SixtyFourBitLimits)
+{
+    const auto edge =
+        ConfigReader::Parse<WideConfig>(R"({ "u": 18446744073709551615, "i": -9223372036854775808 })", "test.json");
+    ASSERT_TRUE(edge.has_value()) << edge.error();
+    EXPECT_EQ(edge->u, UINT64_MAX);
+    EXPECT_EQ(edge->i, INT64_MIN);
+
+    const auto negativeUnsigned = ConfigReader::Parse<WideConfig>(R"({ "u": -1, "i": 0 })", "test.json");
+    ASSERT_FALSE(negativeUnsigned.has_value());
+    EXPECT_NE(negativeUnsigned.error().find("/u value -1 is out of range"), std::string::npos)
+        << negativeUnsigned.error();
+
+    const auto tooBigSigned = ConfigReader::Parse<WideConfig>(R"({ "u": 0, "i": 18446744073709551615 })", "test.json");
+    ASSERT_FALSE(tooBigSigned.has_value());
+    EXPECT_NE(tooBigSigned.error().find("/i value 18446744073709551615 is out of range"), std::string::npos)
+        << tooBigSigned.error();
 }
 
 TEST(ConfigReader, WrongTypeFails)
 {
-    ExpectError(R"({ "port": "7000", "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port");
-    ExpectError(R"({ "port": 1, "verbose": 1, "tickSeconds": 1, "lanes": [] })", "/verbose");
-    ExpectError(R"({ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": {} })", "/lanes");
+    ExpectError(R"({ "port": "7000", "verbose": false, "tickSeconds": 1, "lanes": [] })", "/port expected integer");
+    ExpectError(R"({ "port": 1, "verbose": 1, "tickSeconds": 1, "lanes": [] })", "/verbose expected bool");
+    ExpectError(R"({ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": {} })", "/lanes expected array");
+    ExpectError(R"({ "port": 1, "verbose": false, "tickSeconds": 1, "lanes": [ null ] })", "/lanes/0 expected object");
+    ExpectError(R"([ 1 ])", "/ expected object");
 }
 
 TEST(ConfigReader, SyntaxErrorAndTrailingCommaFail)
