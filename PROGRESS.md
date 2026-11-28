@@ -38,12 +38,12 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 | 5 | Timer(예약 실행, 고정 틱 루프) | Scheduling | 틱 R&D(노트 계획 G), ZoneServer 바탕. Network와 순서 바꿔도 된다. ✅ 2026-11-28: C++ `TimerHeap`·`Scheduler`(타이머 스레드 + Lane `Post`), C# `Scheduler`(BCL `TimeProvider.CreateTimer` + `Lane.TryPost`), `Base::SetCurrentThreadName`. 힙 vs 휠 벤치 → `TimerHeap` 유지(performance.html 사례 15). namespace는 C# `System.Threading.Timer`와 겹쳐 `Scheduling`. 고정 틱 루프는 ZoneServer 때(`Scheduler::Every`로 충분한지). 다음: 리뷰 |
 | 6 | Metrics(카운터, 지연 히스토그램) | Metrics | 부하 테스트의 틱 지연 p99, GC 비교(노트 계획 F). ✅ 2026-11-28: C++ `MetricCounter`(칸 16개)·`LatencyHistogram`(528칸)·`ScopedTimer`·`MetricsReporter`, C# BCL `Meter` 기록 + `MetricsCollector`(`MeterListener`, 칸 16개)·같은 528칸·`ScopedTimer`·`MetricsReporter`. 칸 나누기로 16스레드 C++ 25배, C# 15배(performance.html 사례 16). 측정 비용: 시계 18/16ns, 기록 8.5/7.3ns. 다음: 리뷰 |
 | 7 | 직렬화 필드 비용(노트 계획 D) | Base | 패킷마다 쓰인다. ✅ 2026-11-28: ① C++ `WriteBytes`·`ReadBytes` 인라인 + 쓰기 `resize`·`memcpy` ② 통째 복사(C++ `Base::Blittable` 컴파일 검사, C# `Blittable<T, TCodec>` 처음 한 번 비교) → Inventory 쓰기 C++ 789 → 12.9ns, C# 208 → 10.5ns(performance.html 사례 10). 다음: 리뷰 |
-| 8 | CodeGen | 도구 | 프로토콜보다 먼저(규칙) |
-| 9 | Config | Base | 포트·IOCP·Lane 수를 재빌드 없이 바꾸는 틀. 값은 1단계 봇 부하 테스트로 정한다. 처음 읽는 곳이 Network·ZoneServer `main`이라 Network 바로 앞(2026-11-27 순서 변경). nlohmann/json 설치 확인 |
-| 10 | Network | Network | 1단계의 핵심. BufferPool 3판, 수신 단위 묶어 넣기(결정 004) |
+| ~~8~~ | ~~CodeGen~~ → **보류**(2026-11-28) | 도구 | 쓸 곳(1단계 게임 메시지)이 아직 없고 패킷 머리·ID 규칙은 Network에서 정해진다. Core를 먼저 만들고 패킷은 손으로 쓰다가, 쌓이면 검토(다시 볼 때: C++·C# 두 벌 맞추기가 반복될 때, UE5 클라 붙을 때, 기획 데이터 표 생길 때). 후보(JSON 통일, 원시 문자열 생성, 파일 나누기, ID 분류+번호, Dispatcher 등록)는 `docs/journal/codegen.html` |
+| 8 | Config | Base | 포트·IOCP·Lane 수를 재빌드 없이 바꾸는 틀. 값은 1단계 봇 부하 테스트로 정한다. 처음 읽는 곳이 Network·ZoneServer `main`이라 Network 바로 앞(2026-11-27 순서 변경). nlohmann/json 설치 확인 |
+| 9 | Network | Network | 1단계의 핵심. BufferPool 3판, 수신 단위 묶어 넣기(결정 004) |
 | 11 | DB | DB | 4단계(DbWriter) 때 |
 
-- **1단계 진입 조건**: 위 1, 3~10번. 끝나면 1단계 게임 레이어: 접속 → 로그인(토큰 없음) → 존 입장 → 이동 브로드캐스트(틱 R&D A vs B 실제 비교) → 공격 1종 → 봇 수백~수천 명 첫 부하 테스트 → UE5 뷰어.
+- **1단계 진입 조건**: 위 1, 3~9번. 끝나면 1단계 게임 레이어: 접속 → 로그인(토큰 없음) → 존 입장 → 이동 브로드캐스트(틱 R&D A vs B 실제 비교) → 공격 1종 → 봇 수백~수천 명 첫 부하 테스트 → UE5 뷰어.
 - **틈날 때(막지 않음)**: 풀 N:M 측정(PC가 쉴 때), BufferPool 인라인(노트 계획 C), C# GC 공부(노트 계획 E, Metrics 뒤가 좋다).
 
 ## Core 라이브러리
@@ -94,7 +94,7 @@ Core를 전부 만들고 넘어가지 않는다. **1단계(Gateway ×1 + ZoneSer
 
 | 항목 | 내용 | 상태 |
 |---|---|---|
-| CodeGen | `tools/CodeGen`(C# 콘솔). proto → `server-cpp`, `server-cs`, `client-ue5` 코드 생성 | ⬜ |
+| CodeGen | `tools/CodeGen`(C# 콘솔). proto → `server-cpp`, `server-cs`, `client-ue5` 코드 생성. 보류(2026-11-28): 패킷을 손으로 쓰다가 쌓이면 검토(`docs/journal/codegen.html`) | ⬜ |
 | 기본 QA | C++·C# 빌드·테스트·lint(`qa.json`), CodeGen 재생성 결과가 커밋본과 같은지 | 🔨 (두 언어 빌드·테스트·lint 완료, CodeGen 비교는 CodeGen 만들 때) |
 
 ## 그 다음 (Core를 쓰는 쪽, `docs/decisions/001-server-architecture.md` 단계)

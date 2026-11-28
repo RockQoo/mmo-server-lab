@@ -30,6 +30,7 @@
 | [bufferpool.html](journal/bufferpool.html) | BufferPool 1판(등급마다 mutex)이 왜 느린가, 2판(스레드별 캐시 + 전역 풀) 설계, 송신·수신 버퍼, 3판 후보(Lane 자체 풀) |
 | [objectpool.html](journal/objectpool.html) | ObjectPool: BufferPool과의 관계(형제, 포함), 반납 때 소멸 vs `Reset()`, Reset을 한 줄로 못 쓰는 이유, C++ 풀 vs C# `DefaultObjectPool` vs `new` 측정 |
 | [threading.html](journal/threading.html) | 스레드 구조(초안): 멈추는 성질로 나눈 IO·Logic·Blocking 풀, 데이터마다 주인 Lane 하나, 틱 = 존 Lane 메시지와 틱 끝 브로드캐스트, 입력이 몇 번 와도 같은 처리, DB 저장 두 가지(Fire-and-Forget·확정형)와 결과는 주인에게 Post, 금지 목록, 전용 틱·브로드캐스트 스레드와 비교 |
+| [codegen.html](journal/codegen.html) | CodeGen 검토: 지금 만들지 않는 이유(쓸 곳 없음, Network 결정에 기댐), 할 일(타입·enum·패킷 ID·상수·프로토콜 해시), 형식 JSON 통일(두 언어 라이브러리 기준), 생성 방식(C# 원시 문자열), 파일 나누기(누가 아는가), ID 분류+번호와 0x80 서버 전용, 처리는 Dispatcher 등록 |
 | [crashdump.html](journal/crashdump.html) | 덤프 분석: WinDbg(cdb)로 C++·C# 덤프를 열어 콜스택 확인, 심볼(pdb) 경로, release pdb가 없던 문제, 데드락 찾는 법(`~*kn`, `!syncblk`), 서버가 죽거나 멈췄을 때 순서 |
 | [messagequeue.html](journal/messagequeue.html) | 메시지 큐: 객체 vs 직렬화한 바이트, 생산자 N → 소비자 M 측정 틀, N:M에서 C++ Lane이 C# Channel보다 느린 이유(가설), "C# Channel은 lock-free"를 소스로 바로잡은 일 |
 
