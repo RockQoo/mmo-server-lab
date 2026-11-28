@@ -131,13 +131,18 @@ namespace Base
                 {
                     return ConfigTypeError(json, path, "array");
                 }
-                T values(json.size());
+                // 원소를 지역 변수로 읽고 옮긴다. vector<bool> 은 values[i] 가 bool& 가 아니라 프록시라 바로 넘길 수
+                // 없다(리뷰 2차 R1).
+                T values;
+                values.reserve(json.size());
                 for (auto i = std::size_t{}; i < json.size(); ++i)
                 {
-                    if (auto error = ReadConfigValue(json[i], values[i], std::format("{}/{}", path, i)); !error.empty())
+                    typename T::value_type element{};
+                    if (auto error = ReadConfigValue(json[i], element, std::format("{}/{}", path, i)); !error.empty())
                     {
                         return error;
                     }
+                    values.push_back(std::move(element));
                 }
                 out = std::move(values);
             }
@@ -219,8 +224,9 @@ namespace Base
 } // namespace Base
 
 // 구조체 안에 적는다. 적은 필드를 JSON 의 같은 이름 키와 잇는다(SERIALIZE_FIELDS 와 같은 모양).
+// 매개변수 이름은 필드 이름과 겹치지 않게 일부러 길게 쓴다(path, json 같은 필드를 가리면 안 된다. 리뷰 2차 R2).
 #define CONFIG_FIELDS(...)                                                                                             \
-    std::string ReadConfig(const nlohmann::json& json, const std::string& path)                                        \
+    std::string ReadConfig(const nlohmann::json& configFieldsJson, const std::string& configFieldsPath)                \
     {                                                                                                                  \
-        return Base::Detail::ReadConfigFields(json, path, #__VA_ARGS__, __VA_ARGS__);                                  \
+        return Base::Detail::ReadConfigFields(configFieldsJson, configFieldsPath, #__VA_ARGS__, __VA_ARGS__);          \
     }

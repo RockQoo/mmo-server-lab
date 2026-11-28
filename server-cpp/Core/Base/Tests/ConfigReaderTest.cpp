@@ -27,6 +27,15 @@ namespace
         CONFIG_FIELDS(u, i)
     };
 
+    // 리뷰 2차: 매크로 매개변수와 같은 이름의 필드(path, json), vector<bool>(프록시 원소)
+    struct EdgeNamesConfig
+    {
+        std::string path{};
+        std::string json{};
+        std::vector<bool> flags{};
+        CONFIG_FIELDS(path, json, flags)
+    };
+
     struct TestConfig
     {
         uint16_t port{};
@@ -120,6 +129,20 @@ TEST(ConfigReader, SixtyFourBitLimits)
     ASSERT_FALSE(tooBigSigned.has_value());
     EXPECT_NE(tooBigSigned.error().find("/i value 18446744073709551615 is out of range"), std::string::npos)
         << tooBigSigned.error();
+}
+
+TEST(ConfigReader, FieldsNamedPathOrJsonAndBoolVector)
+{
+    const auto config = ConfigReader::Parse<EdgeNamesConfig>(
+        R"({ "path": "logs", "json": "a.json", "flags": [ true, false, true ] })", "test.json");
+    ASSERT_TRUE(config.has_value()) << config.error();
+    EXPECT_EQ(config->path, "logs");
+    EXPECT_EQ(config->json, "a.json");
+    EXPECT_EQ(config->flags, (std::vector<bool>{true, false, true}));
+
+    const auto bad = ConfigReader::Parse<EdgeNamesConfig>(R"({ "path": "", "json": "", "flags": [ 1 ] })", "test.json");
+    ASSERT_FALSE(bad.has_value());
+    EXPECT_NE(bad.error().find("/flags/0 expected bool"), std::string::npos) << bad.error();
 }
 
 TEST(ConfigReader, WrongTypeFails)
